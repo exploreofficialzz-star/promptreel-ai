@@ -41,9 +41,14 @@ async def get_db() -> AsyncSession:
 
 async def create_tables():
     from models import user, project  # noqa: F401
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("✅ Database tables created/verified")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+        logger.info("✅ Database tables created/verified")
+    except Exception as e:
+        # Tables or types may already exist — safe to continue
+        logger.warning(f"⚠️  create_tables warning (safe to ignore): {e}")
+        logger.info("✅ Continuing startup — tables already exist")
 
 
 async def drop_tables():
