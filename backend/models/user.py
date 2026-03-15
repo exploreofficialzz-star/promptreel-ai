@@ -18,7 +18,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     password_hash = Column(String(255), nullable=False)
-    plan = Column(SAEnum(PlanType), default=PlanType.FREE, nullable=False)
+    plan = Column(SAEnum(PlanType, native_enum=False), default=PlanType.FREE, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
 
