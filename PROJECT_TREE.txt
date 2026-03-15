@@ -1,0 +1,582 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         PROMPTREEL AI — COMPLETE FILE TREE                  ║
+║                  65 files · ~10,000 lines · Made by chAs Tech Group         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+promptreel-ai/
+│
+├── .github/
+│   └── workflows/
+│       └── build_android.yml          [CI/CD]  GitHub Actions — auto builds APK + AAB
+│                                               Triggers: push to main, any v*.*.* tag
+│                                               Jobs: analyze → build → release → notify
+│                                               Secrets needed: KEYSTORE_BASE64,
+│                                               STORE_PASSWORD, KEY_ALIAS,
+│                                               KEY_PASSWORD, API_BASE_URL
+│
+├── .gitignore                         [Config] Covers Python, Flutter, Android,
+│                                               iOS — never commits .env, keystores,
+│                                               google-services.json, key.properties
+│
+├── README.md                          [Docs]   Full setup guide, API reference,
+│                                               build commands, payment setup,
+│                                               AdMob setup, keystore generation
+│
+│
+├── backend/                           ════════ PYTHON FASTAPI BACKEND ════════
+│   │                                           Deploy target: Render (render.yaml)
+│   │                                           Runtime: Python 3.11 + uvicorn
+│   │                                           DB: PostgreSQL via asyncpg
+│   │
+│   ├── .env.example                   [Config] Template for all 9 AI provider keys,
+│   │                                           DB URL, JWT secret, CORS origins.
+│   │                                           Copy → .env before running.
+│   │
+│   ├── Procfile                       [Deploy] Render process: uvicorn main:app
+│   │                                           with --workers 2
+│   │
+│   ├── render.yaml                    [Deploy] One-click Render blueprint:
+│   │                                           auto-provisions web service +
+│   │                                           PostgreSQL database together
+│   │
+│   ├── requirements.txt               [Deps]   openai · google-generativeai ·
+│   │                                           anthropic · httpx · fastapi ·
+│   │                                           sqlalchemy[asyncio] · asyncpg ·
+│   │                                           python-jose · passlib[bcrypt]
+│   │
+│   ├── config.py                      [Core]   Pydantic Settings — reads .env.
+│   │                                           Defines all 9 AI provider keys:
+│   │                                           OPENAI · ANTHROPIC · GROK ·
+│   │                                           GEMINI · MISTRAL · DEEPSEEK ·
+│   │                                           GROQ · TOGETHER · OPENROUTER
+│   │                                           Also: model names per tier,
+│   │                                           rate limits, CORS, JWT config.
+│   │
+│   ├── database.py                    [Core]   Async SQLAlchemy engine setup.
+│   │                                           AsyncSession factory, get_db()
+│   │                                           dependency, create_tables() on
+│   │                                           startup (no Alembic migration needed).
+│   │
+│   ├── main.py                        [Core]   FastAPI app entry point.
+│   │                                           Mounts all routers under /api.
+│   │                                           CORS + GZip middleware.
+│   │                                           /health endpoint for Render.
+│   │                                           /api/plans returns pricing info.
+│   │                                           Calls create_tables() on startup.
+│   │
+│   ├── models/
+│   │   ├── __init__.py                [Models] Exports User, Project
+│   │   │
+│   │   ├── user.py                    [Model]  SQLAlchemy User table.
+│   │   │                                       Columns: id, email, name,
+│   │   │                                       password_hash, plan (free/creator/
+│   │   │                                       studio), plans_generated_today,
+│   │   │                                       last_generation_date,
+│   │   │                                       total_plans_generated,
+│   │   │                                       subscription_id, is_active.
+│   │   │                                       Properties: is_paid, daily_limit,
+│   │   │                                       max_duration_minutes.
+│   │   │
+│   │   └── project.py                 [Model]  SQLAlchemy Project table.
+│   │                                           Columns: id, user_id (FK), idea,
+│   │                                           content_type, platform, duration,
+│   │                                           generator, generate_image_prompts,
+│   │                                           generate_voice_over, result (JSON),
+│   │                                           status, ai_provider_used,
+│   │                                           total_scenes, clip_duration_seconds.
+│   │
+│   ├── routers/
+│   │   ├── __init__.py                [Router] Empty package init
+│   │   │
+│   │   ├── auth.py                    [Router] POST /api/auth/register
+│   │   │                                       POST /api/auth/login → JWT pair
+│   │   │                                       POST /api/auth/refresh
+│   │   │                                       GET  /api/auth/me
+│   │   │                                       PUT  /api/auth/me (profile update)
+│   │   │                                       Uses bcrypt + python-jose JWT.
+│   │   │                                       Auto token refresh interceptor.
+│   │   │
+│   │   ├── generate.py                [Router] POST /api/generate/
+│   │   │                                       GET  /api/generate/preview
+│   │   │                                       Enforces free plan limits (3/day,
+│   │   │                                       5min max). Passes user.plan to
+│   │   │                                       ai_service for model routing.
+│   │   │                                       Saves result to DB on success.
+│   │   │
+│   │   ├── projects.py                [Router] GET    /api/projects/ (paginated)
+│   │   │                                       GET    /api/projects/:id
+│   │   │                                       DELETE /api/projects/:id
+│   │   │                                       GET    /api/projects/stats/summary
+│   │   │                                       Supports search query param.
+│   │   │
+│   │   └── export.py                  [Router] GET /api/export/:id/zip → ZIP bytes
+│   │                                           GET /api/export/:id/srt → .srt file
+│   │                                           GET /api/export/:id/script → .txt
+│   │
+│   └── services/
+│       ├── __init__.py                [Service] Exports generate_video_plan,
+│       │                                        calculate_scenes, get_clip_duration,
+│       │                                        generate_export_zip
+│       │
+│       ├── ai_service.py              [Service] ★ CORE AI ENGINE ★
+│       │                                        9 provider callers:
+│       │                                        • call_openai()    GPT-4o / 4o-mini
+│       │                                        • call_anthropic() Claude 3.5 Sonnet
+│       │                                        • call_grok()      Grok-2 (x.ai API)
+│       │                                        • call_gemini()    Gemini Pro / Flash
+│       │                                        • call_mistral()   Mistral Large
+│       │                                        • call_deepseek()  DeepSeek-V3
+│       │                                        • call_groq()      Llama 3.3 70B
+│       │                                        • call_together()  Qwen 2.5 72B
+│       │                                        • call_openrouter() Llama free
+│       │
+│       │                                        Plan → chain routing:
+│       │                                        STUDIO:  GPT-4o → Claude → Grok
+│       │                                                 → Gemini Pro → Mistral
+│       │                                        CREATOR: GPT-4o-mini → Grok
+│       │                                                 → Gemini Pro → Mistral
+│       │                                                 → DeepSeek → Groq
+│       │                                        FREE:    Gemini Flash → Groq
+│       │                                                 → DeepSeek → Qwen
+│       │                                                 → OpenRouter → GPT-4o-mini
+│       │
+│       │                                        Missing keys auto-skipped.
+│       │                                        JSON parse + auto-clean.
+│       │                                        Full fallback on any error.
+│       │
+│       └── export_service.py          [Service] Builds ZIP with 12 files:
+│                                                script.txt · scene_breakdown.txt
+│                                                video_prompts.txt · image_prompts.txt
+│                                                voice_over_script.txt · youtube_seo.txt
+│                                                hashtags.txt · thumbnail_prompt.txt
+│                                                titles_and_hook.txt · subtitles.srt
+│                                                production_notes.txt · full_data.json
+│                                                + README.txt
+
+
+├── frontend/                          ════════ FLUTTER APP (Android/iOS/Web) ════════
+│   │
+│   ├── pubspec.yaml                   [Config] Flutter 3.22 · Dart ≥3.3
+│   │                                           State: flutter_riverpod 2.5
+│   │                                           Nav: go_router 14.x
+│   │                                           HTTP: dio 5.x
+│   │                                           Storage: flutter_secure_storage
+│   │                                           UI: google_fonts · flutter_animate
+│   │                                               shimmer · lottie · fl_chart
+│   │                                               gap · badges · iconsax_flutter
+│   │                                           Utils: url_launcher · share_plus
+│   │                                                  path_provider · intl
+│   │                                           Ads: google_mobile_ads 5.x
+│   │
+│   ├── android/                       ════════ ANDROID CONFIGURATION ════════
+│   │   │
+│   │   ├── build.gradle               [Android] Project-level Gradle.
+│   │   │                                        Kotlin 1.9.23 · AGP 8.3.2
+│   │   │                                        google-services 4.4.2
+│   │   │
+│   │   ├── settings.gradle            [Android] Module include + Flutter SDK path
+│   │   │
+│   │   ├── gradle.properties          [Android] JVM 4GB heap · parallel builds ·
+│   │   │                                        Gradle caching · AndroidX · R8
+│   │   │
+│   │   ├── gradle/wrapper/
+│   │   │   └── gradle-wrapper.properties [Android] Gradle 8.4-all distribution
+│   │   │
+│   │   └── app/
+│   │       ├── build.gradle           [Android] App-level config:
+│   │       │                                    namespace: com.chastechgroup.promptreel
+│   │       │                                    applicationId: same
+│   │       │                                    minSdk: 23 (Android 6.0+)
+│   │       │                                    compileSdk: flutter.compileSdkVersion
+│   │       │                                    multiDexEnabled: true
+│   │       │                                    R8 minify + shrinkResources
+│   │       │                                    Signing: reads key.properties OR
+│   │       │                                    CI env vars (KEY_ALIAS etc.)
+│   │       │                                    AdMob App ID via manifestPlaceholders
+│   │       │
+│   │       ├── proguard-rules.pro     [Android] Keep rules for:
+│   │       │                                    Flutter · AdMob · Kotlin Coroutines
+│   │       │                                    SecureStorage · OkHttp
+│   │       │
+│   │       └── src/main/
+│   │           │
+│   │           ├── AndroidManifest.xml [Android] Permissions:
+│   │           │                                  INTERNET · ACCESS_NETWORK_STATE
+│   │           │                                  WRITE_EXTERNAL_STORAGE (≤API28)
+│   │           │                                  READ_MEDIA_IMAGES/VIDEO (API33+)
+│   │           │                                  AD_ID (AdMob personalization)
+│   │           │                                  VIBRATE
+│   │           │                                  Deep link: https://app.promptreel.ai
+│   │           │                                  Custom scheme: promptreel://payment
+│   │           │                                  FileProvider for export sharing
+│   │           │                                  AdMob App ID meta-data
+│   │           │
+│   │           ├── kotlin/com/chastechgroup/promptreel/
+│   │           │   ├── MainActivity.kt      [Kotlin] Flutter entry point.
+│   │           │   │                                  Registers NativeAdFactory
+│   │           │   │                                  "listTile" with GoogleMobileAds.
+│   │           │   │                                  Unregisters on engine cleanup.
+│   │           │   │
+│   │           │   └── NativeAdFactoryListTile.kt [Kotlin] Programmatic native ad
+│   │           │                                           renderer. Builds dark-themed
+│   │           │                                           list-tile card with icon,
+│   │           │                                           headline, body, amber CTA
+│   │           │                                           button. No XML layout needed.
+│   │           │
+│   │           └── res/
+│   │               ├── drawable/
+│   │               │   └── launch_background.xml  [UI] Dark #0A0A0F splash layer-list
+│   │               │
+│   │               ├── drawable-v21/
+│   │               │   └── launch_background.xml  [UI] Vector splash for API 21+
+│   │               │
+│   │               ├── values/
+│   │               │   ├── strings.xml            [UI] app_name = "PromptReel AI"
+│   │               │   └── styles.xml             [UI] LaunchTheme (dark, no title bar)
+│   │               │                                   NormalTheme (post-first-frame)
+│   │               │                                   Both set statusBar transparent,
+│   │               │                                   navBar to #0A0A0F (dark)
+│   │               │
+│   │               └── xml/
+│   │                   ├── network_security_config.xml [Android] HTTPS enforced in prod.
+│   │                   │                                          Cleartext allowed only
+│   │                   │                                          for localhost + 10.0.2.2
+│   │                   │
+│   │                   └── file_paths.xml              [Android] FileProvider paths for
+│   │                                                              Downloads, cache, files
+│
+│
+│   └── lib/                           ════════ FLUTTER DART SOURCE ════════
+│       │
+│       ├── main.dart                  [Entry]  App entry point.
+│       │                                       Initializes AdMob SDK.
+│       │                                       Sets SystemUI overlay (dark status bar,
+│       │                                       dark nav bar).
+│       │                                       Wraps app in ProviderScope.
+│       │                                       Applies MediaQuery text scale clamp
+│       │                                       (0.8–1.2x) for consistent layout.
+│       │                                       Sets preferred orientations.
+│       │
+│       ├── config/
+│       │   └── app_config.dart        [Config] All app-wide constants:
+│       │                                       • API base URL (dart-define injectable)
+│       │                                       • Storage keys for secure storage
+│       │                                       • AdMob unit IDs (banner, interstitial,
+│       │                                         rewarded, native — test IDs included)
+│       │                                       • planAiModels map (chain per plan)
+│       │                                       • contentTypes list (10 types + icons)
+│       │                                       • platforms list (6 platforms + colors)
+│       │                                       • durations list (1/3/5/10/20 min)
+│       │                                       • generators list (7 generators + clips)
+│       │                                       • affiliateLinks map
+│       │
+│       ├── theme/
+│       │   └── app_theme.dart         [Theme]  Full design system:
+│       │                                       AppColors — background #0A0A0F,
+│       │                                         primary (amber #FFB830),
+│       │                                         secondary (teal #00E5CC),
+│       │                                         surface/elevated/highlight,
+│       │                                         gradients (primary, secondary,
+│       │                                         background, card)
+│       │                                       AppTypography — Syne (display/headers)
+│       │                                         + Inter (body) + JetBrains Mono (code)
+│       │                                       AppSpacing — xs/sm/md/lg/xl/xxl/xxxl
+│       │                                       AppRadius — xs through full (999)
+│       │                                       AppShadows — primary glow, card, glow
+│       │                                       AppTheme.dark — full Material3 theme
+│       │                                         with all component themes configured
+│       │
+│       ├── router/
+│       │   └── app_router.dart        [Router] GoRouter with auth redirect guards.
+│       │                                       Routes:
+│       │                                       /login          → LoginScreen
+│       │                                       /home           → HomeScreen
+│       │                                       /create         → CreateScreen
+│       │                                       /results/:id    → ResultsScreen
+│       │                                       /projects       → ProjectsScreen
+│       │                                       /tools          → ToolsScreen
+│       │                                       /settings       → SettingsScreen
+│       │                                       /settings/plans → PlansScreen
+│       │                                       /settings/ai-models → AiModelsScreen
+│       │                                       Auto-redirect: unauthed → /login,
+│       │                                       authed + /login → /home
+│       │
+│       ├── models/
+│       │   ├── user_model.dart        [Model]  UserModel — all user fields.
+│       │   │                                   Properties: isFree, isCreator,
+│       │   │                                   isStudio, plansRemaining.
+│       │   │                                   fromJson / toJson / copyWith.
+│       │   │
+│       │   └── project_model.dart     [Model]  Full nested model tree:
+│       │                                       ProjectModel
+│       │                                       └── VideoResult
+│       │                                           ├── VideoTitles (6 platforms)
+│       │                                           ├── List<SceneItem>
+│       │                                           │     time_start/end, visual,
+│       │                                           │     narration, mood, transition
+│       │                                           ├── List<VideoPromptItem>
+│       │                                           │     prompt, negative, camera,
+│       │                                           │     lighting, style_tags
+│       │                                           ├── List<ImagePromptItem>
+│       │                                           │     midjourney, sd, leonardo,
+│       │                                           │     dall_e, purpose
+│       │                                           ├── YouTubeSeo
+│       │                                           │     title, description, tags[]
+│       │                                           ├── HashtagSet
+│       │                                           │     primary/secondary/niche/trending
+│       │                                           └── ProductionNotes
+│       │                                               total_scenes, pro_tips[]
+│       │
+│       ├── services/
+│       │   ├── api_service.dart       [Service] Dio HTTP client.
+│       │   │                                    Base URL from AppConfig (dart-define).
+│       │   │                                    Auto token injection via interceptor.
+│       │   │                                    Auto token refresh on 401.
+│       │   │                                    Methods: register, login, logout,
+│       │   │                                    getMe, generateVideoplan, getProjects,
+│       │   │                                    getProject, deleteProject, getStats,
+│       │   │                                    exportProjectZip/Script/Srt, getPlans.
+│       │   │                                    Static extractError() for user-friendly
+│       │   │                                    error messages.
+│       │   │
+│       │   └── ad_service.dart        [Service] ★ AD ENGINE ★ Singleton AdService.
+│       │                                        Manages all 4 ad types:
+│       │                                        • loadInterstitial() / showInterstitial()
+│       │                                          → auto pre-loads next after dismiss
+│       │                                        • loadRewarded() / showRewarded()
+│       │                                          → returns bool (reward earned)
+│       │                                        • createBannerAd() → BannerAd instance
+│       │                                        • createNativeAd() → NativeAd instance
+│       │                                        ALL methods: skip if user.isPaid.
+│       │                                        Platform-aware unit ID selection
+│       │                                        (Android vs iOS).
+│       │
+│       ├── providers/
+│       │   ├── auth_provider.dart     [State]  AuthState (user, isLoggedIn, isLoading,
+│       │   │                                   error). AuthNotifier: _init() checks
+│       │   │                                   stored token on launch, register(),
+│       │   │                                   login(), logout(), refreshUser().
+│       │   │                                   authProvider + currentUserProvider.
+│       │   │
+│       │   ├── generate_provider.dart [State]  GenerateFormState (all 7 form fields +
+│       │   │                                   preview data). GenerateFormNotifier
+│       │   │                                   with setters for each field.
+│       │   │                                   GenerationState (isGenerating, project,
+│       │   │                                   error, aiProvider). GenerationNotifier
+│       │   │                                   calls API and builds ProjectModel.
+│       │   │                                   generateFormProvider +
+│       │   │                                   generationProvider.
+│       │   │
+│       │   └── projects_provider.dart [State]  ProjectsState (projects[], total, page,
+│       │                                        pages, stats, isLoading, error).
+│       │                                        load(), loadStats(), delete(),
+│       │                                        addProject(). Supports pagination
+│       │                                        and search. projectsProvider +
+│       │                                        projectDetailProvider (family).
+│       │
+│       ├── screens/
+│       │   │
+│       │   ├── auth/
+│       │   │   └── login_screen.dart  [Screen] Single screen for both login and
+│       │   │                                   register (toggle). Animated logo,
+│       │   │                                   form validation, error display,
+│       │   │                                   password visibility toggle.
+│       │   │
+│       │   ├── home/
+│       │   │   └── home_screen.dart   [Screen] Dashboard. Sections:
+│       │   │                                   • SliverAppBar with plan badge + upgrade
+│       │   │                                   • Hero card with CTA button
+│       │   │                                   • Stats row (total / today / remaining)
+│       │   │                                   • Quick Ideas horizontal scroll (6 ideas)
+│       │   │                                   • Recent Projects list (last 5)
+│       │   │                                   • AffiliateToolsRow (linked chips)
+│       │   │                                   • Footer credit
+│       │   │                                   Wraps in StickyBannerAd (free only).
+│       │   │                                   FloatingAffiliateBanner overlay.
+│       │   │
+│       │   ├── create/
+│       │   │   └── create_screen.dart [Screen] 3-step wizard with animated progress bar.
+│       │   │                                   Step 1: Idea textarea + ContentType
+│       │   │                                           selector + Platform selector
+│       │   │                                   Step 2: Duration selector + Generator
+│       │   │                                           picker (shows scene count live)
+│       │   │                                   Step 3: Image prompts toggle + Voice-over
+│       │   │                                           toggle + Plan summary review
+│       │   │                                   On generate: shows interstitial ad
+│       │   │                                   (free users) then navigates to results.
+│       │   │                                   Pre-loads interstitial on initState.
+│       │   │                                   StickyBannerAd footer.
+│       │   │
+│       │   ├── results/
+│       │   │   └── results_screen.dart [Screen] 6-tab results viewer:
+│       │   │                                    Tab 1 Overview — viral hook, all 6
+│       │   │                                      titles, thumbnail prompt, production
+│       │   │                                      notes + pro tips
+│       │   │                                    Tab 2 Script — full narration +
+│       │   │                                      timed voice-over script
+│       │   │                                    Tab 3 Scenes — expandable scene cards
+│       │   │                                      (tap to reveal visual/narration/
+│       │   │                                      transition details)
+│       │   │                                    Tab 4 Prompts — video prompts with
+│       │   │                                      GeneratorAffiliateSuggestion at top +
+│       │   │                                      NativeAdInjector every 8 prompts.
+│       │   │                                      Sub-tabs for image prompts (4 tools).
+│       │   │                                    Tab 5 SEO — title, full description,
+│       │   │                                      tags cloud, hashtags cloud, SRT
+│       │   │                                    Tab 6 Export — RewardedExportGate
+│       │   │                                      (watch ad or upgrade) + individual
+│       │   │                                      files + ElevenLabs + CapCut affiliate
+│       │   │
+│       │   ├── projects/
+│       │   │   └── projects_screen.dart [Screen] Paginated project history.
+│       │   │                                     Search bar (debounced).
+│       │   │                                     Project cards with platform emoji,
+│       │   │                                     metadata chips, status dot.
+│       │   │                                     Delete via popup menu + confirm dialog.
+│       │   │
+│       │   ├── tools/
+│       │   │   └── tools_screen.dart    [Screen] Affiliate tools marketplace.
+│       │   │                                     4 categories with external links:
+│       │   │                                     🎬 AI Video Generators (6 tools)
+│       │   │                                     🖼️ AI Image Generators (4 tools)
+│       │   │                                     ✂️ Video Editing Tools (3 tools)
+│       │   │                                     🎙️ AI Voice-Over Tools (3 tools)
+│       │   │                                     Each card: name, badge, description,
+│       │   │                                     colored accent, opens in browser.
+│       │   │
+│       │   └── settings/
+│       │       ├── settings_screen.dart [Screen] Profile card + Plan card + groups:
+│       │       │                                  Account: Edit Profile, Change Password,
+│       │       │                                            Notifications
+│       │       │                                  App: AI Models link, Tools, Help,
+│       │       │                                       Privacy, Terms
+│       │       │                                  Sign Out (with confirm dialog)
+│       │       │                                  App version + footer credit
+│       │       │
+│       │       ├── plans_screen.dart    [Screen] Subscription upgrade screen.
+│       │       │                                  3 plan cards (Free / Creator / Studio).
+│       │       │                                  Each card shows:
+│       │       │                                  • Price + period
+│       │       │                                  • AI model tier badge + full chain
+│       │       │                                  • Feature list (included + missing)
+│       │       │                                  • CTA button or "Active Plan" badge
+│       │       │                                  "Most Popular" floating badge on Creator.
+│       │       │                                  Payment methods section (Paystack +
+│       │       │                                  LemonSqueezy). FAQ accordion.
+│       │       │                                  Links to external payment pages.
+│       │       │
+│       │       └── ai_models_screen.dart [Screen] AI provider showcase.
+│       │                                           Routing overview (3 plan chains).
+│       │                                           11 provider cards each showing:
+│       │                                           company, strengths, which plans use
+│       │                                           it, speed rating (⚡), quality (⭐).
+│       │                                           Reachable via Settings → AI Models.
+│       │
+│       └── widgets/
+│           │
+│           ├── ads/
+│           │   ├── banner_ad_widget.dart   [Widget] BannerAdWidget — inline banner
+│           │   │                                    (auto-hides for paid users).
+│           │   │                                    StickyBannerAd — wraps any screen
+│           │   │                                    scaffold with persistent footer ad.
+│           │   │                                    Both load lazily, dispose on unmount.
+│           │   │
+│           │   ├── native_ad_card.dart     [Widget] NativeAdCard — blends into lists,
+│           │   │                                    shows "Ad" label top-right corner.
+│           │   │                                    NativeAdInjector.buildList() — static
+│           │   │                                    helper, inserts NativeAdCard every
+│           │   │                                    N items (default 8). Skip for paid.
+│           │   │
+│           │   └── rewarded_export_gate.dart [Widget] Free users: "Watch ad to download"
+│           │                                          with upgrade fallback button.
+│           │                                          Paid users: direct download button.
+│           │                                          Returns reward via callback.
+│           │
+│           ├── affiliate/
+│           │   └── affiliate_tab.dart      [Widget] 4 affiliate placement types:
+│           │                                        1. FloatingAffiliateBanner — Stack
+│           │                                           overlay, rotates 11 tools every 6s,
+│           │                                           session-level dismiss (✕ button)
+│           │                                        2. InlineAffiliateCard — dismissible
+│           │                                           per-card with "✕ Hide" link,
+│           │                                           colored accent bar left side
+│           │                                        3. AffiliateToolsRow — horizontal
+│           │                                           scrollable chip grid (Home screen)
+│           │                                        4. GeneratorAffiliateSuggestion —
+│           │                                           context-aware: shows the exact
+│           │                                           tool matching user's generator
+│           │                                           choice at top of Prompts tab
+│           │
+│           └── common/
+│               ├── app_button.dart         [Widget] AppButton — 5 variants: primary
+│               │                                    (amber gradient + shadow), secondary
+│               │                                    (teal gradient), outline, ghost,
+│               │                                    danger. isLoading spinner state.
+│               │                                    fullWidth + custom height.
+│               │                                    GradientTextButton (text-only).
+│               │
+│               ├── app_card.dart           [Widget] AppCard — gradient bg, border,
+│               │                                    optional onTap ripple, glow variant.
+│               │                                    GlowCard — colored glow shadow.
+│               │                                    StatCard — metric display card.
+│               │
+│               ├── prompt_copy_card.dart   [Widget] One-tap clipboard copy with
+│               │                                    "Copied!" animation, accent color
+│               │                                    header, expand/collapse for long
+│               │                                    content, optional badge chip.
+│               │                                    TagsDisplay — wrap layout for
+│               │                                    SEO tags and hashtag clouds.
+│               │
+│               └── section_selector.dart   [Widget] SectionSelector<T> — option chip
+│                                                    grid (wrap or horizontal scroll).
+│                                                    Animated selection with gradient
+│                                                    fill + shadow on selected state.
+│                                                    Lock icon for plan-restricted options.
+│                                                    ToggleRow — labeled switch with
+│                                                    optional badge, border highlight
+│                                                    when enabled.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          QUICK REFERENCE NUMBERS                             ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Total files:          65                                                    ║
+║  Total lines of code:  ~10,000                                               ║
+║  Backend files:        22  (Python)                                          ║
+║  Frontend files:       42  (Dart + Kotlin + XML + Gradle)                   ║
+║  CI/CD files:           1  (GitHub Actions YAML)                             ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  AI Providers:          9  (OpenAI · Anthropic · Grok · Gemini · Mistral    ║
+║                             DeepSeek · Groq · Together · OpenRouter)         ║
+║  Plan Tiers:            3  (Free → Creator → Studio)                        ║
+║  Ad Types:              4  (Banner · Interstitial · Rewarded · Native)       ║
+║  Affiliate Placements:  4  (Floating · Inline · Row · Context-aware)        ║
+║  App Screens:          10  (Login · Home · Create · Results · Projects ·    ║
+║                             Tools · Settings · Plans · AI Models)            ║
+║  API Routes:           16  (Auth · Generate · Projects · Export · Plans)    ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  App Navigation:                                                             ║
+║    /login          Login + Register (single screen toggle)                  ║
+║    /home           Dashboard                                                 ║
+║    /create         3-Step wizard (idea → settings → review)                 ║
+║    /results/:id    6-Tab results viewer                                      ║
+║    /projects       Project history + search                                  ║
+║    /tools          Affiliate tools marketplace                               ║
+║    /settings       Profile + plan + app settings                            ║
+║    /settings/plans Subscription upgrade                                      ║
+║    /settings/ai-models  AI provider showcase                                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Ad Placement Map:                                                           ║
+║    Home screen     → StickyBannerAd footer + FloatingAffiliateBanner        ║
+║    Create screen   → StickyBannerAd footer                                  ║
+║    Create→Results  → Interstitial (free users only, between screens)        ║
+║    Results/Prompts → NativeAdCard every 8 prompts (free only)               ║
+║    Results/Export  → RewardedExportGate (watch ad OR upgrade)               ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Minimum API keys to launch (both free tier):                                ║
+║    GEMINI_API_KEY  →  console.cloud.google.com (free quota)                  ║
+║    GROQ_API_KEY    →  console.groq.com (free, 14,400 req/day)               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Made with ❤️ by chAs Tech Group

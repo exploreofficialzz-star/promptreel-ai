@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash screen: dark background matching app theme -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solid dark background -->
+    <item android:drawable="@android:color/black">
+        <color android:color="#0A0A0F" />
+    </item>
+    <!-- Optional: center logo (place ic_launcher.png in drawable) -->
+    <!-- <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/splash_logo" />
+    </item> -->
+</layer-list>
