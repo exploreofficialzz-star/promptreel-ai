@@ -118,7 +118,7 @@ async def call_mistral(prompt: str, model: str) -> str:
 
 
 async def call_deepseek(prompt: str, model: str) -> str:
-    """DeepSeek-V3 — OpenAI-compatible at api.deepseek.com. Very affordable."""
+    """DeepSeek-V3 — OpenAI-compatible at api.deepseek.com."""
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
     resp = await client.chat.completions.create(
@@ -135,7 +135,7 @@ async def call_deepseek(prompt: str, model: str) -> str:
 
 
 async def call_groq(prompt: str, model: str) -> str:
-    """Groq — ultra-fast inference, generous free tier. Llama 3.3 70B."""
+    """Groq — ultra-fast inference. Llama 3.3 70B."""
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=settings.GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
     resp = await client.chat.completions.create(
@@ -144,7 +144,7 @@ async def call_groq(prompt: str, model: str) -> str:
             {"role": "system", "content": "You are PromptReel AI. Respond ONLY with valid JSON. No markdown."},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=8000,   # Groq per-model token limits
+        max_tokens=8000,
         temperature=0.82,
         response_format={"type": "json_object"},
     )
@@ -152,7 +152,7 @@ async def call_groq(prompt: str, model: str) -> str:
 
 
 async def call_together(prompt: str, model: str) -> str:
-    """Together AI — Qwen 2.5 72B, Llama 3, Mixtral. Pay-as-you-go, very cheap."""
+    """Together AI — Qwen 2.5 72B."""
     import httpx
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
@@ -173,7 +173,7 @@ async def call_together(prompt: str, model: str) -> str:
 
 
 async def call_openrouter(prompt: str, model: str) -> str:
-    """OpenRouter — free model gateway. Meta Llama 3.3 70B is free."""
+    """OpenRouter — free model gateway."""
     import httpx
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
@@ -201,15 +201,8 @@ async def call_openrouter(prompt: str, model: str) -> str:
 
 # ─── Plan → Provider Chain ────────────────────────────────────────────────────
 def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
-    """
-    Returns ordered list of (label, caller, model).
-    Only entries whose API key is set in config are included.
-    """
     s = settings
-
-    # (label, caller_fn, model_name, api_key_to_check)
     chains: dict[str, list[tuple]] = {
-        # ── STUDIO: highest capability, users pay $35/mo ──────────────────────
         "studio": [
             ("openai-gpt4o",         call_openai,     s.OPENAI_MODEL_STUDIO,     s.OPENAI_API_KEY),
             ("anthropic-sonnet3.5",  call_anthropic,  s.ANTHROPIC_MODEL_STUDIO,  s.ANTHROPIC_API_KEY),
@@ -220,7 +213,6 @@ def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
             ("groq-llama3.3-70b",    call_groq,       s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
             ("together-qwen2.5",     call_together,   s.TOGETHER_MODEL_FREE,     s.TOGETHER_API_KEY),
         ],
-        # ── CREATOR: balance quality + cost, $15/mo ───────────────────────────
         "creator": [
             ("openai-gpt4o-mini",    call_openai,     s.OPENAI_MODEL_CREATOR,    s.OPENAI_API_KEY),
             ("grok-2",               call_grok,       s.GROK_MODEL_CREATOR,      s.GROK_API_KEY),
@@ -231,7 +223,6 @@ def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
             ("groq-llama3.3-70b",    call_groq,       s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
             ("together-qwen2.5",     call_together,   s.TOGETHER_MODEL_FREE,     s.TOGETHER_API_KEY),
         ],
-        # ── FREE: fastest/cheapest models first ───────────────────────────────
         "free": [
             ("gemini-1.5-flash",     call_gemini,     s.GEMINI_MODEL_FREE,       s.GEMINI_API_KEY),
             ("groq-llama3.3-70b",    call_groq,       s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
@@ -242,7 +233,6 @@ def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
             ("mistral-large",        call_mistral,    s.MISTRAL_MODEL_CREATOR,   s.MISTRAL_API_KEY),
         ],
     }
-
     raw = chains.get(user_plan, chains["free"])
     return [(label, fn, model) for label, fn, model, key in raw if key]
 
@@ -309,7 +299,9 @@ def build_generation_prompt(
     vo = ("Complete voice-over with [00:00] time markers every 10 seconds"
           if generate_voice_over else "Not requested")
 
-    return f"""You are PromptReel AI — the world's most advanced AI video content strategist. You create complete viral faceless video production packages.
+    # ── CRITICAL FIX: Short fields FIRST, long lists LAST ──
+    # This prevents token truncation from cutting off thumbnail/SEO/hashtags
+    return f"""You are PromptReel AI — the world's most advanced AI video content strategist.
 
 ━━━ BRIEF ━━━
 IDEA: {idea}
@@ -322,7 +314,8 @@ IMAGE PROMPTS: {"YES" if generate_image_prompts else "NO"}
 VOICE-OVER: {"YES" if generate_voice_over else "NO"}
 ━━━━━━━━━━━━
 
-Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
+IMPORTANT: Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
+Fill ALL fields. Do NOT leave any field empty or null.
 
 {{
   "titles": {{
@@ -333,8 +326,36 @@ Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
     "shorts": "punchy title under 40 chars",
     "primary": "best cross-platform title"
   }},
-  "viral_hook": "2-3 sentence shocking/provocative opener that makes viewer unable to leave. No generic openers.",
-  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words. Professional voiceover-ready.",
+  "viral_hook": "2-3 sentence shocking/provocative opener that makes viewer unable to leave.",
+  "thumbnail_prompt": "Detailed thumbnail: main subject expression/action, text overlay (3-word hook bold yellow), background, high contrast color grading, composition, emotional trigger, viral YouTube style. Min 50 words.",
+  "youtube_seo": {{
+    "title": "SEO title with exact-match keyword at start",
+    "description": "Full 1500+ char description: hook, what is covered with emoji bullets, timestamps, CTA, keywords",
+    "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13","tag14","tag15","tag16","tag17","tag18","tag19","tag20"],
+    "category": "most appropriate YouTube category"
+  }},
+  "hashtags": {{
+    "primary": ["#Tag1","#Tag2","#Tag3","#Tag4","#Tag5"],
+    "secondary": ["#Tag6","#Tag7","#Tag8","#Tag9","#Tag10","#Tag11","#Tag12","#Tag13","#Tag14","#Tag15"],
+    "niche": ["#Tag16","#Tag17","#Tag18","#Tag19","#Tag20","#Tag21","#Tag22","#Tag23","#Tag24","#Tag25"],
+    "trending": ["#Tag26","#Tag27","#Tag28","#Tag29","#Tag30"]
+  }},
+  "subtitle_script": "1\\n00:00:00,000 --> 00:00:{clip_duration:02d},000\\nScene 1 narration text\\n\\n2\\n00:00:{clip_duration:02d},000 --> 00:00:{clip_duration*2:02d},000\\nScene 2 narration text",
+  "voice_over_script": "{vo}",
+  "production_notes": {{
+    "total_scenes_needed": {total_scenes},
+    "detailed_scenes_provided": {detailed_scenes},
+    "clip_duration_seconds": {clip_duration},
+    "estimated_word_count": {duration_minutes * 130},
+    "recommended_editing_tool": "CapCut or DaVinci Resolve",
+    "pro_tips": [
+      "Tip specific to {generator}",
+      "Tip specific to {platform}",
+      "Retention tip",
+      "Monetization tip"
+    ]
+  }},
+  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words.",
   "scene_breakdown": [
     {{
       "scene_number": 1,
@@ -351,7 +372,7 @@ Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
   "video_prompts": [
     {{
       "scene_number": 1,
-      "prompt": "Complete {generator}-optimized prompt min 30 words: subject/action, environment, camera movement, lighting, visual style, quality tags",
+      "prompt": "Complete {generator}-optimized prompt: subject/action, environment, camera movement, lighting, visual style, quality tags",
       "negative_prompt": "blurry, text, watermark, distorted, low quality",
       "camera_work": "specific camera movement",
       "lighting": "lighting description",
@@ -360,37 +381,9 @@ Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
     }}
   ],
 {img_block}
-  "voice_over_script": "{vo}",
-  "youtube_seo": {{
-    "title": "SEO title with exact-match keyword at start",
-    "description": "Full 1500+ char description: hook, what's covered with emoji bullets, timestamps, CTA, keywords",
-    "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13","tag14","tag15","tag16","tag17","tag18","tag19","tag20","tag21","tag22","tag23","tag24","tag25","tag26","tag27","tag28","tag29","tag30"],
-    "category": "most appropriate YouTube category"
-  }},
-  "hashtags": {{
-    "primary": ["#T1","#T2","#T3","#T4","#T5"],
-    "secondary": ["#T6","#T7","#T8","#T9","#T10","#T11","#T12","#T13","#T14","#T15"],
-    "niche": ["#T16","#T17","#T18","#T19","#T20","#T21","#T22","#T23","#T24","#T25"],
-    "trending": ["#T26","#T27","#T28","#T29","#T30"]
-  }},
-  "thumbnail_prompt": "Detailed thumbnail: main subject expression/action, text overlay (3-word hook bold yellow), background, high contrast color grading, composition, emotional trigger, viral YouTube style. Min 50 words.",
-  "subtitle_script": "1\\n00:00:00,000 --> 00:00:{clip_duration:02d},000\\nScene 1 narration text\\n\\n2\\n00:00:{clip_duration:02d},000 --> 00:00:{clip_duration*2:02d},000\\nScene 2 narration text",
-  "production_notes": {{
-    "total_scenes_needed": {total_scenes},
-    "detailed_scenes_provided": {detailed_scenes},
-    "clip_duration_seconds": {clip_duration},
-    "estimated_word_count": {duration_minutes * 130},
-    "recommended_editing_tool": "CapCut or DaVinci Resolve",
-    "pro_tips": [
-      "Tip specific to {generator}",
-      "Tip specific to {platform}",
-      "Retention tip",
-      "Monetization tip"
-    ]
-  }}
 }}
 
-Generate ALL {detailed_scenes} scene_breakdown and ALL {detailed_scenes} video_prompts. No truncation. Pure JSON."""
+Generate ALL {detailed_scenes} scene_breakdown entries and ALL {detailed_scenes} video_prompts. Pure JSON only."""
 
 
 def parse_json_response(raw: str) -> dict:
@@ -455,4 +448,4 @@ async def generate_video_plan(
 
     raise RuntimeError(
         f"All AI providers failed for [{user_plan}] plan. Last: {last_error}"
-    )
+)
