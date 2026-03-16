@@ -52,7 +52,7 @@ dependencies:
 
   # Monetization
   google_mobile_ads: ^5.1.0
-  flutterwave_standard: ^2.0.0
+  flutterwave_standard: ^1.0.11
 
   cupertino_icons: ^1.0.8
 
