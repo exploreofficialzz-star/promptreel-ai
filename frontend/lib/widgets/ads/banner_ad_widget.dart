@@ -5,7 +5,6 @@ import '../../providers/auth_provider.dart';
 import '../../services/ad_service.dart';
 import '../../theme/app_theme.dart';
 
-/// Inline banner ad — auto-hides for paid users.
 class BannerAdWidget extends ConsumerStatefulWidget {
   const BannerAdWidget({super.key});
 
@@ -26,23 +25,10 @@ class _BannerAdWidgetState extends ConsumerState<BannerAdWidget> {
   void _loadAd() {
     final user = ref.read(currentUserProvider);
     if (user?.isPaid ?? false) return;
-
-    // ── Fix: createBannerAd() already calls .load() internally ──
-    // Do NOT call .load() again here — just listen for loaded state
+    // createBannerAd() already calls .load() internally
     final ad = AdService.instance.createBannerAd();
     if (ad == null) return;
-
-    ad.listener = BannerAdListener(
-      onAdLoaded: (_) {
-        if (mounted) setState(() { _ad = ad; _loaded = true; });
-      },
-      onAdFailedToLoad: (ad, error) {
-        ad.dispose();
-        debugPrint('BannerAdWidget failed: $error');
-      },
-    );
-
-    _ad = ad;
+    setState(() { _ad = ad; _loaded = true; });
   }
 
   @override
@@ -71,7 +57,6 @@ class _BannerAdWidgetState extends ConsumerState<BannerAdWidget> {
   }
 }
 
-/// Sticky bottom banner — shown in footer for free users.
 class StickyBannerAd extends ConsumerStatefulWidget {
   final Widget child;
   const StickyBannerAd({super.key, required this.child});
@@ -93,23 +78,10 @@ class _StickyBannerAdState extends ConsumerState<StickyBannerAd> {
   void _load() {
     final user = ref.read(currentUserProvider);
     if (user?.isPaid ?? false) return;
-
-    // ── Fix: createBannerAd() already calls .load() internally ──
-    // Do NOT call .load() again here — just listen for loaded state
+    // createBannerAd() already calls .load() internally
     final ad = AdService.instance.createBannerAd();
     if (ad == null) return;
-
-    ad.listener = BannerAdListener(
-      onAdLoaded: (_) {
-        if (mounted) setState(() { _ad = ad; _loaded = true; });
-      },
-      onAdFailedToLoad: (ad, error) {
-        ad.dispose();
-        debugPrint('StickyBannerAd failed: $error');
-      },
-    );
-
-    _ad = ad;
+    setState(() { _ad = ad; _loaded = true; });
   }
 
   @override
