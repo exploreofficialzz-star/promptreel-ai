@@ -23,13 +23,13 @@ class AppConfig {
   // Dashboard → https://dashboard.flutterwave.com/settings/apis
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
-    defaultValue: 'FLWPUBK_TEST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X', // TEST key placeholder
+    defaultValue: 'FLWPUBK-361fd657794dc9b4413eee510c6d68d4-X',
   );
 
-  // Set to false in production release
+  // Live mode — set to true only during local testing
   static const bool flutterwaveTestMode = bool.fromEnvironment(
     'FLW_TEST_MODE',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   // Plan prices in USD — must match backend CREATOR_PRICE_USD / STUDIO_PRICE_USD
