@@ -8,9 +8,9 @@ import time
 
 from config import settings
 from database import create_tables
-from routers import auth, generate, projects, export
+from routers import auth, generate, projects, export, payments
 
-# ─── Logging ─────────────────────────────────────────────────────────────────
+# ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 PromptReel AI Backend shutting down...")
 
 
-# ─── App ─────────────────────────────────────────────────────────────────────
+# ─── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -39,7 +39,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ─── Middleware ───────────────────────────────────────────────────────────────
+# ─── Middleware ────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -60,7 +60,7 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-# ─── Exception Handlers ──────────────────────────────────────────────────────
+# ─── Exception Handlers ───────────────────────────────────────────────────────
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     return JSONResponse(
@@ -78,11 +78,12 @@ async def internal_error_handler(request: Request, exc):
     )
 
 
-# ─── Routers ─────────────────────────────────────────────────────────────────
+# ─── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
+app.include_router(payments.router, prefix="/api")
 
 
 # ─── Health & Root ────────────────────────────────────────────────────────────
@@ -167,4 +168,4 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG,
         workers=1 if settings.DEBUG else 4,
-    )
+)
