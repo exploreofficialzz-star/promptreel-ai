@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr, field_validator
@@ -18,7 +18,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-# ─── Schemas ─────────────────────────────────────────────────────────────────
+# ─── Schemas ──────────────────────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
@@ -51,21 +51,38 @@ class TokenResponse(BaseModel):
     user: dict
 
 
-class UserResponse(BaseModel):
-    id: int
-    email: str
-    name: str
-    plan: str
-    total_plans_generated: int
-    plans_generated_today: int
-    created_at: str
-
-
 class RefreshRequest(BaseModel):
     refresh_token: str
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    password: Optional[str] = None        # current password
+    new_password: Optional[str] = None    # new password
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if v is not None and len(v.strip()) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return v.strip() if v else v
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v):
+        if v is not None and len(v) < 8:
+            raise ValueError("New password must be at least 8 characters")
+        return v
+
+
+class NotificationPreferencesRequest(BaseModel):
+    generation_complete: Optional[bool] = None
+    daily_reminder: Optional[bool] = None
+    product_updates: Optional[bool] = None
+    promotions: Optional[bool] = None
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 def _truncate_password(password: str) -> str:
     # bcrypt max is 72 bytes — truncate to be safe
     return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
@@ -93,7 +110,7 @@ def user_to_dict(user: User) -> dict:
         "id": user.id,
         "email": user.email,
         "name": user.name,
-        "plan": user.plan.value if hasattr(user.plan, 'value') else user.plan,
+        "plan": user.plan.value if hasattr(user.plan, "value") else user.plan,
         "total_plans_generated": user.total_plans_generated,
         "plans_generated_today": user.plans_generated_today,
         "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -113,8 +130,10 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("sub")
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        user_id = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
@@ -127,10 +146,16 @@ async def get_current_user(
     return user
 
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+# ─── Routes ───────────────────────────────────────────────────────────────────
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(User).where(User.email == data.email.lower()))
+    existing = await db.execute(
+        select(User).where(User.email == data.email.lower())
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 
@@ -149,18 +174,28 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
         {"sub": str(user.id), "type": "refresh"},
         timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
-    return {"access_token": access_token, "refresh_token": refresh_token, "user": user_to_dict(user)}
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": user_to_dict(user),
+    }
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == data.email.lower()))
+    result = await db.execute(
+        select(User).where(User.email == data.email.lower())
+    )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid email or password"
+        )
     if not user.is_active:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is deactivated")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Account is deactivated"
+        )
 
     user.last_login_at = datetime.now(timezone.utc)
     await db.flush()
@@ -170,30 +205,52 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
         {"sub": str(user.id), "type": "refresh"},
         timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
-    return {"access_token": access_token, "refresh_token": refresh_token, "user": user_to_dict(user)}
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": user_to_dict(user),
+    }
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def refresh_token(
+    data: RefreshRequest, db: AsyncSession = Depends(get_db)
+):
     try:
-        payload = jwt.decode(data.refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            data.refresh_token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
         if payload.get("type") != "refresh":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token type")
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "Invalid token type"
+            )
         user_id = payload.get("sub")
     except JWTError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid refresh token"
+        )
 
-    result = await db.execute(select(User).where(User.id == int(user_id)))
+    result = await db.execute(
+        select(User).where(User.id == int(user_id))
+    )
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "User not found"
+        )
 
     access_token = create_token({"sub": str(user.id), "type": "access"})
     new_refresh = create_token(
         {"sub": str(user.id), "type": "refresh"},
         timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
-    return {"access_token": access_token, "refresh_token": new_refresh, "user": user_to_dict(user)}
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh,
+        "user": user_to_dict(user),
+    }
 
 
 @router.get("/me", response_model=dict)
@@ -203,15 +260,88 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.put("/me", response_model=dict)
 async def update_profile(
-    data: dict,
+    data: UpdateProfileRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if "name" in data and len(data["name"].strip()) >= 2:
-        current_user.name = data["name"].strip()
-    if "password" in data and len(data.get("new_password", "")) >= 8:
-        if not verify_password(data["password"], current_user.password_hash):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Current password incorrect")
-        current_user.password_hash = hash_password(data["new_password"])
+    # ── Update name ──────────────────────────────────────────────────────────
+    if data.name is not None:
+        current_user.name = data.name
+
+    # ── Update password ──────────────────────────────────────────────────────
+    if data.new_password is not None:
+        # Must supply current password to change it
+        if not data.password:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Current password is required to set a new password",
+            )
+        if not verify_password(data.password, current_user.password_hash):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Current password is incorrect",
+            )
+        current_user.password_hash = hash_password(data.new_password)
+
+    current_user.updated_at = datetime.now(timezone.utc)
     await db.flush()
+    await db.refresh(current_user)
     return user_to_dict(current_user)
+
+
+# ─── Notification Preferences ─────────────────────────────────────────────────
+@router.get("/notifications", response_model=dict)
+async def get_notifications(
+    current_user: User = Depends(get_current_user),
+):
+    """Return the user's notification preferences."""
+    return {
+        "generation_complete": getattr(
+            current_user, "notif_generation_complete", True
+        ),
+        "daily_reminder": getattr(
+            current_user, "notif_daily_reminder", False
+        ),
+        "product_updates": getattr(
+            current_user, "notif_product_updates", True
+        ),
+        "promotions": getattr(
+            current_user, "notif_promotions", False
+        ),
+    }
+
+
+@router.put("/notifications", response_model=dict)
+async def update_notifications(
+    data: NotificationPreferencesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save the user's notification preferences."""
+    if data.generation_complete is not None and hasattr(
+        current_user, "notif_generation_complete"
+    ):
+        current_user.notif_generation_complete = data.generation_complete
+
+    if data.daily_reminder is not None and hasattr(
+        current_user, "notif_daily_reminder"
+    ):
+        current_user.notif_daily_reminder = data.daily_reminder
+
+    if data.product_updates is not None and hasattr(
+        current_user, "notif_product_updates"
+    ):
+        current_user.notif_product_updates = data.product_updates
+
+    if data.promotions is not None and hasattr(
+        current_user, "notif_promotions"
+    ):
+        current_user.notif_promotions = data.promotions
+
+    await db.flush()
+    return {
+        "generation_complete": data.generation_complete,
+        "daily_reminder": data.daily_reminder,
+        "product_updates": data.product_updates,
+        "promotions": data.promotions,
+}
