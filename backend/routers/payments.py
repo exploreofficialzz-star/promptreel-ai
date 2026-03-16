@@ -6,10 +6,8 @@ POST /api/payments/verify  — Verify a completed Flutterwave transaction and
 POST /api/payments/webhook — Optional Flutterwave webhook for server-side events.
 GET  /api/payments/prices  — Return current USD plan prices (for display in app).
 """
-import hashlib
-import hmac
-import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -26,17 +24,17 @@ logger = logging.getLogger(__name__)
 
 FLW_VERIFY_URL = "https://api.flutterwave.com/v3/transactions/{}/verify"
 
-# ─── Schemas ─────────────────────────────────────────────────────────────────
 
+# ─── Schemas ──────────────────────────────────────────────────────────────────
 class VerifyPaymentRequest(BaseModel):
     transaction_id: str   # Flutterwave transaction ID returned after payment
     tx_ref: str           # Your unique tx_ref passed into the SDK
     plan: str             # "creator" or "studio"
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
-
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 def _expected_amount(plan: str) -> float:
+    """Return expected USD price for the given plan."""
     return {
         "creator": settings.CREATOR_PRICE_USD,
         "studio":  settings.STUDIO_PRICE_USD,
@@ -75,36 +73,34 @@ async def _verify_with_flutterwave(transaction_id: str) -> dict:
     return body.get("data", {})
 
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
-
+# ─── Routes ───────────────────────────────────────────────────────────────────
 @router.post("/verify")
 async def verify_payment(
     req: VerifyPaymentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Called by the Flutter app immediately after Flutterwave returns a
-    successful ChargeResponse.  Verifies the transaction server-side,
-    checks the amount, and upgrades the user's plan.
-    """
     if req.plan not in ("creator", "studio"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan. Must be 'creator' or 'studio'.")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Invalid plan. Must be 'creator' or 'studio'.",
+        )
 
     tx = await _verify_with_flutterwave(req.transaction_id)
 
-    # ── Validate status ───────────────────────────────────────────────────────
+    # ── Validate transaction status ───────────────────────────────────────────
     if tx.get("status") != "successful":
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
             f"Transaction status is '{tx.get('status')}', not 'successful'.",
         )
 
-    # ── Validate currency ─────────────────────────────────────────────────────
-    if tx.get("currency") != "USD":
+    # ── Validate currency is USD ──────────────────────────────────────────────
+    currency = tx.get("currency", "")
+    if currency != "USD":
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Unexpected currency '{tx.get('currency')}'. Expected USD.",
+            f"Unexpected currency '{currency}'. Expected USD.",
         )
 
     # ── Validate amount (allow $0.10 tolerance for rounding) ─────────────────
@@ -117,7 +113,8 @@ async def verify_payment(
         )
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Payment amount ${actual} does not match {req.plan} plan price ${expected}.",
+            f"Payment amount ${actual} does not match "
+            f"{req.plan} plan price ${expected}.",
         )
 
     # ── Validate tx_ref matches ───────────────────────────────────────────────
@@ -126,15 +123,36 @@ async def verify_payment(
             f"tx_ref mismatch for user {current_user.id}: "
             f"expected {req.tx_ref!r}, got {tx.get('tx_ref')!r}"
         )
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Transaction reference mismatch.")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Transaction reference mismatch.",
+        )
 
-    # ── Upgrade plan ─────────────────────────────────────────────────────────
+    # ── Duplicate transaction protection ──────────────────────────────────────
+    if current_user.subscription_id == str(req.transaction_id):
+        logger.warning(
+            f"Duplicate transaction attempt by user {current_user.id}: "
+            f"tx_id={req.transaction_id}"
+        )
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This transaction has already been used to upgrade your plan.",
+        )
+
+    # ── Upgrade plan + set expiry ─────────────────────────────────────────────
     current_user.plan = PlanType(req.plan)
+    current_user.subscription_id = str(req.transaction_id)
+    current_user.subscription_expires_at = (
+        datetime.now(timezone.utc) + timedelta(days=30)
+    )
+
     await db.flush()
+    await db.refresh(current_user)  # Sync latest DB state
 
     logger.info(
         f"✅ User {current_user.id} ({current_user.email}) upgraded to "
-        f"{req.plan} | tx_id={req.transaction_id} | amount=${actual}"
+        f"{req.plan} | tx_id={req.transaction_id} | amount=${actual} USD | "
+        f"expires={current_user.subscription_expires_at.isoformat()}"
     )
 
     return {
@@ -142,12 +160,13 @@ async def verify_payment(
         "plan": req.plan,
         "message": f"🎉 Successfully upgraded to {req.plan.capitalize()} plan!",
         "amount_paid_usd": actual,
+        "expires_at": current_user.subscription_expires_at.isoformat(),
     }
 
 
 @router.get("/prices")
 async def get_prices():
-    """Return current USD plan prices. Called by the app to display up-to-date amounts."""
+    """Return current USD plan prices."""
     return {
         "currency": "USD",
         "creator": settings.CREATOR_PRICE_USD,
@@ -161,33 +180,43 @@ async def flutterwave_webhook(
     verif_hash: str = Header(None, alias="verif-hash"),
 ):
     """
-    Optional: Flutterwave server-side webhook.
+    Flutterwave server-side webhook.
     Configure the URL in your Flutterwave dashboard under Settings → Webhooks.
-    Set the secret hash to match FLUTTERWAVE_SECRET_KEY.
-
-    This endpoint logs the event. Extend it to handle subscription renewals,
-    chargebacks, etc. as your business grows.
+    Set the secret hash in FLUTTERWAVE_WEBHOOK_HASH env variable.
     """
     if not settings.FLUTTERWAVE_SECRET_KEY:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Not configured.")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Not configured."
+        )
 
-    # Validate webhook signature
-    expected_hash = settings.FLUTTERWAVE_SECRET_KEY
-    if verif_hash != expected_hash:
+    # ── Validate webhook signature ────────────────────────────────────────────
+    expected_hash = (
+        getattr(settings, "FLUTTERWAVE_WEBHOOK_HASH", None)
+        or settings.FLUTTERWAVE_SECRET_KEY
+    )
+    if not verif_hash or verif_hash != expected_hash:
         logger.warning("Webhook received with invalid verif-hash — rejected.")
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid webhook signature.")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid webhook signature."
+        )
 
     try:
         payload = await request.json()
     except Exception:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid JSON payload.")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Invalid JSON payload."
+        )
 
     event     = payload.get("event", "unknown")
     tx_status = payload.get("data", {}).get("status", "unknown")
     tx_ref    = payload.get("data", {}).get("tx_ref", "")
+    tx_id     = payload.get("data", {}).get("id", "")
 
-    logger.info(f"📡 Flutterwave webhook: event={event}, status={tx_status}, tx_ref={tx_ref}")
+    logger.info(
+        f"📡 Flutterwave webhook: event={event}, "
+        f"status={tx_status}, tx_ref={tx_ref}, tx_id={tx_id}"
+    )
 
-    # TODO: handle recurring billing / subscription renewal here when needed
+    # TODO: handle subscription renewal here when needed
 
     return {"status": "ok"}
