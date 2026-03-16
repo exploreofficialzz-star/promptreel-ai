@@ -4,25 +4,20 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../config/app_config.dart';
 import '../models/user_model.dart';
 
-/// Central AdMob service — call AdService.instance everywhere.
-/// Ads are ONLY shown to free-plan users. Paid users see nothing.
 class AdService {
   AdService._();
   static final AdService instance = AdService._();
 
   bool _initialized = false;
 
-  // ── Initialize AdMob — MUST be called once at app startup ─────────────────
   Future<void> initialize() async {
     if (_initialized) return;
     await MobileAds.instance.initialize();
     _initialized = true;
     debugPrint('✅ AdMob initialized');
-    // Pre-load interstitial right away
     await loadInterstitial();
   }
 
-  // ── Ad unit IDs (platform-aware) ──────────────────────────────────────────
   String get _bannerAdUnit => kIsWeb
       ? ''
       : Platform.isAndroid
@@ -65,7 +60,7 @@ class AdService {
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               _interstitialAd = null;
-              loadInterstitial(); // Pre-load next
+              loadInterstitial();
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
               ad.dispose();
@@ -82,17 +77,17 @@ class AdService {
   }
 
   Future<void> showInterstitial(UserModel? user) async {
-    if (user?.isPaid ?? false) return; // Never show to paid users
+    if (user?.isPaid ?? false) return;
     if (_interstitialAd == null) {
       await loadInterstitial();
-      return; // Ad not ready yet — skip rather than block UX
+      return;
     }
     await _interstitialAd!.show();
   }
 
   // ── Rewarded ──────────────────────────────────────────────────────────────
   RewardedAd? _rewardedAd;
-  bool _isRewardedLoading = false; // ← Fix: guard against multiple loads
+  bool _isRewardedLoading = false;
 
   Future<void> loadRewarded() async {
     if (_isRewardedLoading || _rewardedAd != null) return;
@@ -124,9 +119,8 @@ class AdService {
     );
   }
 
-  /// Show rewarded ad. Returns true if user earned the reward.
   Future<bool> showRewarded(UserModel? user) async {
-    if (user?.isPaid ?? false) return true; // Paid users always get reward
+    if (user?.isPaid ?? false) return true;
     if (_rewardedAd == null) {
       await loadRewarded();
       return false;
@@ -153,7 +147,7 @@ class AdService {
         },
       ),
     );
-    banner.load(); // ← Fix: actually load the banner ad
+    banner.load();
     return banner;
   }
 
@@ -172,10 +166,4 @@ class AdService {
     _interstitialAd?.dispose();
     _rewardedAd?.dispose();
   }
-}
-You also need to call initialize() in 📄 frontend/lib/main.dart. Find your main() function and add this:
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await AdService.instance.initialize(); // ← Add this line
-  runApp(const ProviderScope(child: MyApp()));
 }
