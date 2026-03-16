@@ -34,10 +34,8 @@ class ApiService {
         },
         onError: (error, handler) async {
           if (error.response?.statusCode == 401) {
-            // Attempt token refresh
             final refreshed = await _tryRefreshToken();
             if (refreshed) {
-              // Retry original request
               final token = await _storage.read(key: AppConfig.tokenKey);
               error.requestOptions.headers['Authorization'] = 'Bearer $token';
               try {
@@ -108,12 +106,38 @@ class ApiService {
     return UserModel.fromJson(res.data);
   }
 
+  // ── Profile & Password ─────────────────────────────────────────────────────
+  Future<void> updateProfile({
+    String? name,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (currentPassword != null) data['password'] = currentPassword;
+    if (newPassword != null) data['new_password'] = newPassword;
+    await _dio.put('/auth/me', data: data);
+  }
+
+  // ── Notification Preferences ───────────────────────────────────────────────
+  Future<Map<String, dynamic>> getNotificationPreferences() async {
+    final res = await _dio.get('/auth/notifications');
+    return Map<String, dynamic>.from(res.data);
+  }
+
+  Future<void> updateNotificationPreferences(
+      Map<String, dynamic> prefs) async {
+    await _dio.put('/auth/notifications', data: prefs);
+  }
+
   Future<void> _saveTokens(Map<String, dynamic> data) async {
     if (data['access_token'] != null) {
-      await _storage.write(key: AppConfig.tokenKey, value: data['access_token']);
+      await _storage.write(
+          key: AppConfig.tokenKey, value: data['access_token']);
     }
     if (data['refresh_token'] != null) {
-      await _storage.write(key: AppConfig.refreshTokenKey, value: data['refresh_token']);
+      await _storage.write(
+          key: AppConfig.refreshTokenKey, value: data['refresh_token']);
     }
   }
 
@@ -235,15 +259,20 @@ class ApiService {
     return res.data;
   }
 
-  // ── Error helper ──────────────────────────────────────────────────────────
+  // ── Error helper ───────────────────────────────────────────────────────────
   static String extractError(dynamic error) {
     if (error is DioException) {
       final data = error.response?.data;
-      if (data is Map && data['detail'] != null) return data['detail'].toString();
-      if (data is Map && data['message'] != null) return data['message'].toString();
-      if (error.response?.statusCode == 429) return 'Daily limit reached. Upgrade your plan.';
-      if (error.response?.statusCode == 403) return 'Upgrade your plan to access this feature.';
-      if (error.response?.statusCode == 401) return 'Session expired. Please log in again.';
+      if (data is Map && data['detail'] != null)
+        return data['detail'].toString();
+      if (data is Map && data['message'] != null)
+        return data['message'].toString();
+      if (error.response?.statusCode == 429)
+        return 'Daily limit reached. Upgrade your plan.';
+      if (error.response?.statusCode == 403)
+        return 'Upgrade your plan to access this feature.';
+      if (error.response?.statusCode == 401)
+        return 'Session expired. Please log in again.';
       return error.message ?? 'Network error. Please try again.';
     }
     return error.toString();
