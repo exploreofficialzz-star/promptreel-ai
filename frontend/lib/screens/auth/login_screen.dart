@@ -62,16 +62,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 children: [
-                  // ── Logo ─────────────────────────────────────────────────
                   _buildLogo(),
                   const SizedBox(height: AppSpacing.xl),
-
-                  // ── Card ─────────────────────────────────────────────────
                   Container(
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: _buildForm(authState),
                   ),
-
                   const SizedBox(height: AppSpacing.lg),
                   Text(
                     AppConfig.footerCredit,
@@ -90,7 +86,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildLogo() {
     return Column(
       children: [
-        // Film reel logo
         Container(
           width: 80,
           height: 80,
@@ -146,7 +141,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: AppSpacing.lg),
 
-            // Error message
             if (authState.error != null) ...[
               Container(
                 padding: const EdgeInsets.all(12),
@@ -160,7 +154,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const Icon(Icons.error_outline, size: 16, color: AppColors.error),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(authState.error!, style: AppTypography.bodySmall.copyWith(color: AppColors.error)),
+                      child: Text(authState.error!,
+                          style: AppTypography.bodySmall.copyWith(color: AppColors.error)),
                     ),
                   ],
                 ),
@@ -168,7 +163,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: AppSpacing.md),
             ],
 
-            // Name field (register only)
             if (_isRegisterMode) ...[
               _buildField(
                 controller: _nameCtrl,
@@ -180,7 +174,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: AppSpacing.md),
             ],
 
-            // Email
             _buildField(
               controller: _emailCtrl,
               label: 'Email',
@@ -191,7 +184,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Password
             _buildField(
               controller: _passwordCtrl,
               label: 'Password',
@@ -210,7 +202,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: AppSpacing.lg),
 
-            // Submit button
             AppButton(
               label: _isRegisterMode ? 'Create Account' : 'Sign In',
               onPressed: _submit,
@@ -219,11 +210,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Toggle mode
             Center(
               child: GestureDetector(
                 onTap: () {
-                  ref.read(authProvider.notifier).clearError();
                   setState(() => _isRegisterMode = !_isRegisterMode);
                 },
                 child: RichText(
@@ -263,7 +252,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppTypography.labelMedium.copyWith(color: AppColors.textSecondary)),
+        Text(label,
+            style: AppTypography.labelMedium.copyWith(color: AppColors.textSecondary)),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
