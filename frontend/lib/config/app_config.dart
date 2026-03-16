@@ -44,28 +44,19 @@ class AppConfig {
   static const String themeKey = 'app_theme';
 
   // ── AdMob IDs ──────────────────────────────────────────────────────────────
-  // ⚠️ These are Google TEST IDs — replace with your real IDs before release.
-  // Get real IDs from: https://apps.admob.com
+  // Android — LIVE IDs
+  static const String admobAppIdAndroid        = 'ca-app-pub-2492078126313994~1571011892';
+  static const String bannerAdUnitAndroid      = 'ca-app-pub-2492078126313994/7847678030';
+  static const String interstitialAdUnitAndroid= 'ca-app-pub-2492078126313994/5357246065';
+  static const String rewardedAdUnitAndroid    = 'ca-app-pub-2492078126313994/5879990244';
+  static const String nativeAdUnitAndroid      = 'ca-app-pub-2492078126313994/7137231592';
 
-  // App IDs (required in AndroidManifest.xml + Info.plist)
-  static const String admobAppIdAndroid = 'ca-app-pub-3940256099942544~3347511713';
-  static const String admobAppIdIos     = 'ca-app-pub-3940256099942544~1458002511';
-
-  // Banner — shown inline in lists and as sticky footer
-  static const String bannerAdUnitAndroid = 'ca-app-pub-3940256099942544/6300978111';
-  static const String bannerAdUnitIos     = 'ca-app-pub-3940256099942544/2934735716';
-
-  // Interstitial — shown between major navigation actions (create → results)
-  static const String interstitialAdUnitAndroid = 'ca-app-pub-3940256099942544/1033173712';
-  static const String interstitialAdUnitIos     = 'ca-app-pub-3940256099942544/4411468910';
-
-  // Rewarded — shown on export page to unlock download for free users
-  static const String rewardedAdUnitAndroid = 'ca-app-pub-3940256099942544/5224354917';
-  static const String rewardedAdUnitIos     = 'ca-app-pub-3940256099942544/1712485313';
-
-  // Native — blends into content lists (every 8 scenes/prompts for free users)
-  static const String nativeAdUnitAndroid = 'ca-app-pub-3940256099942544/2247696110';
-  static const String nativeAdUnitIos     = 'ca-app-pub-3940256099942544/3986624511';
+  // iOS — replace when ready
+  static const String admobAppIdIos            = 'ca-app-pub-3940256099942544~1458002511'; // TODO: replace
+  static const String bannerAdUnitIos          = 'ca-app-pub-3940256099942544/2934735716'; // TODO: replace
+  static const String interstitialAdUnitIos    = 'ca-app-pub-3940256099942544/4411468910'; // TODO: replace
+  static const String rewardedAdUnitIos        = 'ca-app-pub-3940256099942544/1712485313'; // TODO: replace
+  static const String nativeAdUnitIos          = 'ca-app-pub-3940256099942544/3986624511'; // TODO: replace
 
   // ── AI Model Tiers (for display) ──────────────────────────────────────────
   static const Map<String, Map<String, dynamic>> planAiModels = {
