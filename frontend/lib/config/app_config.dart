@@ -12,7 +12,7 @@ class AppConfig {
   // Change this to your Render deployment URL
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://promptreel-ai-backend.onrender.com',
+    defaultValue: 'https://promptreel-ai.onrender.com',
   );
   static const String apiPrefix = '/api';
   static const int connectTimeoutMs = 30000;
