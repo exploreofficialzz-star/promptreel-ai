@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.22.2'
+  FLUTTER_VERSION: '3.24.0'
   JAVA_VERSION: '17'
   APK_OUTPUT: build/app/outputs/flutter-apk/app-release.apk
   AAB_OUTPUT: build/app/outputs/bundle/release/app-release.aab
@@ -217,4 +217,3 @@ jobs:
           echo "Commit: ${{ github.sha }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "By: ${{ github.actor }}"
-
