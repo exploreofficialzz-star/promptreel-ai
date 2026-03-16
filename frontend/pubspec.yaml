@@ -42,7 +42,6 @@ dependencies:
   path_provider: ^2.1.4
   archive: ^3.6.1
   intl: ^0.19.0
-  copy_to_clipboard: ^3.0.0-web.2
 
   # Icons
   iconsax_flutter: ^1.0.1
