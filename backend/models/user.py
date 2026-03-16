@@ -31,6 +31,12 @@ class User(Base):
     subscription_id = Column(String(255), nullable=True)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Notification preferences
+    notif_generation_complete = Column(Boolean, default=True, nullable=False)
+    notif_daily_reminder      = Column(Boolean, default=False, nullable=False)
+    notif_product_updates     = Column(Boolean, default=True, nullable=False)
+    notif_promotions          = Column(Boolean, default=False, nullable=False)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
