@@ -93,6 +93,18 @@ jobs:
       - name: 📦 Get dependencies
         run: flutter pub get
 
+      - name: 📁 Create asset directories
+        run: |
+          mkdir -p assets/images
+          mkdir -p assets/animations
+          mkdir -p assets/icons
+          touch assets/animations/.gitkeep
+          touch assets/icons/.gitkeep
+          # Create a placeholder icon if not committed to repo
+          if [ ! -f assets/images/app_icon.png ]; then
+            touch assets/images/app_icon.png
+          fi
+
       - name: 🔑 Setup keystore from GitHub Secret
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/promptreel-release.jks
