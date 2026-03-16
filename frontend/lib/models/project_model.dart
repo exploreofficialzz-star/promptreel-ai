@@ -128,7 +128,7 @@ class HashtagSet {
     required this.trending,
   });
 
-  factory HashtagSet.fromJson(Map<String, dynamic> json) {
+  factory HashtagSet.fromJson(dynamic json) {
     if (json is List) {
       return HashtagSet(
         primary: List<String>.from(json),
@@ -137,11 +137,12 @@ class HashtagSet {
         trending: [],
       );
     }
+    final map = json as Map<String, dynamic>;
     return HashtagSet(
-      primary: List<String>.from(json['primary'] ?? []),
-      secondary: List<String>.from(json['secondary'] ?? []),
-      niche: List<String>.from(json['niche'] ?? []),
-      trending: List<String>.from(json['trending'] ?? []),
+      primary: List<String>.from(map['primary'] ?? []),
+      secondary: List<String>.from(map['secondary'] ?? []),
+      niche: List<String>.from(map['niche'] ?? []),
+      trending: List<String>.from(map['trending'] ?? []),
     );
   }
 

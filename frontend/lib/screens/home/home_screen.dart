@@ -41,24 +41,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Container(
               decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
               child: CustomScrollView(
-          slivers: [
-            _buildAppBar(user),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildHero(user),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildStatsRow(projectsState),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildQuickCreate(),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildRecentProjects(projectsState),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildRecommendedTools(),
-                  const SizedBox(height: AppSpacing.md),
-                  _buildFooter(),
-                ]),
+                slivers: [
+                  _buildAppBar(user),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _buildHero(user),
+                        const SizedBox(height: AppSpacing.lg),
+                        _buildStatsRow(projectsState),
+                        const SizedBox(height: AppSpacing.lg),
+                        _buildQuickCreate(),
+                        const SizedBox(height: AppSpacing.lg),
+                        _buildRecentProjects(projectsState),
+                        const SizedBox(height: AppSpacing.lg),
+                        _buildRecommendedTools(),
+                        const SizedBox(height: AppSpacing.md),
+                        _buildFooter(),
+                      ]),
+                    ),
+                  ),
+                ],
               ),
             ),
             // Floating affiliate banner — rotates every 6s, dismissible

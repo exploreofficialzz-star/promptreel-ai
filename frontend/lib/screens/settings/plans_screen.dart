@@ -25,7 +25,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     {
       'id': 'free',
       'name': 'Free',
-      'price_label': '$0',
+      'price_label': r'$0',
       'period': 'forever',
       'amount_usd': 0.0,
       'color': 0xFF66667A,
@@ -44,7 +44,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     {
       'id': 'creator',
       'name': 'Creator',
-      'price_label': '$15',
+      'price_label': r'$15',
       'period': '/month',
       'amount_usd': AppConfig.creatorPriceUsd,
       'popular': true,
@@ -67,7 +67,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     {
       'id': 'studio',
       'name': 'Studio',
-      'price_label': '$35',
+      'price_label': r'$35',
       'period': '/month',
       'amount_usd': AppConfig.studioPriceUsd,
       'color': 0xFF00E5CC,
@@ -104,7 +104,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef = 'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
       final flutterwave = Flutterwave(
-        context: context,
         publicKey: AppConfig.flutterwavePublicKey,
         currency: 'USD',
         amount: (plan['amount_usd'] as double).toStringAsFixed(2),
@@ -124,7 +123,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         redirectUrl: 'promptreel://payment',
       );
 
-      final ChargeResponse response = await flutterwave.charge();
+      final ChargeResponse response = await flutterwave.charge(context);
       if (!mounted) return;
 
       if (response.status == 'successful' && response.transactionId != null) {
