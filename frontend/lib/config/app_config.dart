@@ -9,32 +9,26 @@ class AppConfig {
   static const String version = '1.0.0';
 
   // ── API ───────────────────────────────────────────────────────────────────
-  // Change this to your Render deployment URL
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'https://promptreel-ai.onrender.com',
   );
   static const String apiPrefix = '/api';
   static const int connectTimeoutMs = 30000;
-  static const int receiveTimeoutMs = 120000; // AI can take time
+  static const int receiveTimeoutMs = 120000;
 
   // ── Flutterwave ───────────────────────────────────────────────────────────
-  // ⚠️ Replace with your LIVE public key before release.
-  // Dashboard → https://dashboard.flutterwave.com/settings/apis
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
     defaultValue: 'FLWPUBK-361fd657794dc9b4413eee510c6d68d4-X',
   );
 
-  // Live mode — set to true only during local testing
-  static const bool flutterwaveTestMode = bool.fromEnvironment(
-    'FLW_TEST_MODE',
-    defaultValue: false,
-  );
+  // Always LIVE — never enable test mode in production
+  static const bool flutterwaveTestMode = false;
 
   // Plan prices in USD — must match backend CREATOR_PRICE_USD / STUDIO_PRICE_USD
-  static const double creatorPriceUsd = 15.00;  // $15/month
-  static const double studioPriceUsd  = 35.00;  // $35/month
+  static const double creatorPriceUsd = 15.00;
+  static const double studioPriceUsd  = 35.00;
 
   // ── Storage Keys ──────────────────────────────────────────────────────────
   static const String tokenKey = 'access_token';
@@ -43,20 +37,20 @@ class AppConfig {
   static const String onboardingKey = 'onboarding_complete';
   static const String themeKey = 'app_theme';
 
-  // ── AdMob IDs ──────────────────────────────────────────────────────────────
+  // ── AdMob IDs ─────────────────────────────────────────────────────────────
   // Android — LIVE IDs
-  static const String admobAppIdAndroid        = 'ca-app-pub-2492078126313994~1571011892';
-  static const String bannerAdUnitAndroid      = 'ca-app-pub-2492078126313994/7847678030';
-  static const String interstitialAdUnitAndroid= 'ca-app-pub-2492078126313994/5357246065';
-  static const String rewardedAdUnitAndroid    = 'ca-app-pub-2492078126313994/5879990244';
-  static const String nativeAdUnitAndroid      = 'ca-app-pub-2492078126313994/7137231592';
+  static const String admobAppIdAndroid         = 'ca-app-pub-2492078126313994~1571011892';
+  static const String bannerAdUnitAndroid       = 'ca-app-pub-2492078126313994/7847678030';
+  static const String interstitialAdUnitAndroid = 'ca-app-pub-2492078126313994/5357246065';
+  static const String rewardedAdUnitAndroid     = 'ca-app-pub-2492078126313994/5879990244';
+  static const String nativeAdUnitAndroid       = 'ca-app-pub-2492078126313994/7137231592';
 
   // iOS — replace when ready
-  static const String admobAppIdIos            = 'ca-app-pub-3940256099942544~1458002511'; // TODO: replace
-  static const String bannerAdUnitIos          = 'ca-app-pub-3940256099942544/2934735716'; // TODO: replace
-  static const String interstitialAdUnitIos    = 'ca-app-pub-3940256099942544/4411468910'; // TODO: replace
-  static const String rewardedAdUnitIos        = 'ca-app-pub-3940256099942544/1712485313'; // TODO: replace
-  static const String nativeAdUnitIos          = 'ca-app-pub-3940256099942544/3986624511'; // TODO: replace
+  static const String admobAppIdIos             = 'ca-app-pub-3940256099942544~1458002511';
+  static const String bannerAdUnitIos           = 'ca-app-pub-3940256099942544/2934735716';
+  static const String interstitialAdUnitIos     = 'ca-app-pub-3940256099942544/4411468910';
+  static const String rewardedAdUnitIos         = 'ca-app-pub-3940256099942544/1712485313';
+  static const String nativeAdUnitIos           = 'ca-app-pub-3940256099942544/3986624511';
 
   // ── AI Model Tiers (for display) ──────────────────────────────────────────
   static const Map<String, Map<String, dynamic>> planAiModels = {
@@ -77,7 +71,7 @@ class AppConfig {
     },
   };
 
-  // ── Affiliate Links ────────────────────────────────────────────────────────
+  // ── Affiliate Links ───────────────────────────────────────────────────────
   static const Map<String, String> affiliateLinks = {
     'Runway': 'https://runwayml.com',
     'Pika': 'https://pika.art',
