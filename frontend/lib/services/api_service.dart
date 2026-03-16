@@ -211,6 +211,28 @@ class ApiService {
     return res.data;
   }
 
+  // ── Payments ───────────────────────────────────────────────────────────────
+  /// Verifies a completed Flutterwave transaction server-side and upgrades
+  /// the user's plan. Returns the response map on success.
+  Future<Map<String, dynamic>> verifyPayment({
+    required String transactionId,
+    required String txRef,
+    required String plan,
+  }) async {
+    final res = await _dio.post('/payments/verify', data: {
+      'transaction_id': transactionId,
+      'tx_ref': txRef,
+      'plan': plan,
+    });
+    return res.data;
+  }
+
+  /// Returns the current NGN prices from the backend (creator + studio).
+  Future<Map<String, dynamic>> getPaymentPrices() async {
+    final res = await _dio.get('/payments/prices');
+    return res.data;
+  }
+
   // ── Error helper ──────────────────────────────────────────────────────────
   static String extractError(dynamic error) {
     if (error is DioException) {
