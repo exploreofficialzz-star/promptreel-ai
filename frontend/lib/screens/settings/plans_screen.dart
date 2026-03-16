@@ -98,12 +98,17 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       return;
     }
 
-    setState(() { _isProcessing = true; _processingPlan = planId; });
+    setState(() {
+      _isProcessing = true;
+      _processingPlan = planId;
+    });
 
     try {
-      final txRef = 'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
+      final txRef =
+          'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
       final flutterwave = Flutterwave(
+        context: context,
         publicKey: AppConfig.flutterwavePublicKey,
         currency: 'USD',
         amount: (plan['amount_usd'] as double).toStringAsFixed(2),
@@ -123,25 +128,35 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         redirectUrl: 'promptreel://payment',
       );
 
-      final ChargeResponse response = await flutterwave.charge(context);
+      final ChargeResponse response = await flutterwave.charge();
       if (!mounted) return;
 
-      if (response.status == 'successful' && response.transactionId != null) {
+      final responseStatus = response.status?.toLowerCase() ?? '';
+
+      if (responseStatus == 'successful' &&
+          response.transactionId != null) {
         await _verifyAndUpgrade(
           transactionId: response.transactionId!,
           txRef: txRef,
           planId: planId,
           planName: plan['name'] as String,
         );
-      } else if (response.status == 'cancelled') {
+      } else if (responseStatus == 'cancelled' ||
+          responseStatus == 'cancel') {
         _showInfo('Payment cancelled.');
       } else {
-        _showError('Payment was not completed. Status: ${response.status}');
+        _showError(
+            'Payment was not completed. Status: ${response.status ?? "unknown"}');
       }
     } catch (e) {
       if (mounted) _showError('Payment error: ${e.toString()}');
     } finally {
-      if (mounted) setState(() { _isProcessing = false; _processingPlan = null; });
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _processingPlan = null;
+        });
+      }
     }
   }
 
@@ -159,18 +174,23 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
     try {
       final api = ref.read(apiServiceProvider);
-      await api.verifyPayment(transactionId: transactionId, txRef: txRef, plan: planId);
+      await api.verifyPayment(
+        transactionId: transactionId,
+        txRef: txRef,
+        plan: planId,
+      );
       await ref.read(authProvider.notifier).refreshUser();
 
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // close verifying dialog
         _showSuccess(planName);
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // close verifying dialog
         _showError(
-          'Payment received but verification failed.\nContact support with reference:\n$txRef',
+          'Payment received but verification failed.\n'
+          'Contact support with reference:\n$txRef',
         );
       }
     }
@@ -181,7 +201,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.xl)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -192,20 +213,28 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 gradient: AppColors.primaryGradient,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_rounded, color: Colors.black, size: 40),
-            ).animate().scale(curve: Curves.elasticOut, duration: 600.ms),
+              child: const Icon(Icons.check_rounded,
+                  color: Colors.black, size: 40),
+            ).animate().scale(
+                curve: Curves.elasticOut, duration: 600.ms),
             const SizedBox(height: 16),
-            Text('🎉 Welcome to $planName!', style: AppTypography.headlineMedium, textAlign: TextAlign.center),
+            Text('🎉 Welcome to $planName!',
+                style: AppTypography.headlineMedium,
+                textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(
-              'Your plan has been upgraded successfully. Enjoy all the new features!',
+              'Your plan has been upgraded successfully. '
+              'Enjoy all the new features!',
               style: AppTypography.bodySmall,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             AppButton(
               label: 'Start Creating',
-              onPressed: () { Navigator.of(context).pop(); context.go('/create'); },
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.go('/create');
+              },
               fullWidth: true,
             ),
           ],
@@ -215,11 +244,15 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Row(children: [
-        const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+        const Icon(Icons.error_outline_rounded,
+            color: Colors.white, size: 18),
         const SizedBox(width: 8),
-        Expanded(child: Text(message, style: const TextStyle(fontSize: 13))),
+        Expanded(
+            child: Text(message,
+                style: const TextStyle(fontSize: 13))),
       ]),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
@@ -228,6 +261,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   void _showInfo(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
       backgroundColor: AppColors.surfaceElevated,
@@ -241,7 +275,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+        decoration:
+            const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: CustomScrollView(
             slivers: [
@@ -252,7 +287,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                   icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: () => context.go('/settings'),
                 ),
-                title: Text('Upgrade Plan', style: AppTypography.headlineMedium),
+                title: Text('Upgrade Plan',
+                    style: AppTypography.headlineMedium),
                 centerTitle: false,
               ),
               SliverToBoxAdapter(
@@ -262,23 +298,29 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                     children: [
                       _buildHeader(),
                       const SizedBox(height: AppSpacing.lg),
-
                       ..._plans.asMap().entries.map((e) {
                         final plan = e.value;
-                        final isCurrent = user?.plan == plan['id'];
-                        final isLoading = _isProcessing && _processingPlan == plan['id'];
+                        // ── Fix: compare lowercase plan strings ──
+                        final isCurrent =
+                            (user?.plan ?? 'free').toLowerCase() ==
+                                (plan['id'] as String).toLowerCase();
+                        final isLoading = _isProcessing &&
+                            _processingPlan == plan['id'];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
                             plan: plan,
                             isCurrent: isCurrent,
                             isLoading: isLoading,
-                            isDisabled: _isProcessing && !isLoading,
+                            isDisabled:
+                                _isProcessing && !isLoading,
                             onSelect: () => _handleSelect(plan),
-                          ).animate(delay: Duration(milliseconds: e.key * 120)).fadeIn().slideY(begin: 0.15),
+                          ).animate(
+                            delay: Duration(
+                                milliseconds: e.key * 120),
+                          ).fadeIn().slideY(begin: 0.15),
                         );
                       }),
-
                       _buildPaymentInfo(),
                       const SizedBox(height: AppSpacing.md),
                       _buildFaq(),
@@ -297,22 +339,31 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     return Column(
       children: [
         Container(
-          width: 64, height: 64,
+          width: 64,
+          height: 64,
           decoration: BoxDecoration(
             gradient: AppColors.primaryGradient,
             shape: BoxShape.circle,
             boxShadow: AppShadows.glow,
           ),
-          child: const Icon(Icons.workspace_premium_rounded, color: Colors.black, size: 32),
-        ).animate().scale(curve: Curves.elasticOut, duration: 700.ms),
+          child: const Icon(Icons.workspace_premium_rounded,
+              color: Colors.black, size: 32),
+        ).animate().scale(
+            curve: Curves.elasticOut, duration: 700.ms),
         const SizedBox(height: 12),
         ShaderMask(
-          shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
-          child: Text('Unlock Full Power', style: AppTypography.displaySmall.copyWith(color: Colors.white)),
+          shaderCallback: (b) =>
+              AppColors.primaryGradient.createShader(b),
+          child: Text('Unlock Full Power',
+              style: AppTypography.displaySmall
+                  .copyWith(color: Colors.white)),
         ),
         const SizedBox(height: 4),
-        Text('Generate unlimited AI video plans with no restrictions',
-            style: AppTypography.bodySmall, textAlign: TextAlign.center),
+        Text(
+          'Generate unlimited AI video plans with no restrictions',
+          style: AppTypography.bodySmall,
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
@@ -328,17 +379,21 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.sm),
                 ),
-                child: const Text('🌍', style: TextStyle(fontSize: 20)),
+                child: const Text('🌍',
+                    style: TextStyle(fontSize: 20)),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Secure Payment via Flutterwave', style: AppTypography.titleMedium),
-                    Text('Worldwide · Cards · Bank Transfer', style: AppTypography.labelSmall),
+                    Text('Secure Payment via Flutterwave',
+                        style: AppTypography.titleMedium),
+                    Text('Worldwide · Cards · Bank Transfer',
+                        style: AppTypography.labelSmall),
                   ],
                 ),
               ),
@@ -354,7 +409,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Prices in USD. Subscriptions are monthly and can be cancelled anytime.',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+            style: AppTypography.bodySmall
+                .copyWith(color: AppColors.textMuted),
           ),
         ],
       ),
@@ -367,7 +423,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       child: Row(children: [
         Text(icon, style: const TextStyle(fontSize: 16)),
         const SizedBox(width: 10),
-        Text(name, style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
+        Text(name,
+            style: AppTypography.labelMedium
+                .copyWith(color: AppColors.textPrimary)),
         const SizedBox(width: 6),
         Text('· $desc', style: AppTypography.labelSmall),
       ]),
@@ -382,22 +440,39 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           Text('FAQ', style: AppTypography.titleMedium),
           const SizedBox(height: 12),
           ...[
-            ('Can I cancel anytime?', 'Yes. Cancel from Settings — access continues until billing period ends.'),
-            ('Is there a free trial?', 'The Free plan gives you 3 plans/day forever — no card needed.'),
-            ('Which AI models do I get?', 'Creator gets GPT-4o-mini & Gemini Pro. Studio gets GPT-4o & Claude 3.5 Sonnet.'),
-            ('Do you generate actual videos?', 'No. We generate scripts, prompts & SEO. You use those with Runway, Kling, Pika etc.'),
-            ('Is my payment secure?', 'Yes — processed entirely by Flutterwave. We never store your card details.'),
-          ].map((faq) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(faq.$1, style: AppTypography.labelLarge.copyWith(color: AppColors.primary)),
-                const SizedBox(height: 4),
-                Text(faq.$2, style: AppTypography.bodySmall),
-              ],
+            (
+              'Can I cancel anytime?',
+              'Yes. Cancel from Settings — access continues until billing period ends.'
             ),
-          )),
+            (
+              'Is there a free trial?',
+              'The Free plan gives you 3 plans/day forever — no card needed.'
+            ),
+            (
+              'Which AI models do I get?',
+              'Creator gets GPT-4o-mini & Gemini Pro. Studio gets GPT-4o & Claude 3.5 Sonnet.'
+            ),
+            (
+              'Do you generate actual videos?',
+              'No. We generate scripts, prompts & SEO. You use those with Runway, Kling, Pika etc.'
+            ),
+            (
+              'Is my payment secure?',
+              'Yes — processed entirely by Flutterwave. We never store your card details.'
+            ),
+          ].map((faq) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(faq.$1,
+                        style: AppTypography.labelLarge
+                            .copyWith(color: AppColors.primary)),
+                    const SizedBox(height: 4),
+                    Text(faq.$2, style: AppTypography.bodySmall),
+                  ],
+                ),
+              )),
         ],
       ),
     );
@@ -405,7 +480,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 }
 
 // ─── Plan Card ────────────────────────────────────────────────────────────────
-
 class _PlanCard extends StatelessWidget {
   final Map<String, dynamic> plan;
   final bool isCurrent;
@@ -423,11 +497,11 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color     = Color(plan['color'] as int);
+    final color = Color(plan['color'] as int);
     final isPopular = plan['popular'] == true;
-    final isFree    = plan['id'] == 'free';
-    final features  = plan['features'] as List<dynamic>;
-    final missing   = plan['missing'] as List<dynamic>;
+    final isFree = plan['id'] == 'free';
+    final features = plan['features'] as List<dynamic>;
+    final missing = plan['missing'] as List<dynamic>;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -436,7 +510,10 @@ class _PlanCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: isPopular
                 ? LinearGradient(
-                    colors: [color.withOpacity(0.08), AppColors.surface],
+                    colors: [
+                      color.withOpacity(0.08),
+                      AppColors.surface
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
@@ -445,11 +522,18 @@ class _PlanCard extends StatelessWidget {
             border: Border.all(
               color: isCurrent
                   ? AppColors.success.withOpacity(0.6)
-                  : isPopular ? color.withOpacity(0.5) : AppColors.border,
+                  : isPopular
+                      ? color.withOpacity(0.5)
+                      : AppColors.border,
               width: isPopular || isCurrent ? 1.5 : 1,
             ),
             boxShadow: isPopular
-                ? [BoxShadow(color: color.withOpacity(0.12), blurRadius: 30, spreadRadius: -5)]
+                ? [
+                    BoxShadow(
+                        color: color.withOpacity(0.12),
+                        blurRadius: 30,
+                        spreadRadius: -5)
+                  ]
                 : null,
           ),
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -461,19 +545,26 @@ class _PlanCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
-                        Text(plan['name'] as String, style: AppTypography.headlineMedium),
+                        Text(plan['name'] as String,
+                            style: AppTypography.headlineMedium),
                         if (isCurrent)
                           Container(
                             margin: const EdgeInsets.only(top: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.success.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(AppRadius.full),
+                              color: AppColors.success
+                                  .withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(
+                                  AppRadius.full),
                             ),
                             child: Text('Your current plan',
-                                style: AppTypography.labelSmall.copyWith(color: AppColors.success)),
+                                style: AppTypography.labelSmall
+                                    .copyWith(
+                                        color: AppColors.success)),
                           ),
                       ],
                     ),
@@ -484,7 +575,8 @@ class _PlanCard extends StatelessWidget {
                       children: [
                         TextSpan(
                           text: plan['price_label'] as String,
-                          style: AppTypography.displaySmall.copyWith(color: color),
+                          style: AppTypography.displaySmall
+                              .copyWith(color: color),
                         ),
                         TextSpan(text: plan['period'] as String),
                       ],
@@ -492,84 +584,102 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ],
               ),
-
               if (plan['ai_badge'] != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: color.withOpacity(0.2)),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.sm),
+                    border:
+                        Border.all(color: color.withOpacity(0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(plan['ai_badge'] as String,
-                          style: AppTypography.labelMedium.copyWith(color: color)),
+                          style: AppTypography.labelMedium
+                              .copyWith(color: color)),
                       const SizedBox(height: 2),
                       Text(plan['ai_chain'] as String,
-                          style: AppTypography.labelSmall.copyWith(height: 1.5)),
+                          style: AppTypography.labelSmall
+                              .copyWith(height: 1.5)),
                     ],
                   ),
                 ),
               ],
-
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),
-
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.check_circle_rounded, size: 16, color: color),
+                        Icon(Icons.check_circle_rounded,
+                            size: 16, color: color),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(f as String,
-                            style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary))),
+                        Expanded(
+                            child: Text(f as String,
+                                style: AppTypography.bodySmall
+                                    .copyWith(
+                                        color: AppColors
+                                            .textPrimary))),
                       ],
                     ),
                   )),
-
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Row(children: [
-                        const Icon(Icons.remove_circle_outline, size: 16, color: AppColors.textMuted),
+                        const Icon(Icons.remove_circle_outline,
+                            size: 16, color: AppColors.textMuted),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(f as String, style: AppTypography.bodySmall)),
+                        Expanded(
+                            child: Text(f as String,
+                                style: AppTypography.bodySmall)),
                       ]),
                     )),
-
               const SizedBox(height: AppSpacing.md),
-
               if (!isFree && !isCurrent)
                 AppButton(
                   label: isLoading
                       ? 'Processing…'
                       : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
-                  onPressed: (isDisabled || isLoading) ? null : onSelect,
+                  onPressed:
+                      (isDisabled || isLoading) ? null : onSelect,
                   isLoading: isLoading,
                   fullWidth: true,
-                  variant: isPopular ? AppButtonVariant.primary : AppButtonVariant.outline,
+                  variant: isPopular
+                      ? AppButtonVariant.primary
+                      : AppButtonVariant.outline,
                 )
               else if (isCurrent)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                        color: AppColors.success.withOpacity(0.3)),
                   ),
                   child: Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_rounded, size: 16, color: AppColors.success),
+                        const Icon(Icons.check_rounded,
+                            size: 16, color: AppColors.success),
                         const SizedBox(width: 6),
-                        Text('Active Plan', style: AppTypography.labelLarge.copyWith(color: AppColors.success)),
+                        Text('Active Plan',
+                            style: AppTypography.labelLarge
+                                .copyWith(
+                                    color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -577,33 +687,40 @@ class _PlanCard extends StatelessWidget {
               else
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHighlight,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text('Current Plan',
-                        style: AppTypography.labelLarge.copyWith(color: AppColors.textMuted)),
+                        style: AppTypography.labelLarge.copyWith(
+                            color: AppColors.textMuted)),
                   ),
                 ),
             ],
           ),
         ),
-
         if (isPopular)
           Positioned(
-            top: -12, left: 0, right: 0,
+            top: -12,
+            left: 0,
+            right: 0,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
                 child: Text('⭐ MOST POPULAR',
-                    style: AppTypography.labelSmall.copyWith(color: Colors.black, letterSpacing: 1.0)),
+                    style: AppTypography.labelSmall.copyWith(
+                        color: Colors.black, letterSpacing: 1.0)),
               ),
             ),
           ),
@@ -613,7 +730,6 @@ class _PlanCard extends StatelessWidget {
 }
 
 // ─── Verifying Dialog ─────────────────────────────────────────────────────────
-
 class _VerifyingDialog extends StatelessWidget {
   const _VerifyingDialog();
 
@@ -621,22 +737,28 @@ class _VerifyingDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl)),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(gradient: AppColors.primaryGradient, shape: BoxShape.circle),
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  shape: BoxShape.circle),
               child: const Padding(
                 padding: EdgeInsets.all(14),
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.5, color: Colors.black),
               ),
             ),
             const SizedBox(height: 16),
-            Text('Verifying Payment…', style: AppTypography.titleLarge),
+            Text('Verifying Payment…',
+                style: AppTypography.titleLarge),
             const SizedBox(height: 6),
             Text(
               'Please wait while we confirm your payment with Flutterwave.',
