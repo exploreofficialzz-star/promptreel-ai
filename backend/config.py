@@ -48,18 +48,19 @@ class Settings(BaseSettings):
 
     # Free tier
     GEMINI_MODEL_FREE: str = "gemini-1.5-flash"
-    DEEPSEEK_MODEL_FREE: str = "deepseek-chat"          # DeepSeek-V3
-    GROQ_MODEL_FREE: str = "llama-3.3-70b-versatile"    # Free on Groq
+    DEEPSEEK_MODEL_FREE: str = "deepseek-chat"
+    GROQ_MODEL_FREE: str = "llama-3.3-70b-versatile"
     TOGETHER_MODEL_FREE: str = "Qwen/Qwen2.5-72B-Instruct-Turbo"
     OPENROUTER_MODEL_FREE: str = "meta-llama/llama-3.3-70b-instruct:free"
 
     # ── Flutterwave ───────────────────────────────────────────────────────────
-    FLUTTERWAVE_SECRET_KEY: Optional[str] = None    # sk.env_...
-    FLUTTERWAVE_PUBLIC_KEY: Optional[str] = None    # FLWPUBK_...
+    FLUTTERWAVE_SECRET_KEY:   Optional[str] = None
+    FLUTTERWAVE_PUBLIC_KEY:   Optional[str] = None
+    FLUTTERWAVE_WEBHOOK_HASH: Optional[str] = None
 
-    # Plan prices in USD cents (Flutterwave accepts decimals, we store as float)
+    # ── Plan Prices USD ───────────────────────────────────────────────────────
     CREATOR_PRICE_USD: float = 15.00   # $15/month
-    STUDIO_PRICE_USD: float = 35.00    # $35/month
+    STUDIO_PRICE_USD:  float = 35.00   # $35/month
 
     # ── Rate Limits ───────────────────────────────────────────────────────────
     FREE_DAILY_LIMIT: int = 3
@@ -92,5 +93,4 @@ PLAN_TIER = {
     "free":    "free",
     "creator": "creator",
     "studio":  "studio",
-}
-
+    }
