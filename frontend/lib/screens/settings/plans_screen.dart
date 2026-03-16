@@ -107,8 +107,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef =
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
+      // ── Fix: removed context: context — not a valid parameter
+      // in flutterwave_standard v1.1.0
       final flutterwave = Flutterwave(
-        context: context,
         publicKey: AppConfig.flutterwavePublicKey,
         currency: 'USD',
         amount: (plan['amount_usd'] as double).toStringAsFixed(2),
@@ -128,7 +129,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         redirectUrl: 'promptreel://payment',
       );
 
-      final ChargeResponse response = await flutterwave.charge();
+      final ChargeResponse response = await flutterwave.charge(context);
       if (!mounted) return;
 
       final responseStatus = response.status?.toLowerCase() ?? '';
@@ -182,12 +183,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       await ref.read(authProvider.notifier).refreshUser();
 
       if (mounted) {
-        Navigator.of(context).pop(); // close verifying dialog
+        Navigator.of(context).pop();
         _showSuccess(planName);
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // close verifying dialog
+        Navigator.of(context).pop();
         _showError(
           'Payment received but verification failed.\n'
           'Contact support with reference:\n$txRef',
@@ -300,7 +301,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                       const SizedBox(height: AppSpacing.lg),
                       ..._plans.asMap().entries.map((e) {
                         final plan = e.value;
-                        // ── Fix: compare lowercase plan strings ──
                         final isCurrent =
                             (user?.plan ?? 'free').toLowerCase() ==
                                 (plan['id'] as String).toLowerCase();
@@ -312,12 +312,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                             plan: plan,
                             isCurrent: isCurrent,
                             isLoading: isLoading,
-                            isDisabled:
-                                _isProcessing && !isLoading,
+                            isDisabled: _isProcessing && !isLoading,
                             onSelect: () => _handleSelect(plan),
                           ).animate(
-                            delay: Duration(
-                                milliseconds: e.key * 120),
+                            delay: Duration(milliseconds: e.key * 120),
                           ).fadeIn().slideY(begin: 0.15),
                         );
                       }),
@@ -348,8 +346,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           ),
           child: const Icon(Icons.workspace_premium_rounded,
               color: Colors.black, size: 32),
-        ).animate().scale(
-            curve: Curves.elasticOut, duration: 700.ms),
+        ).animate().scale(curve: Curves.elasticOut, duration: 700.ms),
         const SizedBox(height: 12),
         ShaderMask(
           shaderCallback: (b) =>
@@ -379,11 +376,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.sm),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-                child: const Text('🌍',
-                    style: TextStyle(fontSize: 20)),
+                child: const Text('🌍', style: TextStyle(fontSize: 20)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -510,10 +505,7 @@ class _PlanCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: isPopular
                 ? LinearGradient(
-                    colors: [
-                      color.withOpacity(0.08),
-                      AppColors.surface
-                    ],
+                    colors: [color.withOpacity(0.08), AppColors.surface],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
@@ -528,12 +520,10 @@ class _PlanCard extends StatelessWidget {
               width: isPopular || isCurrent ? 1.5 : 1,
             ),
             boxShadow: isPopular
-                ? [
-                    BoxShadow(
-                        color: color.withOpacity(0.12),
-                        blurRadius: 30,
-                        spreadRadius: -5)
-                  ]
+                ? [BoxShadow(
+                    color: color.withOpacity(0.12),
+                    blurRadius: 30,
+                    spreadRadius: -5)]
                 : null,
           ),
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -545,8 +535,7 @@ class _PlanCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(plan['name'] as String,
                             style: AppTypography.headlineMedium),
@@ -556,15 +545,12 @@ class _PlanCard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.success
-                                  .withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(
-                                  AppRadius.full),
+                              color: AppColors.success.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(AppRadius.full),
                             ),
                             child: Text('Your current plan',
                                 style: AppTypography.labelSmall
-                                    .copyWith(
-                                        color: AppColors.success)),
+                                    .copyWith(color: AppColors.success)),
                           ),
                       ],
                     ),
@@ -591,10 +577,8 @@ class _PlanCard extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.08),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.sm),
-                    border:
-                        Border.all(color: color.withOpacity(0.2)),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(color: color.withOpacity(0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -616,18 +600,15 @@ class _PlanCard extends StatelessWidget {
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.check_circle_rounded,
                             size: 16, color: color),
                         const SizedBox(width: 8),
                         Expanded(
                             child: Text(f as String,
-                                style: AppTypography.bodySmall
-                                    .copyWith(
-                                        color: AppColors
-                                            .textPrimary))),
+                                style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textPrimary))),
                       ],
                     ),
                   )),
@@ -649,8 +630,7 @@ class _PlanCard extends StatelessWidget {
                   label: isLoading
                       ? 'Processing…'
                       : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
-                  onPressed:
-                      (isDisabled || isLoading) ? null : onSelect,
+                  onPressed: (isDisabled || isLoading) ? null : onSelect,
                   isLoading: isLoading,
                   fullWidth: true,
                   variant: isPopular
@@ -660,12 +640,10 @@ class _PlanCard extends StatelessWidget {
               else if (isCurrent)
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.1),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     border: Border.all(
                         color: AppColors.success.withOpacity(0.3)),
                   ),
@@ -678,8 +656,7 @@ class _PlanCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text('Active Plan',
                             style: AppTypography.labelLarge
-                                .copyWith(
-                                    color: AppColors.success)),
+                                .copyWith(color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -687,17 +664,15 @@ class _PlanCard extends StatelessWidget {
               else
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHighlight,
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text('Current Plan',
-                        style: AppTypography.labelLarge.copyWith(
-                            color: AppColors.textMuted)),
+                        style: AppTypography.labelLarge
+                            .copyWith(color: AppColors.textMuted)),
                   ),
                 ),
             ],
@@ -714,8 +689,7 @@ class _PlanCard extends StatelessWidget {
                     horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.full),
+                  borderRadius: BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
                 child: Text('⭐ MOST POPULAR',
@@ -757,8 +731,7 @@ class _VerifyingDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Verifying Payment…',
-                style: AppTypography.titleLarge),
+            Text('Verifying Payment…', style: AppTypography.titleLarge),
             const SizedBox(height: 6),
             Text(
               'Please wait while we confirm your payment with Flutterwave.',
