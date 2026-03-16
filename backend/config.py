@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     TOGETHER_MODEL_FREE: str = "Qwen/Qwen2.5-72B-Instruct-Turbo"
     OPENROUTER_MODEL_FREE: str = "meta-llama/llama-3.3-70b-instruct:free"
 
+    # ── Flutterwave ───────────────────────────────────────────────────────────
+    FLUTTERWAVE_SECRET_KEY: Optional[str] = None    # sk.env_...
+    FLUTTERWAVE_PUBLIC_KEY: Optional[str] = None    # FLWPUBK_...
+
+    # Plan prices in USD cents (Flutterwave accepts decimals, we store as float)
+    CREATOR_PRICE_USD: float = 15.00   # $15/month
+    STUDIO_PRICE_USD: float = 35.00    # $35/month
+
     # ── Rate Limits ───────────────────────────────────────────────────────────
     FREE_DAILY_LIMIT: int = 3
     FREE_MAX_DURATION: int = 5
