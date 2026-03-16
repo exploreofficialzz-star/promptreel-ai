@@ -66,12 +66,17 @@ class RefreshRequest(BaseModel):
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+def _truncate_password(password: str) -> str:
+    # bcrypt max is 72 bytes — truncate to be safe
+    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_truncate_password(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(_truncate_password(plain_password), hashed_password)
 
 
 def create_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -125,7 +130,6 @@ async def get_current_user(
 # ─── Routes ──────────────────────────────────────────────────────────────────
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # Check existing email
     existing = await db.execute(select(User).where(User.email == data.email.lower()))
     if existing.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
