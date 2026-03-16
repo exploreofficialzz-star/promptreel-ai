@@ -8,7 +8,7 @@ import time
 
 from config import settings
 from database import create_tables
-from routers import auth, generate, projects, export, payments
+from routers import auth, generate, projects, export
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -71,7 +71,7 @@ async def not_found_handler(request: Request, exc):
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    logger.error(f"Internal error on {request.url.path}: {exc}")
+    logger.error(f"Internal error on {request.url.path}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error. Please try again."},
@@ -83,7 +83,6 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
-app.include_router(payments.router, prefix="/api")
 
 
 # ─── Health & Root ────────────────────────────────────────────────────────────
@@ -168,4 +167,4 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG,
         workers=1 if settings.DEBUG else 4,
-)
+    )
