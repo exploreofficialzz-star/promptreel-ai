@@ -8,7 +8,7 @@ import time
 
 from config import settings
 from database import create_tables
-from routers import auth, generate, projects, export
+from routers import auth, generate, projects, export, payments
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -83,6 +83,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
+app.include_router(payments.router, prefix="/api")
 
 
 # ─── Health & Root ────────────────────────────────────────────────────────────
@@ -167,4 +168,4 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG,
         workers=1 if settings.DEBUG else 4,
-    )
+)
