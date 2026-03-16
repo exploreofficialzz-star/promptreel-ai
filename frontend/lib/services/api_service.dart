@@ -9,7 +9,12 @@ final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
 class ApiService {
   late final Dio _dio;
-  final _storage = const FlutterSecureStorage();
+  final _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: true,
+    ),
+  );
 
   ApiService() {
     _dio = Dio(BaseOptions(
@@ -212,8 +217,6 @@ class ApiService {
   }
 
   // ── Payments ───────────────────────────────────────────────────────────────
-  /// Verifies a completed Flutterwave transaction server-side and upgrades
-  /// the user's plan. Returns the response map on success.
   Future<Map<String, dynamic>> verifyPayment({
     required String transactionId,
     required String txRef,
@@ -227,7 +230,6 @@ class ApiService {
     return res.data;
   }
 
-  /// Returns the current NGN prices from the backend (creator + studio).
   Future<Map<String, dynamic>> getPaymentPrices() async {
     final res = await _dio.get('/payments/prices');
     return res.data;
