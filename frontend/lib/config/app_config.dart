@@ -18,6 +18,24 @@ class AppConfig {
   static const int connectTimeoutMs = 30000;
   static const int receiveTimeoutMs = 120000; // AI can take time
 
+  // ── Flutterwave ───────────────────────────────────────────────────────────
+  // ⚠️ Replace with your LIVE public key before release.
+  // Dashboard → https://dashboard.flutterwave.com/settings/apis
+  static const String flutterwavePublicKey = String.fromEnvironment(
+    'FLW_PUBLIC_KEY',
+    defaultValue: 'FLWPUBK_TEST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-X', // TEST key placeholder
+  );
+
+  // Set to false in production release
+  static const bool flutterwaveTestMode = bool.fromEnvironment(
+    'FLW_TEST_MODE',
+    defaultValue: true,
+  );
+
+  // Plan prices in USD — must match backend CREATOR_PRICE_USD / STUDIO_PRICE_USD
+  static const double creatorPriceUsd = 15.00;  // $15/month
+  static const double studioPriceUsd  = 35.00;  // $35/month
+
   // ── Storage Keys ──────────────────────────────────────────────────────────
   static const String tokenKey = 'access_token';
   static const String refreshTokenKey = 'refresh_token';
