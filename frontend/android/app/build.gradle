@@ -58,7 +58,7 @@ android {
 
         // AdMob App ID — REPLACE with your real AdMob App ID
         manifestPlaceholders = [
-            admobAppId: "ca-app-pub-3940256099942544~3347511713"
+            admobAppId: "ca-app-pub-2492078126313994~1571011892"
         ]
     }
 
