@@ -25,12 +25,24 @@ class _BannerAdWidgetState extends ConsumerState<BannerAdWidget> {
 
   void _loadAd() {
     final user = ref.read(currentUserProvider);
-    if (user?.isPaid ?? false) return; // Skip for paid users
+    if (user?.isPaid ?? false) return;
+
+    // ── Fix: createBannerAd() already calls .load() internally ──
+    // Do NOT call .load() again here — just listen for loaded state
     final ad = AdService.instance.createBannerAd();
     if (ad == null) return;
-    ad.load().then((_) {
-      if (mounted) setState(() { _ad = ad; _loaded = true; });
-    });
+
+    ad.listener = BannerAdListener(
+      onAdLoaded: (_) {
+        if (mounted) setState(() { _ad = ad; _loaded = true; });
+      },
+      onAdFailedToLoad: (ad, error) {
+        ad.dispose();
+        debugPrint('BannerAdWidget failed: $error');
+      },
+    );
+
+    _ad = ad;
   }
 
   @override
@@ -81,15 +93,30 @@ class _StickyBannerAdState extends ConsumerState<StickyBannerAd> {
   void _load() {
     final user = ref.read(currentUserProvider);
     if (user?.isPaid ?? false) return;
+
+    // ── Fix: createBannerAd() already calls .load() internally ──
+    // Do NOT call .load() again here — just listen for loaded state
     final ad = AdService.instance.createBannerAd();
     if (ad == null) return;
-    ad.load().then((_) {
-      if (mounted) setState(() { _ad = ad; _loaded = true; });
-    });
+
+    ad.listener = BannerAdListener(
+      onAdLoaded: (_) {
+        if (mounted) setState(() { _ad = ad; _loaded = true; });
+      },
+      onAdFailedToLoad: (ad, error) {
+        ad.dispose();
+        debugPrint('StickyBannerAd failed: $error');
+      },
+    );
+
+    _ad = ad;
   }
 
   @override
-  void dispose() { _ad?.dispose(); super.dispose(); }
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
