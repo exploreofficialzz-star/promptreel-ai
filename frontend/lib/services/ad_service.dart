@@ -10,7 +10,19 @@ class AdService {
   AdService._();
   static final AdService instance = AdService._();
 
-  // ── Ad unit IDs (platform-aware) ─────────────────────────────────────────
+  bool _initialized = false;
+
+  // ── Initialize AdMob — MUST be called once at app startup ─────────────────
+  Future<void> initialize() async {
+    if (_initialized) return;
+    await MobileAds.instance.initialize();
+    _initialized = true;
+    debugPrint('✅ AdMob initialized');
+    // Pre-load interstitial right away
+    await loadInterstitial();
+  }
+
+  // ── Ad unit IDs (platform-aware) ──────────────────────────────────────────
   String get _bannerAdUnit => kIsWeb
       ? ''
       : Platform.isAndroid
@@ -73,29 +85,41 @@ class AdService {
     if (user?.isPaid ?? false) return; // Never show to paid users
     if (_interstitialAd == null) {
       await loadInterstitial();
-      return;
+      return; // Ad not ready yet — skip rather than block UX
     }
     await _interstitialAd!.show();
   }
 
   // ── Rewarded ──────────────────────────────────────────────────────────────
   RewardedAd? _rewardedAd;
+  bool _isRewardedLoading = false; // ← Fix: guard against multiple loads
 
   Future<void> loadRewarded() async {
+    if (_isRewardedLoading || _rewardedAd != null) return;
+    _isRewardedLoading = true;
     await RewardedAd.load(
       adUnitId: _rewardedAdUnit,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
           _rewardedAd = ad;
+          _isRewardedLoading = false;
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               _rewardedAd = null;
             },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              _rewardedAd = null;
+              _isRewardedLoading = false;
+            },
           );
         },
-        onAdFailedToLoad: (error) => debugPrint('Rewarded failed: $error'),
+        onAdFailedToLoad: (error) {
+          _isRewardedLoading = false;
+          debugPrint('Rewarded failed: $error');
+        },
       ),
     );
   }
@@ -117,17 +141,20 @@ class AdService {
   // ── Banner ────────────────────────────────────────────────────────────────
   BannerAd? createBannerAd() {
     if (kIsWeb) return null;
-    return BannerAd(
+    final banner = BannerAd(
       adUnitId: _bannerAdUnit,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
+        onAdLoaded: (_) => debugPrint('✅ Banner loaded'),
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           debugPrint('Banner failed: $error');
         },
       ),
     );
+    banner.load(); // ← Fix: actually load the banner ad
+    return banner;
   }
 
   // ── Native ────────────────────────────────────────────────────────────────
@@ -135,7 +162,7 @@ class AdService {
     if (kIsWeb) return null;
     return NativeAd(
       adUnitId: _nativeAdUnit,
-      factoryId: 'listTile', // Matches native ad factory registered in MainActivity
+      factoryId: 'listTile',
       request: const AdRequest(),
       listener: listener,
     );
@@ -145,4 +172,10 @@ class AdService {
     _interstitialAd?.dispose();
     _rewardedAd?.dispose();
   }
+}
+You also need to call initialize() in 📄 frontend/lib/main.dart. Find your main() function and add this:
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AdService.instance.initialize(); // ← Add this line
+  runApp(const ProviderScope(child: MyApp()));
 }
