@@ -21,17 +21,20 @@ class SceneItem {
     this.transition,
   });
 
-  factory SceneItem.fromJson(Map<String, dynamic> json) => SceneItem(
-        sceneNumber: json['scene_number'] ?? 0,
-        timeStart: json['time_start'] ?? '',
-        timeEnd: json['time_end'] ?? '',
-        title: json['title'] ?? '',
-        visualDescription: json['visual_description'] ?? '',
-        narrationText: json['narration_text'] ?? '',
-        mood: json['mood'] ?? '',
-        bRollSuggestion: json['b_roll_suggestion'],
-        transition: json['transition'],
-      );
+  factory SceneItem.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return SceneItem(
+      sceneNumber: json['scene_number'] ?? 0,
+      timeStart: json['time_start'] ?? '',
+      timeEnd: json['time_end'] ?? '',
+      title: json['title'] ?? '',
+      visualDescription: json['visual_description'] ?? '',
+      narrationText: json['narration_text'] ?? '',
+      mood: json['mood'] ?? '',
+      bRollSuggestion: json['b_roll_suggestion'],
+      transition: json['transition'],
+    );
+  }
 }
 
 class VideoPromptItem {
@@ -53,15 +56,18 @@ class VideoPromptItem {
     this.duration = '5s',
   });
 
-  factory VideoPromptItem.fromJson(Map<String, dynamic> json) => VideoPromptItem(
-        sceneNumber: json['scene_number'] ?? 0,
-        prompt: json['prompt'] ?? '',
-        negativePrompt: json['negative_prompt'],
-        cameraWork: json['camera_work'],
-        lighting: json['lighting'],
-        styleTags: List<String>.from(json['style_tags'] ?? []),
-        duration: json['duration'] ?? '5s',
-      );
+  factory VideoPromptItem.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return VideoPromptItem(
+      sceneNumber: json['scene_number'] ?? 0,
+      prompt: json['prompt'] ?? '',
+      negativePrompt: json['negative_prompt'],
+      cameraWork: json['camera_work'],
+      lighting: json['lighting'],
+      styleTags: List<String>.from(json['style_tags'] ?? []),
+      duration: json['duration'] ?? '5s',
+    );
+  }
 }
 
 class ImagePromptItem {
@@ -83,15 +89,18 @@ class ImagePromptItem {
     this.styleReference,
   });
 
-  factory ImagePromptItem.fromJson(Map<String, dynamic> json) => ImagePromptItem(
-        sceneNumber: json['scene_number'] ?? 0,
-        midjourney: json['midjourney'],
-        stableDiffusion: json['stable_diffusion'],
-        leonardo: json['leonardo'],
-        dallE: json['dall_e'],
-        purpose: json['purpose'],
-        styleReference: json['style_reference'],
-      );
+  factory ImagePromptItem.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return ImagePromptItem(
+      sceneNumber: json['scene_number'] ?? 0,
+      midjourney: json['midjourney'],
+      stableDiffusion: json['stable_diffusion'],
+      leonardo: json['leonardo'],
+      dallE: json['dall_e'],
+      purpose: json['purpose'],
+      styleReference: json['style_reference'],
+    );
+  }
 }
 
 class YouTubeSeo {
@@ -107,12 +116,15 @@ class YouTubeSeo {
     this.category,
   });
 
-  factory YouTubeSeo.fromJson(Map<String, dynamic> json) => YouTubeSeo(
-        title: json['title'] ?? '',
-        description: json['description'] ?? '',
-        tags: List<String>.from(json['tags'] ?? []),
-        category: json['category'],
-      );
+  factory YouTubeSeo.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return YouTubeSeo(
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      tags: List<String>.from(json['tags'] ?? []),
+      category: json['category'],
+    );
+  }
 }
 
 class HashtagSet {
@@ -137,7 +149,7 @@ class HashtagSet {
         trending: [],
       );
     }
-    final map = json as Map<String, dynamic>;
+    final map = Map<String, dynamic>.from(json as Map);
     return HashtagSet(
       primary: List<String>.from(map['primary'] ?? []),
       secondary: List<String>.from(map['secondary'] ?? []),
@@ -166,14 +178,17 @@ class VideoTitles {
     required this.primary,
   });
 
-  factory VideoTitles.fromJson(Map<String, dynamic> json) => VideoTitles(
-        youtube: json['youtube'] ?? '',
-        tiktok: json['tiktok'] ?? '',
-        instagram: json['instagram'] ?? '',
-        facebook: json['facebook'] ?? '',
-        shorts: json['shorts'] ?? '',
-        primary: json['primary'] ?? json['youtube'] ?? '',
-      );
+  factory VideoTitles.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return VideoTitles(
+      youtube: json['youtube'] ?? '',
+      tiktok: json['tiktok'] ?? '',
+      instagram: json['instagram'] ?? '',
+      facebook: json['facebook'] ?? '',
+      shorts: json['shorts'] ?? '',
+      primary: json['primary'] ?? json['youtube'] ?? '',
+    );
+  }
 }
 
 class ProductionNotes {
@@ -191,13 +206,16 @@ class ProductionNotes {
     this.recommendedEditingTool,
   });
 
-  factory ProductionNotes.fromJson(Map<String, dynamic> json) => ProductionNotes(
-        totalScenesNeeded: json['total_scenes_needed'] ?? 0,
-        detailedScenesProvided: json['detailed_scenes_provided'] ?? 0,
-        clipDurationSeconds: json['clip_duration_seconds'] ?? 5,
-        proTips: List<String>.from(json['pro_tips'] ?? []),
-        recommendedEditingTool: json['recommended_editing_tool'],
-      );
+  factory ProductionNotes.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return ProductionNotes(
+      totalScenesNeeded: json['total_scenes_needed'] ?? 0,
+      detailedScenesProvided: json['detailed_scenes_provided'] ?? 0,
+      clipDurationSeconds: json['clip_duration_seconds'] ?? 5,
+      proTips: List<String>.from(json['pro_tips'] ?? []),
+      recommendedEditingTool: json['recommended_editing_tool'],
+    );
+  }
 }
 
 class VideoResult {
@@ -229,28 +247,31 @@ class VideoResult {
     this.productionNotes,
   });
 
-  factory VideoResult.fromJson(Map<String, dynamic> json) => VideoResult(
-        titles: VideoTitles.fromJson(json['titles'] ?? {}),
-        viralHook: json['viral_hook'] ?? '',
-        fullScript: json['full_script'] ?? '',
-        sceneBreakdown: (json['scene_breakdown'] as List? ?? [])
-            .map((e) => SceneItem.fromJson(e))
-            .toList(),
-        videoPrompts: (json['video_prompts'] as List? ?? [])
-            .map((e) => VideoPromptItem.fromJson(e))
-            .toList(),
-        imagePrompts: (json['image_prompts'] as List? ?? [])
-            .map((e) => ImagePromptItem.fromJson(e))
-            .toList(),
-        voiceOverScript: json['voice_over_script'],
-        youtubeSeo: YouTubeSeo.fromJson(json['youtube_seo'] ?? {}),
-        hashtags: HashtagSet.fromJson(json['hashtags'] ?? {}),
-        thumbnailPrompt: json['thumbnail_prompt'] ?? '',
-        subtitleScript: json['subtitle_script'] ?? '',
-        productionNotes: json['production_notes'] != null
-            ? ProductionNotes.fromJson(json['production_notes'])
-            : null,
-      );
+  factory VideoResult.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return VideoResult(
+      titles: VideoTitles.fromJson(json['titles'] ?? {}),
+      viralHook: json['viral_hook'] ?? '',
+      fullScript: json['full_script'] ?? '',
+      sceneBreakdown: (json['scene_breakdown'] as List? ?? [])
+          .map((e) => SceneItem.fromJson(e))
+          .toList(),
+      videoPrompts: (json['video_prompts'] as List? ?? [])
+          .map((e) => VideoPromptItem.fromJson(e))
+          .toList(),
+      imagePrompts: (json['image_prompts'] as List? ?? [])
+          .map((e) => ImagePromptItem.fromJson(e))
+          .toList(),
+      voiceOverScript: json['voice_over_script'],
+      youtubeSeo: YouTubeSeo.fromJson(json['youtube_seo'] ?? {}),
+      hashtags: HashtagSet.fromJson(json['hashtags'] ?? {}),
+      thumbnailPrompt: json['thumbnail_prompt'] ?? '',
+      subtitleScript: json['subtitle_script'] ?? '',
+      productionNotes: json['production_notes'] != null
+          ? ProductionNotes.fromJson(json['production_notes'])
+          : null,
+    );
+  }
 }
 
 class ProjectModel {
@@ -288,23 +309,28 @@ class ProjectModel {
     this.result,
   });
 
-  factory ProjectModel.fromJson(Map<String, dynamic> json) => ProjectModel(
-        id: json['id'] ?? 0,
-        title: json['title'] ?? '',
-        idea: json['idea'] ?? '',
-        contentType: json['content_type'] ?? '',
-        platform: json['platform'] ?? '',
-        durationMinutes: json['duration_minutes'] ?? 5,
-        generator: json['generator'] ?? '',
-        generateImagePrompts: json['generate_image_prompts'] ?? false,
-        generateVoiceOver: json['generate_voice_over'] ?? false,
-        status: json['status'] ?? 'pending',
-        totalScenes: json['total_scenes'] ?? 0,
-        clipDurationSeconds: json['clip_duration_seconds'] ?? 5,
-        aiProviderUsed: json['ai_provider_used'],
-        createdAt: json['created_at'],
-        result: json['result'] != null ? VideoResult.fromJson(json['result']) : null,
-      );
+  factory ProjectModel.fromJson(dynamic raw) {
+    final json = Map<String, dynamic>.from(raw as Map);
+    return ProjectModel(
+      id: json['id'] ?? 0,
+      title: json['title'] ?? '',
+      idea: json['idea'] ?? '',
+      contentType: json['content_type'] ?? '',
+      platform: json['platform'] ?? '',
+      durationMinutes: json['duration_minutes'] ?? 5,
+      generator: json['generator'] ?? '',
+      generateImagePrompts: json['generate_image_prompts'] ?? false,
+      generateVoiceOver: json['generate_voice_over'] ?? false,
+      status: json['status'] ?? 'pending',
+      totalScenes: json['total_scenes'] ?? 0,
+      clipDurationSeconds: json['clip_duration_seconds'] ?? 5,
+      aiProviderUsed: json['ai_provider_used'],
+      createdAt: json['created_at'],
+      result: json['result'] != null
+          ? VideoResult.fromJson(json['result'])
+          : null,
+    );
+  }
 
   bool get isCompleted => status == 'completed';
   bool get isFailed => status == 'failed';
