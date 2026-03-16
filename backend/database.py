@@ -5,6 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 # ── Fix URL for asyncpg (Render gives postgres:// or postgresql://) ───────────
 def _fix_db_url(url: str) -> str:
     if url.startswith("postgres://"):
