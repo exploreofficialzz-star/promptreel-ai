@@ -1,22 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutterwave_standard/flutterwave.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
 
-class PlansScreen extends ConsumerWidget {
+class PlansScreen extends ConsumerStatefulWidget {
   const PlansScreen({super.key});
+
+  @override
+  ConsumerState<PlansScreen> createState() => _PlansScreenState();
+}
+
+class _PlansScreenState extends ConsumerState<PlansScreen> {
+  bool _isProcessing = false;
+  String? _processingPlan;
 
   static const _plans = [
     {
       'id': 'free',
       'name': 'Free',
-      'price': '\$0',
+      'price_label': '$0',
       'period': 'forever',
+      'amount_usd': 0.0,
       'color': 0xFF66667A,
       'ai_primary': 'Gemini 1.5 Flash',
       'ai_chain': 'Gemini Flash · Groq Llama 3.3 · DeepSeek-V3 · Qwen 2.5 · OpenRouter',
@@ -27,15 +38,15 @@ class PlansScreen extends ConsumerWidget {
         'All content types & platforms',
         'All AI generators supported',
         'Basic export (individual files)',
-        'Ads supported',
       ],
       'missing': ['10 & 20 min videos', 'ZIP package export', 'No ads', 'Batch planner'],
     },
     {
       'id': 'creator',
       'name': 'Creator',
-      'price': '\$15',
+      'price_label': '$15',
       'period': '/month',
+      'amount_usd': AppConfig.creatorPriceUsd,
       'popular': true,
       'color': 0xFFFFB830,
       'ai_primary': 'GPT-4o-mini',
@@ -56,8 +67,9 @@ class PlansScreen extends ConsumerWidget {
     {
       'id': 'studio',
       'name': 'Studio',
-      'price': '\$35',
+      'price_label': '$35',
       'period': '/month',
+      'amount_usd': AppConfig.studioPriceUsd,
       'color': 0xFF00E5CC,
       'ai_primary': 'GPT-4o',
       'ai_chain': 'GPT-4o · Claude 3.5 Sonnet · Grok-2 · Gemini 1.5 Pro · Mistral Large',
@@ -76,8 +88,156 @@ class PlansScreen extends ConsumerWidget {
     },
   ];
 
+  Future<void> _handleSelect(Map<String, dynamic> plan) async {
+    final planId = plan['id'] as String;
+    if (planId == 'free') return;
+
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      _showError('Please log in before upgrading.');
+      return;
+    }
+
+    setState(() { _isProcessing = true; _processingPlan = planId; });
+
+    try {
+      final txRef = 'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
+
+      final flutterwave = Flutterwave(
+        context: context,
+        publicKey: AppConfig.flutterwavePublicKey,
+        currency: 'USD',
+        amount: (plan['amount_usd'] as double).toStringAsFixed(2),
+        customer: Customer(
+          name: user.name,
+          phoneNumber: '',
+          email: user.email,
+        ),
+        paymentOptions: 'card, banktransfer, ussd',
+        customization: Customization(
+          title: 'PromptReel AI',
+          description: '${plan['name']} Plan — Monthly',
+          logo: 'https://promptreel.ai/logo.png',
+        ),
+        txRef: txRef,
+        isTestMode: AppConfig.flutterwaveTestMode,
+        redirectUrl: 'promptreel://payment',
+      );
+
+      final ChargeResponse response = await flutterwave.charge();
+      if (!mounted) return;
+
+      if (response.status == 'successful' && response.transactionId != null) {
+        await _verifyAndUpgrade(
+          transactionId: response.transactionId!,
+          txRef: txRef,
+          planId: planId,
+          planName: plan['name'] as String,
+        );
+      } else if (response.status == 'cancelled') {
+        _showInfo('Payment cancelled.');
+      } else {
+        _showError('Payment was not completed. Status: ${response.status}');
+      }
+    } catch (e) {
+      if (mounted) _showError('Payment error: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() { _isProcessing = false; _processingPlan = null; });
+    }
+  }
+
+  Future<void> _verifyAndUpgrade({
+    required String transactionId,
+    required String txRef,
+    required String planId,
+    required String planName,
+  }) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _VerifyingDialog(),
+    );
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.verifyPayment(transactionId: transactionId, txRef: txRef, plan: planId);
+      await ref.read(authProvider.notifier).refreshUser();
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        _showSuccess(planName);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        _showError(
+          'Payment received but verification failed.\nContact support with reference:\n$txRef',
+        );
+      }
+    }
+  }
+
+  void _showSuccess(String planName) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, color: Colors.black, size: 40),
+            ).animate().scale(curve: Curves.elasticOut, duration: 600.ms),
+            const SizedBox(height: 16),
+            Text('🎉 Welcome to $planName!', style: AppTypography.headlineMedium, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(
+              'Your plan has been upgraded successfully. Enjoy all the new features!',
+              style: AppTypography.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            AppButton(
+              label: 'Start Creating',
+              onPressed: () { Navigator.of(context).pop(); context.go('/create'); },
+              fullWidth: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(message, style: const TextStyle(fontSize: 13))),
+      ]),
+      backgroundColor: AppColors.error,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 6),
+    ));
+  }
+
+  void _showInfo(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: AppColors.surfaceElevated,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
@@ -101,26 +261,26 @@ class PlansScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
                   child: Column(
                     children: [
-                      // Header
                       _buildHeader(),
                       const SizedBox(height: AppSpacing.lg),
 
-                      // Plan cards
                       ..._plans.asMap().entries.map((e) {
                         final plan = e.value;
                         final isCurrent = user?.plan == plan['id'];
+                        final isLoading = _isProcessing && _processingPlan == plan['id'];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
                             plan: plan,
                             isCurrent: isCurrent,
-                            onSelect: () => _handleSelect(context, plan['id'] as String),
+                            isLoading: isLoading,
+                            isDisabled: _isProcessing && !isLoading,
+                            onSelect: () => _handleSelect(plan),
                           ).animate(delay: Duration(milliseconds: e.key * 120)).fadeIn().slideY(begin: 0.15),
                         );
                       }),
 
-                      // Payment methods
-                      _buildPaymentMethods(),
+                      _buildPaymentInfo(),
                       const SizedBox(height: AppSpacing.md),
                       _buildFaq(),
                     ],
@@ -138,8 +298,7 @@ class PlansScreen extends ConsumerWidget {
     return Column(
       children: [
         Container(
-          width: 64,
-          height: 64,
+          width: 64, height: 64,
           decoration: BoxDecoration(
             gradient: AppColors.primaryGradient,
             shape: BoxShape.circle,
@@ -150,62 +309,69 @@ class PlansScreen extends ConsumerWidget {
         const SizedBox(height: 12),
         ShaderMask(
           shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
-          child: Text(
-            'Unlock Full Power',
-            style: AppTypography.displaySmall.copyWith(color: Colors.white),
-          ),
+          child: Text('Unlock Full Power', style: AppTypography.displaySmall.copyWith(color: Colors.white)),
         ),
         const SizedBox(height: 4),
-        Text(
-          'Generate unlimited AI video plans with no restrictions',
-          style: AppTypography.bodySmall,
-          textAlign: TextAlign.center,
-        ),
+        Text('Generate unlimited AI video plans with no restrictions',
+            style: AppTypography.bodySmall, textAlign: TextAlign.center),
       ],
     );
   }
 
-  Widget _buildPaymentMethods() {
+  Widget _buildPaymentInfo() {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Secure Global Payments', style: AppTypography.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              _payBadge('Paystack', '🌍 Africa + International'),
-              const SizedBox(width: 8),
-              _payBadge('LemonSqueezy', '🌐 Global SaaS'),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: const Text('🌍', style: TextStyle(fontSize: 20)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Secure Payment via Flutterwave', style: AppTypography.titleMedium),
+                    Text('Worldwide · Cards · Bank Transfer', style: AppTypography.labelSmall),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
+          const Divider(),
+          const SizedBox(height: AppSpacing.sm),
+          _payMethod('💳', 'Cards', 'Visa, Mastercard, Amex'),
+          _payMethod('🏦', 'Bank Transfer', 'International wire'),
+          _payMethod('📱', 'USSD', 'Available in supported regions'),
+          _payMethod('📲', 'Mobile Money', 'Where available'),
+          const SizedBox(height: AppSpacing.sm),
           Text(
-            'We accept Visa, Mastercard, and local payment methods globally. Subscriptions auto-renew monthly. Cancel anytime.',
-            style: AppTypography.bodySmall,
+            'Prices in USD. Subscriptions are monthly and can be cancelled anytime.',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
           ),
         ],
       ),
     );
   }
 
-  Widget _payBadge(String name, String desc) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name, style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
-            Text(desc, style: AppTypography.labelSmall),
-          ],
-        ),
-      ),
+  Widget _payMethod(String icon, String name, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Text(icon, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 10),
+        Text(name, style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
+        const SizedBox(width: 6),
+        Text('· $desc', style: AppTypography.labelSmall),
+      ]),
     );
   }
 
@@ -217,10 +383,11 @@ class PlansScreen extends ConsumerWidget {
           Text('FAQ', style: AppTypography.titleMedium),
           const SizedBox(height: 12),
           ...[
-            ('Can I cancel anytime?', 'Yes. Cancel anytime from Settings. You keep access until the billing period ends.'),
-            ('Is there a free trial?', 'The Free plan gives you 3 plans/day forever. No credit card needed.'),
-            ('What AI providers are used?', 'We use OpenAI GPT-4o, Google Gemini, and Claude for maximum reliability.'),
-            ('Do you generate videos?', 'No. We generate prompts, scripts, and SEO. You use these with Runway, Kling, Pika, etc.'),
+            ('Can I cancel anytime?', 'Yes. Cancel from Settings — access continues until billing period ends.'),
+            ('Is there a free trial?', 'The Free plan gives you 3 plans/day forever — no card needed.'),
+            ('Which AI models do I get?', 'Creator gets GPT-4o-mini & Gemini Pro. Studio gets GPT-4o & Claude 3.5 Sonnet.'),
+            ('Do you generate actual videos?', 'No. We generate scripts, prompts & SEO. You use those with Runway, Kling, Pika etc.'),
+            ('Is my payment secure?', 'Yes — processed entirely by Flutterwave. We never store your card details.'),
           ].map((faq) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Column(
@@ -236,31 +403,32 @@ class PlansScreen extends ConsumerWidget {
       ),
     );
   }
-
-  void _handleSelect(BuildContext context, String planId) {
-    if (planId == 'free') return;
-    // Launch payment page — replace with Paystack/LemonSqueezy integration
-    launchUrl(
-      Uri.parse('https://promptreel.ai/upgrade/$planId'),
-      mode: LaunchMode.externalApplication,
-    );
-  }
 }
+
+// ─── Plan Card ────────────────────────────────────────────────────────────────
 
 class _PlanCard extends StatelessWidget {
   final Map<String, dynamic> plan;
   final bool isCurrent;
+  final bool isLoading;
+  final bool isDisabled;
   final VoidCallback onSelect;
 
-  const _PlanCard({required this.plan, required this.isCurrent, required this.onSelect});
+  const _PlanCard({
+    required this.plan,
+    required this.isCurrent,
+    required this.isLoading,
+    required this.isDisabled,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(plan['color'] as int);
+    final color     = Color(plan['color'] as int);
     final isPopular = plan['popular'] == true;
-    final features = plan['features'] as List<dynamic>;
-    final missing = plan['missing'] as List<dynamic>;
-    final isFree = plan['id'] == 'free';
+    final isFree    = plan['id'] == 'free';
+    final features  = plan['features'] as List<dynamic>;
+    final missing   = plan['missing'] as List<dynamic>;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -278,9 +446,7 @@ class _PlanCard extends StatelessWidget {
             border: Border.all(
               color: isCurrent
                   ? AppColors.success.withOpacity(0.6)
-                  : isPopular
-                      ? color.withOpacity(0.5)
-                      : AppColors.border,
+                  : isPopular ? color.withOpacity(0.5) : AppColors.border,
               width: isPopular || isCurrent ? 1.5 : 1,
             ),
             boxShadow: isPopular
@@ -291,7 +457,6 @@ class _PlanCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Name + Price
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -319,7 +484,7 @@ class _PlanCard extends StatelessWidget {
                       style: AppTypography.bodyMedium,
                       children: [
                         TextSpan(
-                          text: plan['price'] as String,
+                          text: plan['price_label'] as String,
                           style: AppTypography.displaySmall.copyWith(color: color),
                         ),
                         TextSpan(text: plan['period'] as String),
@@ -328,7 +493,7 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ],
               ),
-              // AI Model Tier Badge
+
               if (plan['ai_badge'] != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
@@ -341,24 +506,20 @@ class _PlanCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        plan['ai_badge'] as String,
-                        style: AppTypography.labelMedium.copyWith(color: color),
-                      ),
+                      Text(plan['ai_badge'] as String,
+                          style: AppTypography.labelMedium.copyWith(color: color)),
                       const SizedBox(height: 2),
-                      Text(
-                        plan['ai_chain'] as String,
-                        style: AppTypography.labelSmall.copyWith(height: 1.5),
-                      ),
+                      Text(plan['ai_chain'] as String,
+                          style: AppTypography.labelSmall.copyWith(height: 1.5)),
                     ],
                   ),
                 ),
               ],
+
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),
 
-              // Features
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
@@ -366,31 +527,31 @@ class _PlanCard extends StatelessWidget {
                       children: [
                         Icon(Icons.check_circle_rounded, size: 16, color: color),
                         const SizedBox(width: 8),
-                        Expanded(child: Text(f as String, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary))),
+                        Expanded(child: Text(f as String,
+                            style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary))),
                       ],
                     ),
                   )),
 
-              // Not included
-              if (missing.isNotEmpty) ...[
+              if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.remove_circle_outline, size: 16, color: AppColors.textMuted),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(f as String, style: AppTypography.bodySmall)),
-                        ],
-                      ),
+                      child: Row(children: [
+                        const Icon(Icons.remove_circle_outline, size: 16, color: AppColors.textMuted),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(f as String, style: AppTypography.bodySmall)),
+                      ]),
                     )),
-              ],
 
               const SizedBox(height: AppSpacing.md),
 
               if (!isFree && !isCurrent)
                 AppButton(
-                  label: 'Get ${plan['name']} — ${plan['price']}${plan['period']}',
-                  onPressed: onSelect,
+                  label: isLoading
+                      ? 'Processing…'
+                      : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
+                  onPressed: (isDisabled || isLoading) ? null : onSelect,
+                  isLoading: isLoading,
                   fullWidth: true,
                   variant: isPopular ? AppButtonVariant.primary : AppButtonVariant.outline,
                 )
@@ -423,19 +584,17 @@ class _PlanCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
-                    child: Text('Current Plan', style: AppTypography.labelLarge.copyWith(color: AppColors.textMuted)),
+                    child: Text('Current Plan',
+                        style: AppTypography.labelLarge.copyWith(color: AppColors.textMuted)),
                   ),
                 ),
             ],
           ),
         ),
 
-        // Popular badge
         if (isPopular)
           Positioned(
-            top: -12,
-            left: 0,
-            right: 0,
+            top: -12, left: 0, right: 0,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -444,17 +603,50 @@ class _PlanCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
-                child: Text(
-                  '⭐ MOST POPULAR',
-                  style: AppTypography.labelSmall.copyWith(
-                    color: Colors.black,
-                    letterSpacing: 1.0,
-                  ),
-                ),
+                child: Text('⭐ MOST POPULAR',
+                    style: AppTypography.labelSmall.copyWith(color: Colors.black, letterSpacing: 1.0)),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+// ─── Verifying Dialog ─────────────────────────────────────────────────────────
+
+class _VerifyingDialog extends StatelessWidget {
+  const _VerifyingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xl)),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(gradient: AppColors.primaryGradient, shape: BoxShape.circle),
+              child: const Padding(
+                padding: EdgeInsets.all(14),
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Verifying Payment…', style: AppTypography.titleLarge),
+            const SizedBox(height: 6),
+            Text(
+              'Please wait while we confirm your payment with Flutterwave.',
+              style: AppTypography.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
