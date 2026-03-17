@@ -28,6 +28,7 @@ DURATION_SECONDS = {1: 60, 3: 180, 5: 300, 10: 600, 20: 1200}
 def calculate_scenes(duration_minutes: int, generator: str) -> int:
     return DURATION_SECONDS.get(duration_minutes, 300) // CLIP_DURATIONS.get(generator, 5)
 
+
 def get_clip_duration(generator: str) -> int:
     return CLIP_DURATIONS.get(generator, 5)
 
@@ -101,7 +102,10 @@ async def call_mistral(prompt: str, model: str) -> str:
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {settings.MISTRAL_API_KEY}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {settings.MISTRAL_API_KEY}",
+                "Content-Type": "application/json",
+            },
             json={
                 "model": model,
                 "messages": [
@@ -120,7 +124,10 @@ async def call_mistral(prompt: str, model: str) -> str:
 async def call_deepseek(prompt: str, model: str) -> str:
     """DeepSeek-V3 — OpenAI-compatible at api.deepseek.com."""
     from openai import AsyncOpenAI
-    client = AsyncOpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+    client = AsyncOpenAI(
+        api_key=settings.DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com",
+    )
     resp = await client.chat.completions.create(
         model=model,
         messages=[
@@ -137,7 +144,10 @@ async def call_deepseek(prompt: str, model: str) -> str:
 async def call_groq(prompt: str, model: str) -> str:
     """Groq — ultra-fast inference. Llama 3.3 70B."""
     from openai import AsyncOpenAI
-    client = AsyncOpenAI(api_key=settings.GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+    client = AsyncOpenAI(
+        api_key=settings.GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1",
+    )
     resp = await client.chat.completions.create(
         model=model,
         messages=[
@@ -157,7 +167,10 @@ async def call_together(prompt: str, model: str) -> str:
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             "https://api.together.xyz/v1/chat/completions",
-            headers={"Authorization": f"Bearer {settings.TOGETHER_API_KEY}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {settings.TOGETHER_API_KEY}",
+                "Content-Type": "application/json",
+            },
             json={
                 "model": model,
                 "messages": [
@@ -204,37 +217,99 @@ def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
     s = settings
     chains: dict[str, list[tuple]] = {
         "studio": [
-            ("openai-gpt4o",         call_openai,     s.OPENAI_MODEL_STUDIO,     s.OPENAI_API_KEY),
-            ("anthropic-sonnet3.5",  call_anthropic,  s.ANTHROPIC_MODEL_STUDIO,  s.ANTHROPIC_API_KEY),
-            ("grok-2",               call_grok,       s.GROK_MODEL_CREATOR,      s.GROK_API_KEY),
-            ("gemini-1.5-pro",       call_gemini,     s.GEMINI_MODEL_CREATOR,    s.GEMINI_API_KEY),
-            ("mistral-large",        call_mistral,    s.MISTRAL_MODEL_CREATOR,   s.MISTRAL_API_KEY),
-            ("deepseek-v3",          call_deepseek,   s.DEEPSEEK_MODEL_FREE,     s.DEEPSEEK_API_KEY),
-            ("groq-llama3.3-70b",    call_groq,       s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
-            ("together-qwen2.5",     call_together,   s.TOGETHER_MODEL_FREE,     s.TOGETHER_API_KEY),
+            ("openai-gpt4o",        call_openai,    s.OPENAI_MODEL_STUDIO,    s.OPENAI_API_KEY),
+            ("anthropic-sonnet3.5", call_anthropic, s.ANTHROPIC_MODEL_STUDIO, s.ANTHROPIC_API_KEY),
+            ("grok-2",              call_grok,      s.GROK_MODEL_CREATOR,     s.GROK_API_KEY),
+            ("gemini-1.5-pro",      call_gemini,    s.GEMINI_MODEL_CREATOR,   s.GEMINI_API_KEY),
+            ("mistral-large",       call_mistral,   s.MISTRAL_MODEL_CREATOR,  s.MISTRAL_API_KEY),
+            ("deepseek-v3",         call_deepseek,  s.DEEPSEEK_MODEL_FREE,    s.DEEPSEEK_API_KEY),
+            ("groq-llama3.3-70b",   call_groq,      s.GROQ_MODEL_FREE,        s.GROQ_API_KEY),
+            ("together-qwen2.5",    call_together,  s.TOGETHER_MODEL_FREE,    s.TOGETHER_API_KEY),
         ],
         "creator": [
-            ("openai-gpt4o-mini",    call_openai,     s.OPENAI_MODEL_CREATOR,    s.OPENAI_API_KEY),
-            ("grok-2",               call_grok,       s.GROK_MODEL_CREATOR,      s.GROK_API_KEY),
-            ("gemini-1.5-pro",       call_gemini,     s.GEMINI_MODEL_CREATOR,    s.GEMINI_API_KEY),
-            ("mistral-large",        call_mistral,    s.MISTRAL_MODEL_CREATOR,   s.MISTRAL_API_KEY),
-            ("anthropic-sonnet3.5",  call_anthropic,  s.ANTHROPIC_MODEL_STUDIO,  s.ANTHROPIC_API_KEY),
-            ("deepseek-v3",          call_deepseek,   s.DEEPSEEK_MODEL_FREE,     s.DEEPSEEK_API_KEY),
-            ("groq-llama3.3-70b",    call_groq,       s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
-            ("together-qwen2.5",     call_together,   s.TOGETHER_MODEL_FREE,     s.TOGETHER_API_KEY),
+            ("openai-gpt4o-mini",   call_openai,    s.OPENAI_MODEL_CREATOR,   s.OPENAI_API_KEY),
+            ("grok-2",              call_grok,      s.GROK_MODEL_CREATOR,     s.GROK_API_KEY),
+            ("gemini-1.5-pro",      call_gemini,    s.GEMINI_MODEL_CREATOR,   s.GEMINI_API_KEY),
+            ("mistral-large",       call_mistral,   s.MISTRAL_MODEL_CREATOR,  s.MISTRAL_API_KEY),
+            ("anthropic-sonnet3.5", call_anthropic, s.ANTHROPIC_MODEL_STUDIO, s.ANTHROPIC_API_KEY),
+            ("deepseek-v3",         call_deepseek,  s.DEEPSEEK_MODEL_FREE,    s.DEEPSEEK_API_KEY),
+            ("groq-llama3.3-70b",   call_groq,      s.GROQ_MODEL_FREE,        s.GROQ_API_KEY),
+            ("together-qwen2.5",    call_together,  s.TOGETHER_MODEL_FREE,    s.TOGETHER_API_KEY),
         ],
         "free": [
-            ("gemini-1.5-flash",     call_gemini,     s.GEMINI_MODEL_FREE,       s.GEMINI_API_KEY),
-            ("groq-llama3.3-70b",    call_groq,       s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
-            ("deepseek-v3",          call_deepseek,   s.DEEPSEEK_MODEL_FREE,     s.DEEPSEEK_API_KEY),
-            ("together-qwen2.5",     call_together,   s.TOGETHER_MODEL_FREE,     s.TOGETHER_API_KEY),
-            ("openrouter-llama",     call_openrouter, s.OPENROUTER_MODEL_FREE,   s.OPENROUTER_API_KEY),
-            ("openai-gpt4o-mini",    call_openai,     s.OPENAI_MODEL_CREATOR,    s.OPENAI_API_KEY),
-            ("mistral-large",        call_mistral,    s.MISTRAL_MODEL_CREATOR,   s.MISTRAL_API_KEY),
+            ("gemini-1.5-flash",    call_gemini,    s.GEMINI_MODEL_FREE,      s.GEMINI_API_KEY),
+            ("groq-llama3.3-70b",   call_groq,      s.GROQ_MODEL_FREE,        s.GROQ_API_KEY),
+            ("deepseek-v3",         call_deepseek,  s.DEEPSEEK_MODEL_FREE,    s.DEEPSEEK_API_KEY),
+            ("together-qwen2.5",    call_together,  s.TOGETHER_MODEL_FREE,    s.TOGETHER_API_KEY),
+            ("openrouter-llama",    call_openrouter,s.OPENROUTER_MODEL_FREE,  s.OPENROUTER_API_KEY),
+            ("openai-gpt4o-mini",   call_openai,    s.OPENAI_MODEL_CREATOR,   s.OPENAI_API_KEY),
+            ("mistral-large",       call_mistral,   s.MISTRAL_MODEL_CREATOR,  s.MISTRAL_API_KEY),
         ],
     }
     raw = chains.get(user_plan, chains["free"])
     return [(label, fn, model) for label, fn, model, key in raw if key]
+
+
+# ─── Character Bible Builder ──────────────────────────────────────────────────
+def build_character_bible(idea: str, content_type: str) -> str:
+    """
+    Generates the CHARACTER BIBLE section injected into every prompt.
+    This locks every character's physical details so they stay 100%
+    consistent across ALL scenes from scene 1 to the final scene.
+    """
+    return f"""
+━━━ CHARACTER BIBLE — READ THIS FIRST ━━━
+CRITICAL CONSISTENCY RULE: You MUST extract ALL characters, creatures,
+objects, and locations from the idea below and define their EXACT physical
+details. These details are LOCKED and must NEVER change across any scene.
+
+IDEA: {idea}
+TYPE: {content_type}
+
+For EVERY character/creature/object that appears in this video you MUST:
+
+1. Give them a unique identifier name (e.g. "MAIN_CAT", "VILLAIN", "HERO")
+2. Lock their physical appearance with these details:
+   - Species/type (e.g. domestic shorthair cat, golden retriever, human male)
+   - Size & build (e.g. small, 3kg, slender body)
+   - Color & markings (e.g. jet black fur, NO white patches, green eyes)
+   - Distinguishing features (e.g. torn left ear, scar on nose, blue collar)
+   - Clothing/accessories if applicable
+   - Age appearance (e.g. young adult, elderly, kitten)
+   - Movement style (e.g. graceful, limping, energetic)
+
+3. In EVERY scene_breakdown visual_description, REPEAT the character's
+   locked details. Example:
+   WRONG: "The cat walks through the forest"
+   RIGHT: "MAIN_CAT — jet black domestic shorthair, green eyes, blue collar,
+           small 3kg frame — stalks through the misty forest, ears flat"
+
+4. In EVERY video_prompt, START with the character reference. Example:
+   WRONG: "A cat running in the rain"
+   RIGHT: "Consistent character: jet black small domestic shorthair cat,
+           vivid green eyes, worn blue leather collar, 3kg slender frame —
+           sprinting through heavy rain, photorealistic, 4K cinematic"
+
+5. In EVERY image_prompt (midjourney/leonardo/stable_diffusion/dall_e),
+   include the full character description + style seed reference:
+   "jet black small cat, green eyes, blue collar, same character as scene 1,
+   character consistency, [style]"
+
+ENVIRONMENT CONSISTENCY: Also lock locations:
+   - If a forest appears in scene 1, it must have the same trees, lighting
+     mood, and atmosphere in every scene it reappears in.
+   - Time of day must be consistent unless the script explicitly changes it.
+
+STYLE CONSISTENCY: Lock the visual style across ALL prompts:
+   - Cinematic style (realistic/animated/cartoon/painterly/etc)
+   - Color grading (warm/cool/desaturated/vibrant)
+   - Lighting mood (golden hour/overcast/neon/natural)
+
+⚠️ VIOLATION WARNING: If any character changes color, size, species,
+or appearance between scenes — that is a CRITICAL ERROR. Maintain
+100% visual consistency from scene 1 to the final scene.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
 
 # ─── Generation Prompt ────────────────────────────────────────────────────────
@@ -252,33 +327,33 @@ def build_generation_prompt(
     detailed_scenes = min(total_scenes, 60)
 
     tone_map = {
-        "Educational": "authoritative, clear — like National Geographic",
-        "Narration": "warm, engaging, storytelling-focused",
-        "Commentary": "opinionated, conversational, entertaining",
-        "Documentary": "cinematic, serious, compelling",
+        "Educational":  "authoritative, clear — like National Geographic",
+        "Narration":    "warm, engaging, storytelling-focused",
+        "Commentary":   "opinionated, conversational, entertaining",
+        "Documentary":  "cinematic, serious, compelling",
         "Storytelling": "narrative-driven, emotional, immersive",
-        "Comedy": "witty, fast-paced, humorous",
-        "Horror": "eerie, suspenseful, atmospheric",
+        "Comedy":       "witty, fast-paced, humorous",
+        "Horror":       "eerie, suspenseful, atmospheric",
         "Motivational": "inspiring, energetic, empowering",
-        "News": "objective, authoritative, concise",
-        "Realistic": "grounded, factual, authentic",
+        "News":         "objective, authoritative, concise",
+        "Realistic":    "grounded, factual, authentic",
     }
     platform_tips = {
-        "YouTube": "optimize for watch time, strong CTAs",
-        "TikTok": "hook in first 3 seconds, fast cuts",
-        "Instagram": "aesthetic visuals, story-driven",
-        "Facebook": "shareable, emotional, community-focused",
+        "YouTube":        "optimize for watch time, strong CTAs",
+        "TikTok":         "hook in first 3 seconds, fast cuts",
+        "Instagram":      "aesthetic visuals, story-driven",
+        "Facebook":       "shareable, emotional, community-focused",
         "YouTube Shorts": "punchy 60-second hook, vertical format",
-        "X (Twitter)": "concise, thought-provoking",
+        "X (Twitter)":    "concise, thought-provoking",
     }
     generator_tips = {
-        "Runway": "'tracking shot', 'dolly zoom', '4K cinematic', 'photorealistic'",
-        "Pika": "'smooth motion', 'fluid movement', short descriptions",
-        "Kling": "'10-second loop', 'seamless motion', detailed scenes",
-        "Sora": "rich narrative descriptions, complex layouts",
-        "Luma": "'3D', 'depth of field', 'cinematic grade'",
-        "Haiper": "motion-first, particle effects, 'high fps'",
-        "Other": "detailed scene: style, lighting, camera angle, subject",
+        "Runway":  "'tracking shot', 'dolly zoom', '4K cinematic', 'photorealistic'",
+        "Pika":    "'smooth motion', 'fluid movement', short descriptions",
+        "Kling":   "'10-second loop', 'seamless motion', detailed scenes",
+        "Sora":    "rich narrative descriptions, complex layouts",
+        "Luma":    "'3D', 'depth of field', 'cinematic grade'",
+        "Haiper":  "motion-first, particle effects, 'high fps'",
+        "Other":   "detailed scene: style, lighting, camera angle, subject",
     }
 
     img_block = ""
@@ -286,24 +361,32 @@ def build_generation_prompt(
         img_block = '''  "image_prompts": [
     {
       "scene_number": 1,
-      "midjourney": "ultra-detailed prompt --ar 16:9 --v 6.1 --style raw",
-      "stable_diffusion": "masterpiece, best quality, ultra-detailed, photorealistic",
-      "leonardo": "Leonardo AI prompt with style modifiers",
-      "dall_e": "DALL-E 3 natural language description",
+      "midjourney": "INCLUDE FULL CHARACTER DESCRIPTION FROM CHARACTER BIBLE + ultra-detailed prompt --ar 16:9 --v 6.1 --style raw",
+      "stable_diffusion": "INCLUDE FULL CHARACTER DESCRIPTION + masterpiece, best quality, ultra-detailed, photorealistic",
+      "leonardo": "INCLUDE FULL CHARACTER DESCRIPTION + Leonardo AI prompt with style modifiers",
+      "dall_e": "INCLUDE FULL CHARACTER DESCRIPTION + DALL-E 3 natural language description",
       "purpose": "scene_background OR character_reference OR establishing_shot"
     }
   ],'''
     else:
         img_block = '  "image_prompts": [],'
 
-    vo = ("Complete voice-over with [00:00] time markers every 10 seconds"
-          if generate_voice_over else "Not requested")
+    vo = (
+        "Complete voice-over with [00:00] time markers every 10 seconds"
+        if generate_voice_over
+        else "Not requested"
+    )
 
-    # ── CRITICAL FIX: Short fields FIRST, long lists LAST ──
-    # This prevents token truncation from cutting off thumbnail/SEO/hashtags
+    # Build the character bible for this idea
+    character_bible = build_character_bible(idea, content_type)
+
     return f"""You are PromptReel AI — the world's most advanced AI video content strategist.
+You specialize in creating fully consistent video production packages where every
+character, creature, and location stays IDENTICAL across every single scene.
 
-━━━ BRIEF ━━━
+{character_bible}
+
+━━━ VIDEO BRIEF ━━━
 IDEA: {idea}
 TYPE: {content_type} — {tone_map.get(content_type, "engaging")}
 PLATFORM: {platform} — {platform_tips.get(platform, "")}
@@ -312,12 +395,51 @@ GENERATOR: {generator} ({clip_duration}s clips) — {generator_tips.get(generato
 SCENES: {total_scenes} total (provide {detailed_scenes} detailed)
 IMAGE PROMPTS: {"YES" if generate_image_prompts else "NO"}
 VOICE-OVER: {"YES" if generate_voice_over else "NO"}
-━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━
 
-IMPORTANT: Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
+STEP 1: Before generating anything, mentally extract ALL characters/creatures
+from the idea and define their exact locked appearance details.
+
+STEP 2: Use those locked details in EVERY scene and EVERY prompt.
+
+STEP 3: Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
 Fill ALL fields. Do NOT leave any field empty or null.
 
 {{
+  "character_bible": {{
+    "characters": [
+      {{
+        "id": "CHARACTER_ID",
+        "name": "Character display name",
+        "type": "species/type of character",
+        "appearance": {{
+          "size": "exact size and build",
+          "colors": "exact colors — be specific, no vague terms",
+          "markings": "any unique markings, patterns, scars",
+          "eyes": "eye color and shape",
+          "distinctive_features": "anything unique that must never change",
+          "accessories": "clothing, collar, hat, etc if any"
+        }},
+        "movement_style": "how this character moves",
+        "personality_visual": "how their personality shows physically"
+      }}
+    ],
+    "locations": [
+      {{
+        "id": "LOCATION_ID",
+        "name": "Location name",
+        "description": "exact visual details that stay consistent",
+        "lighting": "locked lighting and time of day",
+        "atmosphere": "mood and atmosphere"
+      }}
+    ],
+    "visual_style": {{
+      "style": "realistic/animated/cartoon/cinematic/etc",
+      "color_grading": "warm/cool/vibrant/desaturated/etc",
+      "lighting_mood": "golden hour/overcast/dramatic/natural/etc",
+      "consistency_seed": "describe the overall look in 20 words that applies to every scene"
+    }}
+  }},
   "titles": {{
     "youtube": "60-char high-CTR title",
     "tiktok": "TikTok hook with 1-2 emojis",
@@ -327,7 +449,7 @@ Fill ALL fields. Do NOT leave any field empty or null.
     "primary": "best cross-platform title"
   }},
   "viral_hook": "2-3 sentence shocking/provocative opener that makes viewer unable to leave.",
-  "thumbnail_prompt": "Detailed thumbnail: main subject expression/action, text overlay (3-word hook bold yellow), background, high contrast color grading, composition, emotional trigger, viral YouTube style. Min 50 words.",
+  "thumbnail_prompt": "Detailed thumbnail using LOCKED character appearance from character_bible: main character exact description, text overlay (3-word hook bold yellow), background, high contrast color grading, composition, emotional trigger, viral YouTube style. Min 50 words.",
   "youtube_seo": {{
     "title": "SEO title with exact-match keyword at start",
     "description": "Full 1500+ char description: hook, what is covered with emoji bullets, timestamps, CTA, keywords",
@@ -349,41 +471,48 @@ Fill ALL fields. Do NOT leave any field empty or null.
     "estimated_word_count": {duration_minutes * 130},
     "recommended_editing_tool": "CapCut or DaVinci Resolve",
     "pro_tips": [
-      "Tip specific to {generator}",
+      "Character consistency tip for {generator}",
       "Tip specific to {platform}",
       "Retention tip",
       "Monetization tip"
     ]
   }},
-  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words.",
+  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words. Reference characters by their locked names consistently.",
   "scene_breakdown": [
     {{
       "scene_number": 1,
       "time_start": "0:00",
       "time_end": "0:{clip_duration:02d}",
       "title": "evocative scene title",
-      "visual_description": "precise what viewers see — setting, subjects, action, camera angle",
+      "visual_description": "MUST include full locked character description from character_bible — e.g. 'MAIN_CAT: jet black, green eyes, blue collar, small 3kg frame — [action]. Setting: [locked location details]'",
       "narration_text": "exact narrator words for this {clip_duration}s scene",
       "mood": "intense/mysterious/dramatic/inspiring/etc",
-      "b_roll_suggestion": "optional supplementary footage",
+      "b_roll_suggestion": "supplementary footage maintaining character consistency",
       "transition": "cut/fade/zoom recommendation"
     }}
   ],
   "video_prompts": [
     {{
       "scene_number": 1,
-      "prompt": "Complete {generator}-optimized prompt: subject/action, environment, camera movement, lighting, visual style, quality tags",
-      "negative_prompt": "blurry, text, watermark, distorted, low quality",
+      "prompt": "CONSISTENCY REFERENCE: [paste full character appearance from character_bible here] — [scene action], [environment with locked details], [camera movement], [lighting from visual_style], [style from visual_style], {generator} optimized, photorealistic, 4K, ultra-detailed",
+      "negative_prompt": "inconsistent character, character change, different appearance, blurry, text, watermark, distorted, low quality",
       "camera_work": "specific camera movement",
-      "lighting": "lighting description",
-      "style_tags": ["cinematic", "photorealistic", "4K", "ultra-detailed"],
+      "lighting": "lighting matching visual_style lighting_mood",
+      "style_tags": ["consistent character", "character reference", "cinematic", "photorealistic", "4K"],
       "duration": "{clip_duration}s"
     }}
   ],
 {img_block}
 }}
 
-Generate ALL {detailed_scenes} scene_breakdown entries and ALL {detailed_scenes} video_prompts. Pure JSON only."""
+FINAL REMINDER:
+- character_bible.characters defines LOCKED appearances — never deviate
+- Every scene_breakdown visual_description MUST reference the character by ID with full appearance
+- Every video_prompt MUST start with the character's full locked description
+- Every image_prompt MUST include full character description for consistency
+- Generate ALL {detailed_scenes} scene_breakdown entries
+- Generate ALL {detailed_scenes} video_prompts
+- Pure JSON only — no markdown, no explanation"""
 
 
 def parse_json_response(raw: str) -> dict:
@@ -448,4 +577,4 @@ async def generate_video_plan(
 
     raise RuntimeError(
         f"All AI providers failed for [{user_plan}] plan. Last: {last_error}"
-)
+  )
