@@ -7,12 +7,16 @@ Provider roster and plan-based routing:
   CREATOR → GPT-4o-mini → Grok-2 → Gemini Pro → Mistral Large → Claude Sonnet → DeepSeek → Groq
   FREE    → Gemini Flash → Groq Llama 3.3 → DeepSeek-V3 → Together Qwen → OpenRouter → GPT-4o-mini
 
-Split generation strategy:
-  CALL 1 → character_bible, titles, hook, SEO, hashtags, thumbnail,
-            image_prompts (ALL scenes), voice_over, production_notes
-  CALL 2 → full_script, scene_breakdown (ALL scenes), video_prompts (ALL scenes)
-  CALL 3 → image_prompts continuation if needed (for long videos)
-  MERGE  → combine all results into one complete response
+Smart split generation (handles 1min → 20min videos, never hits token limits):
+  PART META  → character_bible, titles, SEO, hashtags, voice_over, production_notes
+  PART IMG-N → image_prompts in batches of 10 scenes each
+  PART SC-N  → scene_breakdown in batches of 10 scenes each
+  PART VP-N  → video_prompts in batches of 10 scenes each (uses scene context)
+  PART LAST  → full_script
+  MERGE      → combine all parts into one complete response
+
+  Example — 5 min / Kling = 30 scenes → 10 API calls total
+  Example — 20 min / Kling = 120 scenes → 37 API calls total (all safe)
 """
 import json
 import logging
@@ -28,6 +32,9 @@ CLIP_DURATIONS = {
 }
 DURATION_SECONDS = {1: 60, 3: 180, 5: 300, 10: 600, 20: 1200}
 
+# Scenes per batch — keeps every API call safely under 8000 tokens for Groq
+BATCH_SIZE = 10
+
 
 def calculate_scenes(duration_minutes: int, generator: str) -> int:
     return DURATION_SECONDS.get(duration_minutes, 300) // CLIP_DURATIONS.get(generator, 5)
@@ -35,6 +42,16 @@ def calculate_scenes(duration_minutes: int, generator: str) -> int:
 
 def get_clip_duration(generator: str) -> int:
     return CLIP_DURATIONS.get(generator, 5)
+
+
+def _make_batches(total: int, batch_size: int = BATCH_SIZE) -> list[tuple[int, int]]:
+    """Return list of (start, end) 1-indexed scene range tuples."""
+    batches = []
+    for i in range(0, total, batch_size):
+        start = i + 1
+        end   = min(i + batch_size, total)
+        batches.append((start, end))
+    return batches
 
 
 # ─── Provider Callers ─────────────────────────────────────────────────────────
@@ -248,8 +265,8 @@ def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
     return [(label, fn, model) for label, fn, model, key in raw if key]
 
 
-# ─── CALL 1 PROMPT: Short fields + image prompts ──────────────────────────────
-def build_prompt_part1(
+# ─── PART META: character_bible + titles + SEO + voice_over ──────────────────
+def _build_meta_prompt(
     idea: str,
     content_type: str,
     platform: str,
@@ -257,94 +274,54 @@ def build_prompt_part1(
     generator: str,
     clip_duration: int,
     total_scenes: int,
-    generate_image_prompts: bool,
     generate_voice_over: bool,
     content_type_options: dict,
 ) -> str:
     detailed_scenes = min(total_scenes, 60)
-
     tone_map = {
-        "Educational": "authoritative, clear",
-        "Narration":   "warm, engaging, storytelling-focused",
-        "Commentary":  "opinionated, conversational",
-        "Documentary": "cinematic, serious, compelling",
-        "Storytelling":"narrative-driven, emotional",
-        "Comedy":      "witty, fast-paced, humorous",
-        "Horror":      "eerie, suspenseful, atmospheric",
-        "Motivational":"inspiring, energetic, empowering",
-        "News":        "objective, authoritative, concise",
-        "Realistic":   "grounded, factual, authentic",
+        "Educational":  "authoritative, clear — like National Geographic",
+        "Narration":    "warm, engaging, storytelling-focused",
+        "Commentary":   "opinionated, conversational, entertaining",
+        "Documentary":  "cinematic, serious, compelling",
+        "Storytelling": "narrative-driven, emotional, immersive",
+        "Comedy":       "witty, fast-paced, humorous",
+        "Horror":       "eerie, suspenseful, atmospheric",
+        "Motivational": "inspiring, energetic, empowering",
+        "News":         "objective, authoritative, concise",
+        "Realistic":    "grounded, factual, authentic",
     }
-
+    platform_tips = {
+        "YouTube":        "optimize for watch time, strong CTAs",
+        "TikTok":         "hook in first 3 seconds, fast cuts",
+        "Instagram":      "aesthetic visuals, story-driven",
+        "Facebook":       "shareable, emotional, community-focused",
+        "YouTube Shorts": "punchy 60-second hook, vertical format",
+        "X (Twitter)":    "concise, thought-provoking",
+    }
     content_options_block = ""
     if content_type_options:
-        opts = "\n".join([
-            f"  {k.replace('_',' ').upper()}: {v}"
-            for k, v in content_type_options.items()
-        ])
+        opts = "\n".join([f"  {k.replace('_',' ').upper()}: {v}" for k, v in content_type_options.items()])
         content_options_block = f"\nCONTENT SETTINGS:\n{opts}"
 
-    if generate_voice_over:
-        vo_instruction = (
-            f"Write the REAL complete {duration_minutes}-minute timed voice-over. "
-            f"Format every line as [MM:SS] narration text. "
-            f"Timestamp every 10 seconds from [00:00] to [{duration_minutes:02d}:00]. "
-            f"Minimum {duration_minutes * 130} words."
-        )
-    else:
-        vo_instruction = "Not requested"
+    vo = (
+        f"Write the REAL complete {duration_minutes}-minute timed voice-over. "
+        f"Format: [MM:SS] narration text every 10 seconds from [00:00] to [{duration_minutes:02d}:00]. "
+        f"Min {duration_minutes * 130} words."
+        if generate_voice_over else "Not requested"
+    )
 
-    # ── Image prompts block with scene-accurate instructions ──────────────────
-    if generate_image_prompts:
-        img_block = f'''  "image_prompts": [
-    {{
-      "scene_number": 1,
-      "midjourney": "Write the REAL Midjourney prompt for scene 1. Use the character's exact locked appearance from character_bible. Include scene 1 specific action and environment. End with --ar 16:9 --v 6.1 --style raw --q 2. Example output format: jet black cat, green eyes, blue collar, white paws, crouching near dark hole in wooden floor, warm living room lighting, cinematic --ar 16:9 --v 6.1 --style raw --q 2",
-      "stable_diffusion": "Write the REAL SD prompt for scene 1. Use exact locked character appearance + scene 1 action + environment. Append: masterpiece, best quality, ultra-detailed, photorealistic, 8K, cinematic lighting",
-      "leonardo": "Write the REAL Leonardo prompt for scene 1. Use exact locked character appearance + scene 1 action + environment. Append: highly detailed, cinematic, professional photography",
-      "dall_e": "Write the REAL DALL-E sentence for scene 1. Format: A photorealistic image of [exact character appearance] [scene 1 action] in [scene 1 environment], [mood], [lighting]",
-      "purpose": "establishing_shot"
-    }},
-    {{
-      "scene_number": 2,
-      "midjourney": "REAL Midjourney prompt for scene 2. SAME locked character appearance, DIFFERENT action/setting matching scene 2 story --ar 16:9 --v 6.1 --style raw --q 2",
-      "stable_diffusion": "REAL SD prompt for scene 2 — same locked character, different scene 2 action/environment, masterpiece, best quality, photorealistic, 8K",
-      "leonardo": "REAL Leonardo prompt for scene 2 — same locked character, different scene 2 action/environment, highly detailed, cinematic",
-      "dall_e": "REAL DALL-E sentence for scene 2 — same locked character, different scene 2 action and environment",
-      "purpose": "action_shot"
-    }}
-  ],
-
-YOU MUST generate image_prompts for ALL {detailed_scenes} scenes numbered 1 through {detailed_scenes}.
-Each scene_number must be unique and sequential: 1, 2, 3 ... {detailed_scenes}.
-Each scene's prompts must reflect THAT scene's specific action and environment from the story.
-The character locked appearance (colors, size, markings, accessories) must be IDENTICAL across all scenes.
-Only the action, camera angle, and setting description changes between scenes.
-Replace ALL example text above with REAL content — no placeholder brackets in final output.'''
-    else:
-        img_block = '  "image_prompts": [],'
-
-    return f"""You are PromptReel AI. Generate PART 1 of a video production package.
+    return f"""You are PromptReel AI. Generate the META section ONLY — no scene lists.
 
 IDEA: {idea}
 TYPE: {content_type} — {tone_map.get(content_type, "engaging")}
-PLATFORM: {platform} | DURATION: {duration_minutes} min | GENERATOR: {generator} ({clip_duration}s clips)
+PLATFORM: {platform} — {platform_tips.get(platform, "")}
+DURATION: {duration_minutes} min | GENERATOR: {generator} ({clip_duration}s clips)
 TOTAL SCENES: {total_scenes} | DETAILED SCENES: {detailed_scenes}
-IMAGE PROMPTS: {"YES — generate for ALL " + str(detailed_scenes) + " scenes" if generate_image_prompts else "NO"}
 VOICE-OVER: {"YES" if generate_voice_over else "NO"}{content_options_block}
 
-STEP 1: Define ALL characters with exact locked appearance in character_bible.
-STEP 2: Plan the story arc mentally — what happens in each of the {detailed_scenes} scenes.
-STEP 3: Generate image_prompts for EVERY scene 1 through {detailed_scenes}, each one
-        reflecting that scene's specific action while keeping character appearance LOCKED.
-STEP 4: Return ONLY valid JSON. Pure JSON, no markdown.
-
-CRITICAL RULES:
-- Replace ALL example/placeholder text with REAL content
-- image_prompts MUST have exactly {detailed_scenes} entries (scene 1 to {detailed_scenes})
-- Each scene's image prompts must match that scene's story action
-- Character appearance (species, colors, size, markings) = IDENTICAL in all scenes
-- Only action, setting, camera angle changes between scenes
+Define characters, locations, visual style, and all meta fields.
+Do NOT generate scene_breakdown, video_prompts, or image_prompts here.
+Return ONLY valid JSON. Pure JSON, no markdown.
 
 {{
   "character_bible": {{
@@ -354,11 +331,11 @@ CRITICAL RULES:
       "type": "species/type",
       "appearance": {{
         "size": "exact size and build",
-        "colors": "exact colors — be very specific",
+        "colors": "exact colors — very specific, no vague terms",
         "markings": "unique markings e.g. white star on chest",
-        "eyes": "eye color and shape",
-        "distinctive_features": "unique features",
-        "accessories": "collar, clothing, etc"
+        "eyes": "exact eye color and shape",
+        "distinctive_features": "anything unique that never changes",
+        "accessories": "collar, clothing, hat, etc"
       }},
       "movement_style": "how they move",
       "personality_visual": "visual personality cues"
@@ -366,32 +343,32 @@ CRITICAL RULES:
     "locations": [{{
       "id": "LOCATION_ID",
       "name": "location name",
-      "description": "exact visual details",
-      "lighting": "lighting and time of day",
-      "atmosphere": "mood"
+      "description": "exact visual details locked forever",
+      "lighting": "exact lighting and time of day",
+      "atmosphere": "mood and atmosphere"
     }}],
     "visual_style": {{
-      "style": "photorealistic/animated/etc",
-      "color_grading": "warm/cool/etc",
-      "lighting_mood": "golden hour/dramatic/etc",
-      "consistency_seed": "20-word style description"
+      "style": "photorealistic/animated/cartoon/cinematic",
+      "color_grading": "warm/cool/vibrant/desaturated",
+      "lighting_mood": "golden hour/dramatic/neon/natural",
+      "consistency_seed": "20-word style description for every scene"
     }}
   }},
   "titles": {{
-    "youtube": "60-char CTR title",
-    "tiktok": "hook with 1-2 emojis",
-    "instagram": "aspirational title",
-    "facebook": "emotional trigger",
-    "shorts": "under 40 chars",
+    "youtube": "60-char high-CTR title",
+    "tiktok": "TikTok hook with 1-2 emojis",
+    "instagram": "aspirational caption title",
+    "facebook": "curiosity/emotional trigger",
+    "shorts": "punchy title under 40 chars",
     "primary": "best cross-platform title"
   }},
   "viral_hook": "2-3 sentence shocking opener that makes viewer unable to leave.",
-  "thumbnail_prompt": "Real thumbnail using ACTUAL locked character appearance with exact details, bold yellow 3-word hook text overlay, background scene, high contrast cinematic grade, rule of thirds composition. Min 50 words.",
+  "thumbnail_prompt": "Real thumbnail using ACTUAL locked character appearance: exact character description, bold yellow 3-word hook text overlay, high contrast cinematic background, rule of thirds composition, viral YouTube style. Min 50 words.",
   "youtube_seo": {{
     "title": "SEO title keyword at start",
-    "description": "1500+ char: hook, emoji bullets, timestamps, CTA, keywords",
+    "description": "Full 1500+ char: hook, emoji bullets, timestamps, CTA, keywords",
     "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13","tag14","tag15","tag16","tag17","tag18","tag19","tag20"],
-    "category": "YouTube category"
+    "category": "most appropriate YouTube category"
   }},
   "hashtags": {{
     "primary": ["#Tag1","#Tag2","#Tag3","#Tag4","#Tag5"],
@@ -399,8 +376,8 @@ CRITICAL RULES:
     "niche": ["#Tag16","#Tag17","#Tag18","#Tag19","#Tag20","#Tag21","#Tag22","#Tag23","#Tag24","#Tag25"],
     "trending": ["#Tag26","#Tag27","#Tag28","#Tag29","#Tag30"]
   }},
-  "subtitle_script": "1\\n00:00:00,000 --> 00:00:{clip_duration:02d},000\\nOpening narration line\\n\\n2\\n00:00:{clip_duration:02d},000 --> 00:00:{clip_duration*2:02d},000\\nSecond narration line",
-  "voice_over_script": "{vo_instruction}",
+  "subtitle_script": "1\\n00:00:00,000 --> 00:00:{clip_duration:02d},000\\nOpening narration\\n\\n2\\n00:00:{clip_duration:02d},000 --> 00:00:{clip_duration*2:02d},000\\nContinuing narration",
+  "voice_over_script": "{vo}",
   "production_notes": {{
     "total_scenes_needed": {total_scenes},
     "detailed_scenes_provided": {detailed_scenes},
@@ -413,15 +390,62 @@ CRITICAL RULES:
       "Retention tip",
       "Monetization tip"
     ]
-  }},
-{img_block}
+  }}
 }}
 
-Generate image_prompts for ALL {detailed_scenes} scenes. Pure JSON only. No placeholders in output."""
+Pure JSON only. Fill every field with real content."""
 
 
-# ─── CALL 2 PROMPT: Long lists ────────────────────────────────────────────────
-def build_prompt_part2(
+# ─── IMAGE PROMPTS BATCH ──────────────────────────────────────────────────────
+def _build_image_prompts_batch(
+    idea: str,
+    content_type: str,
+    generator: str,
+    clip_duration: int,
+    total_scenes: int,
+    scene_start: int,
+    scene_end: int,
+    character_bible_json: str,
+) -> str:
+    batch_count = scene_end - scene_start + 1
+    return f"""You are PromptReel AI. Generate IMAGE PROMPTS for scenes {scene_start} to {scene_end}.
+
+IDEA: {idea} | TYPE: {content_type} | GENERATOR: {generator} | TOTAL SCENES: {total_scenes}
+TASK: Generate ONLY image_prompts for scenes {scene_start} through {scene_end} ({batch_count} scenes)
+
+LOCKED CHARACTER BIBLE — paste EXACT appearance into every prompt:
+{character_bible_json}
+
+RULES:
+- Generate EXACTLY {batch_count} entries (scene {scene_start} to {scene_end})
+- scene_number must be sequential: {scene_start}, {scene_start+1} ... {scene_end}
+- Each scene reflects THAT scene's specific action and environment
+- Character locked appearance = IDENTICAL in ALL prompts
+- Only action, camera angle, setting changes between scenes
+- Write REAL copy-paste prompts — no placeholder brackets in output
+- Example correct output: "jet black British Shorthair cat, green almond eyes,
+  red collar with silver bell, white paws, sitting alert at top of wooden stairs,
+  warm hallway lamp glow, photorealistic --ar 16:9 --v 6.1 --style raw --q 2"
+
+{{
+  "image_prompts": [
+    {{
+      "scene_number": {scene_start},
+      "midjourney": "REAL Midjourney prompt: [exact locked character appearance], [scene {scene_start} action], [scene {scene_start} environment], [lighting], photorealistic, ultra-detailed --ar 16:9 --v 6.1 --style raw --q 2",
+      "stable_diffusion": "REAL SD prompt: [exact locked character appearance], [scene {scene_start} action], [environment], masterpiece, best quality, ultra-detailed, photorealistic, 8K, cinematic lighting",
+      "leonardo": "REAL Leonardo prompt: [exact locked character appearance], [scene {scene_start} action], [environment], highly detailed, cinematic, professional photography",
+      "dall_e": "REAL DALL-E: A photorealistic image of [exact locked character appearance] [scene {scene_start} action] in [environment], [mood], [lighting]",
+      "purpose": "establishing_shot"
+    }}
+  ]
+}}
+
+Generate ALL {batch_count} entries for scenes {scene_start} to {scene_end}.
+Replace ALL brackets with real content. Pure JSON only."""
+
+
+# ─── SCENE BREAKDOWN BATCH ───────────────────────────────────────────────────
+def _build_scene_batch(
     idea: str,
     content_type: str,
     platform: str,
@@ -429,70 +453,149 @@ def build_prompt_part2(
     generator: str,
     clip_duration: int,
     total_scenes: int,
+    scene_start: int,
+    scene_end: int,
     character_bible_json: str,
     content_type_options: dict,
 ) -> str:
-    detailed_scenes = min(total_scenes, 60)
-
+    batch_count = scene_end - scene_start + 1
     content_options_block = ""
     if content_type_options:
-        opts = "\n".join([
-            f"  {k.replace('_',' ').upper()}: {v}"
-            for k, v in content_type_options.items()
-        ])
-        content_options_block = f"\nCONTENT SETTINGS (apply to all output):\n{opts}"
+        opts = "\n".join([f"  {k.replace('_',' ').upper()}: {v}" for k, v in content_type_options.items()])
+        content_options_block = f"\nCONTENT SETTINGS:\n{opts}"
 
-    return f"""You are PromptReel AI. Generate PART 2 of a video production package.
+    return f"""You are PromptReel AI. Generate SCENE BREAKDOWN for scenes {scene_start} to {scene_end}.
 
-IDEA: {idea}
-TYPE: {content_type} | PLATFORM: {platform} | DURATION: {duration_minutes} min
-GENERATOR: {generator} ({clip_duration}s clips) | TOTAL SCENES: {total_scenes}{content_options_block}
+IDEA: {idea} | TYPE: {content_type} | PLATFORM: {platform} | DURATION: {duration_minutes} min
+GENERATOR: {generator} ({clip_duration}s clips) | TOTAL SCENES: {total_scenes}
+TASK: Generate ONLY scene_breakdown for scenes {scene_start} through {scene_end} ({batch_count} scenes){content_options_block}
 
-LOCKED CHARACTER BIBLE — use EXACTLY in every scene and prompt:
+LOCKED CHARACTER BIBLE — include FULL appearance in every visual_description:
 {character_bible_json}
 
-CRITICAL RULES:
-- Every scene visual_description MUST include the character ID + FULL locked appearance
-- Every video_prompt MUST start with the character's complete locked appearance
-- scene_breakdown and video_prompts must have matching scene_numbers 1 → {detailed_scenes}
-- scene_breakdown and video_prompts must tell the SAME story — each video_prompt
-  must visually represent exactly what scene_breakdown describes for that scene
-- Apply content settings to narrator voice, accent, pace, style throughout
-- Generate ALL {detailed_scenes} scene_breakdown entries
-- Generate ALL {detailed_scenes} video_prompts
-- Pure JSON only — no markdown
+RULES:
+- Generate EXACTLY {batch_count} scene_breakdown entries (scene {scene_start} to {scene_end})
+- scene_number sequential: {scene_start}, {scene_start+1} ... {scene_end}
+- Every visual_description MUST include CHARACTER_ID + full locked appearance
+- Apply content settings to narrator voice, accent, pace
+- Each scene continues the story logically from the previous
+- Pure JSON only
 
 {{
-  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words. Match narrator voice/accent from content settings. Reference characters by their locked IDs throughout.",
   "scene_breakdown": [
     {{
-      "scene_number": 1,
-      "time_start": "0:00",
-      "time_end": "0:{clip_duration:02d}",
+      "scene_number": {scene_start},
+      "time_start": "{(scene_start-1)*clip_duration//60}:{((scene_start-1)*clip_duration)%60:02d}",
+      "time_end": "{scene_start*clip_duration//60}:{(scene_start*clip_duration)%60:02d}",
       "title": "Evocative scene title",
-      "visual_description": "CHARACTER_ID (exact locked appearance) — specific action in this scene. Setting: LOCATION_ID (locked environment details). Camera: specific angle and movement.",
-      "narration_text": "Exact narrator words for this specific {clip_duration}s scene",
-      "mood": "tense/mysterious/dramatic/inspiring/etc",
+      "visual_description": "CHARACTER_ID (exact locked appearance) — specific action for scene {scene_start}. Setting: LOCATION_ID (locked environment). Camera: angle and movement.",
+      "narration_text": "Exact narrator words for this {clip_duration}s scene",
+      "mood": "tense/mysterious/dramatic/inspiring/funny/etc",
       "b_roll_suggestion": "Supplementary footage idea",
-      "transition": "cut/fade/zoom/whip-pan"
+      "transition": "cut/fade/zoom/whip-pan/dissolve"
     }}
-  ],
+  ]
+}}
+
+Generate ALL {batch_count} entries for scenes {scene_start} to {scene_end}. Pure JSON only."""
+
+
+# ─── VIDEO PROMPTS BATCH ──────────────────────────────────────────────────────
+def _build_video_prompts_batch(
+    idea: str,
+    content_type: str,
+    generator: str,
+    clip_duration: int,
+    total_scenes: int,
+    scene_start: int,
+    scene_end: int,
+    character_bible_json: str,
+    scenes_context: list,
+) -> str:
+    batch_count = scene_end - scene_start + 1
+
+    # Build scene context so video prompts match scene_breakdown exactly
+    scene_context_str = ""
+    if scenes_context:
+        lines = []
+        for sc in scenes_context:
+            n  = sc.get("scene_number", "?")
+            t  = sc.get("title", "")
+            vd = sc.get("visual_description", "")[:150]
+            lines.append(f"  Scene {n}: {t} — {vd}...")
+        scene_context_str = "\nSCENE CONTEXT (your video_prompts MUST match these actions):\n" + "\n".join(lines)
+
+    return f"""You are PromptReel AI. Generate VIDEO PROMPTS for scenes {scene_start} to {scene_end}.
+
+IDEA: {idea} | TYPE: {content_type} | GENERATOR: {generator} ({clip_duration}s clips) | TOTAL SCENES: {total_scenes}
+TASK: Generate ONLY video_prompts for scenes {scene_start} through {scene_end} ({batch_count} scenes){scene_context_str}
+
+LOCKED CHARACTER BIBLE — paste FULL appearance at START of every prompt:
+{character_bible_json}
+
+RULES:
+- Generate EXACTLY {batch_count} video_prompt entries (scene {scene_start} to {scene_end})
+- scene_number sequential: {scene_start}, {scene_start+1} ... {scene_end}
+- Every prompt MUST start with the character's COMPLETE locked appearance from bible
+- Every prompt must MATCH that scene's action from the scene context above
+- Character appearance = IDENTICAL in all prompts — only action/setting changes
+- Pure JSON only
+
+{{
   "video_prompts": [
     {{
-      "scene_number": 1,
-      "prompt": "[Character FULL locked appearance from character_bible] — [exact action from scene 1 scene_breakdown], [locked environment from scene 1], [camera movement], [locked lighting mood], [locked visual style], {generator} optimized, photorealistic, 4K, ultra-detailed, character consistency",
+      "scene_number": {scene_start},
+      "prompt": "[Character FULL locked appearance] — [scene {scene_start} exact action from context], [locked environment], [camera movement], [locked lighting], [locked visual style], {generator} optimized, photorealistic, 4K, ultra-detailed, character consistency",
       "negative_prompt": "inconsistent character, different appearance, character change, blurry, text, watermark, low quality, distorted",
-      "camera_work": "specific camera movement matching scene 1",
+      "camera_work": "specific camera movement for scene {scene_start}",
       "lighting": "matches character_bible visual_style lighting_mood",
-      "style_tags": ["consistent character", "character reference", "cinematic", "photorealistic", "4K"],
+      "style_tags": ["consistent character", "cinematic", "photorealistic", "4K"],
       "duration": "{clip_duration}s"
     }}
   ]
 }}
 
-IMPORTANT: scene_breakdown scene {'{'}scene_number{'}'} and video_prompts scene {'{'}scene_number{'}'} 
-must describe the SAME action and environment — they must match perfectly.
-Generate ALL {detailed_scenes} entries for both arrays. Pure JSON only."""
+Generate ALL {batch_count} video_prompt entries for scenes {scene_start} to {scene_end}.
+Each prompt must match its scene's action. Pure JSON only."""
+
+
+# ─── FULL SCRIPT ──────────────────────────────────────────────────────────────
+def _build_script_prompt(
+    idea: str,
+    content_type: str,
+    platform: str,
+    duration_minutes: int,
+    total_scenes: int,
+    clip_duration: int,
+    character_bible_json: str,
+    content_type_options: dict,
+) -> str:
+    detailed_scenes = min(total_scenes, 60)
+    content_options_block = ""
+    if content_type_options:
+        opts = "\n".join([f"  {k.replace('_',' ').upper()}: {v}" for k, v in content_type_options.items()])
+        content_options_block = f"\nCONTENT SETTINGS:\n{opts}"
+
+    return f"""You are PromptReel AI. Write a complete video narration script.
+
+IDEA: {idea} | TYPE: {content_type} | PLATFORM: {platform}
+DURATION: {duration_minutes} min | TOTAL SCENES: {total_scenes} | CLIP: {clip_duration}s each{content_options_block}
+
+CHARACTER BIBLE:
+{character_bible_json}
+
+Write a complete {duration_minutes}-minute narration script.
+Mark each scene with [SCENE 1], [SCENE 2] ... [SCENE {detailed_scenes}].
+Apply narrator voice, accent, and pace from content settings.
+Reference characters by their locked IDs.
+Minimum {duration_minutes * 130} words.
+
+Return ONLY this JSON:
+{{
+  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers here..."
+}}
+
+Pure JSON only."""
 
 
 def parse_json_response(raw: str) -> dict:
@@ -507,24 +610,24 @@ def parse_json_response(raw: str) -> dict:
 async def _call_with_chain(
     prompt: str,
     chain: list,
-    label_prefix: str = "",
+    label: str = "",
 ) -> tuple[dict, str]:
-    """Try each provider in chain until one succeeds."""
+    """Try each provider in the chain until one succeeds."""
     last_error = None
-    for label, caller, model in chain:
+    for name, caller, model in chain:
         try:
-            logger.info(f"  → {label_prefix}{label} ({model})")
-            raw = await caller(prompt, model)
+            logger.info(f"  → [{label}] {name} ({model})")
+            raw    = await caller(prompt, model)
             result = parse_json_response(raw)
-            logger.info(f"  ✅ {label_prefix}{label}")
-            return result, label
+            logger.info(f"  ✅ [{label}] {name}")
+            return result, name
         except json.JSONDecodeError as e:
-            logger.warning(f"  ✗ {label}: bad JSON — {e}")
+            logger.warning(f"  ✗ [{label}] {name}: bad JSON — {e}")
             last_error = e
         except Exception as e:
-            logger.warning(f"  ✗ {label}: {type(e).__name__} — {e}")
+            logger.warning(f"  ✗ [{label}] {name}: {type(e).__name__} — {e}")
             last_error = e
-    raise RuntimeError(f"All providers failed. Last error: {last_error}")
+    raise RuntimeError(f"All providers failed [{label}]. Last: {last_error}")
 
 
 # ─── Main Entry ───────────────────────────────────────────────────────────────
@@ -539,9 +642,12 @@ async def generate_video_plan(
     user_plan: str = "free",
     content_type_options: dict = {},
 ) -> tuple[dict, str]:
-    clip_duration = get_clip_duration(generator)
-    total_scenes  = calculate_scenes(duration_minutes, generator)
-    chain = get_provider_chain(user_plan)
+
+    clip_duration   = get_clip_duration(generator)
+    total_scenes    = calculate_scenes(duration_minutes, generator)
+    detailed_scenes = min(total_scenes, 60)
+    batches         = _make_batches(detailed_scenes, BATCH_SIZE)
+    chain           = get_provider_chain(user_plan)
 
     if not chain:
         raise ValueError(
@@ -551,83 +657,172 @@ async def generate_video_plan(
             "TOGETHER_API_KEY, OPENROUTER_API_KEY"
         )
 
+    img_batches  = len(batches) if generate_image_prompts else 0
+    total_calls  = 1 + img_batches + len(batches) + len(batches) + 1
     logger.info(
-        f"[{user_plan.upper()}] Split generation. "
-        f"Chain: {[p[0] for p in chain]} | "
-        f"Scenes: {total_scenes} | "
+        f"[{user_plan.upper()}] Smart split | "
+        f"Scenes: {total_scenes} | Batches: {len(batches)} | "
+        f"Total API calls: {total_calls} | "
         f"Image prompts: {generate_image_prompts}"
     )
 
-    # ── CALL 1: Short fields + image prompts ──────────────────────────────────
-    logger.info("📋 PART 1: character_bible, titles, SEO, hashtags, image_prompts...")
-    prompt1 = build_prompt_part1(
-        idea=idea,
-        content_type=content_type,
-        platform=platform,
-        duration_minutes=duration_minutes,
-        generator=generator,
-        clip_duration=clip_duration,
-        total_scenes=total_scenes,
-        generate_image_prompts=generate_image_prompts,
-        generate_voice_over=generate_voice_over,
-        content_type_options=content_type_options,
+    all_providers: list[str] = []
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PART META — character_bible, titles, SEO, hashtags, voice_over
+    # ═══════════════════════════════════════════════════════════════════════════
+    logger.info("━━━ [1/META] character_bible, titles, SEO, hashtags, voice_over...")
+    meta_result, meta_prov = await _call_with_chain(
+        _build_meta_prompt(
+            idea=idea, content_type=content_type, platform=platform,
+            duration_minutes=duration_minutes, generator=generator,
+            clip_duration=clip_duration, total_scenes=total_scenes,
+            generate_voice_over=generate_voice_over,
+            content_type_options=content_type_options,
+        ),
+        chain, "META",
     )
+    all_providers.append(meta_prov)
+    logger.info(f"✅ META done via {meta_prov}")
 
-    part1_result, provider1 = await _call_with_chain(prompt1, chain, "P1-")
-
-    # Log how many image prompts were generated
-    img_count = len(part1_result.get("image_prompts", []))
-    logger.info(f"✅ Part 1 done via {provider1} — {img_count} image prompts generated")
-
-    # Extract character_bible JSON to pass into Part 2
     character_bible_json = json.dumps(
-        part1_result.get("character_bible", {}),
-        indent=2,
-        ensure_ascii=False,
+        meta_result.get("character_bible", {}),
+        indent=2, ensure_ascii=False,
     )
 
-    # ── CALL 2: Long lists ────────────────────────────────────────────────────
-    logger.info("🎬 PART 2: full_script, scene_breakdown, video_prompts...")
-    prompt2 = build_prompt_part2(
-        idea=idea,
-        content_type=content_type,
-        platform=platform,
-        duration_minutes=duration_minutes,
-        generator=generator,
-        clip_duration=clip_duration,
-        total_scenes=total_scenes,
-        character_bible_json=character_bible_json,
-        content_type_options=content_type_options,
+    # ═══════════════════════════════════════════════════════════════════════════
+    # IMAGE PROMPT BATCHES — 10 scenes per call
+    # ═══════════════════════════════════════════════════════════════════════════
+    all_image_prompts: list = []
+
+    if generate_image_prompts:
+        for i, (s_start, s_end) in enumerate(batches, 1):
+            label = f"IMG {i}/{len(batches)}"
+            logger.info(f"━━━ [{label}] image_prompts scenes {s_start}→{s_end}...")
+            img_result, img_prov = await _call_with_chain(
+                _build_image_prompts_batch(
+                    idea=idea, content_type=content_type, generator=generator,
+                    clip_duration=clip_duration, total_scenes=total_scenes,
+                    scene_start=s_start, scene_end=s_end,
+                    character_bible_json=character_bible_json,
+                ),
+                chain, label,
+            )
+            all_providers.append(img_prov)
+            batch_imgs = img_result.get("image_prompts", [])
+            all_image_prompts.extend(batch_imgs)
+            logger.info(f"✅ [{label}] done via {img_prov} — {len(batch_imgs)} prompts")
+
+    all_image_prompts.sort(key=lambda x: x.get("scene_number", 0))
+    logger.info(f"📸 Total image prompts: {len(all_image_prompts)}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SCENE BREAKDOWN BATCHES — 10 scenes per call
+    # ═══════════════════════════════════════════════════════════════════════════
+    all_scene_breakdown: list = []
+
+    for i, (s_start, s_end) in enumerate(batches, 1):
+        label = f"SCENE {i}/{len(batches)}"
+        logger.info(f"━━━ [{label}] scene_breakdown scenes {s_start}→{s_end}...")
+        scene_result, scene_prov = await _call_with_chain(
+            _build_scene_batch(
+                idea=idea, content_type=content_type, platform=platform,
+                duration_minutes=duration_minutes, generator=generator,
+                clip_duration=clip_duration, total_scenes=total_scenes,
+                scene_start=s_start, scene_end=s_end,
+                character_bible_json=character_bible_json,
+                content_type_options=content_type_options,
+            ),
+            chain, label,
+        )
+        all_providers.append(scene_prov)
+        batch_scenes = scene_result.get("scene_breakdown", [])
+        all_scene_breakdown.extend(batch_scenes)
+        logger.info(f"✅ [{label}] done via {scene_prov} — {len(batch_scenes)} scenes")
+
+    all_scene_breakdown.sort(key=lambda x: x.get("scene_number", 0))
+    logger.info(f"🎬 Total scenes: {len(all_scene_breakdown)}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VIDEO PROMPT BATCHES — 10 scenes per call, uses scene context
+    # ═══════════════════════════════════════════════════════════════════════════
+    all_video_prompts: list = []
+
+    for i, (s_start, s_end) in enumerate(batches, 1):
+        label = f"VP {i}/{len(batches)}"
+        logger.info(f"━━━ [{label}] video_prompts scenes {s_start}→{s_end}...")
+
+        # Pass scene context so video prompts match scene_breakdown exactly
+        scenes_ctx = [
+            sc for sc in all_scene_breakdown
+            if s_start <= sc.get("scene_number", 0) <= s_end
+        ]
+
+        vp_result, vp_prov = await _call_with_chain(
+            _build_video_prompts_batch(
+                idea=idea, content_type=content_type, generator=generator,
+                clip_duration=clip_duration, total_scenes=total_scenes,
+                scene_start=s_start, scene_end=s_end,
+                character_bible_json=character_bible_json,
+                scenes_context=scenes_ctx,
+            ),
+            chain, label,
+        )
+        all_providers.append(vp_prov)
+        batch_vps = vp_result.get("video_prompts", [])
+        all_video_prompts.extend(batch_vps)
+        logger.info(f"✅ [{label}] done via {vp_prov} — {len(batch_vps)} prompts")
+
+    all_video_prompts.sort(key=lambda x: x.get("scene_number", 0))
+    logger.info(f"🎥 Total video prompts: {len(all_video_prompts)}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FULL SCRIPT — single call
+    # ═══════════════════════════════════════════════════════════════════════════
+    logger.info("━━━ [SCRIPT] full_script...")
+    script_result, script_prov = await _call_with_chain(
+        _build_script_prompt(
+            idea=idea, content_type=content_type, platform=platform,
+            duration_minutes=duration_minutes, total_scenes=total_scenes,
+            clip_duration=clip_duration,
+            character_bible_json=character_bible_json,
+            content_type_options=content_type_options,
+        ),
+        chain, "SCRIPT",
     )
+    all_providers.append(script_prov)
+    logger.info(f"✅ SCRIPT done via {script_prov}")
 
-    part2_result, provider2 = await _call_with_chain(prompt2, chain, "P2-")
+    # ═══════════════════════════════════════════════════════════════════════════
+    # MERGE — combine everything
+    # ═══════════════════════════════════════════════════════════════════════════
+    merged = {
+        "character_bible":   meta_result.get("character_bible", {}),
+        "titles":            meta_result.get("titles", {}),
+        "viral_hook":        meta_result.get("viral_hook", ""),
+        "thumbnail_prompt":  meta_result.get("thumbnail_prompt", ""),
+        "youtube_seo":       meta_result.get("youtube_seo", {}),
+        "hashtags":          meta_result.get("hashtags", {}),
+        "subtitle_script":   meta_result.get("subtitle_script", ""),
+        "voice_over_script": meta_result.get("voice_over_script", ""),
+        "production_notes":  meta_result.get("production_notes", {}),
+        "image_prompts":     all_image_prompts,
+        "scene_breakdown":   all_scene_breakdown,
+        "video_prompts":     all_video_prompts,
+        "full_script":       script_result.get("full_script", ""),
+    }
 
-    scene_count = len(part2_result.get("scene_breakdown", []))
-    video_count = len(part2_result.get("video_prompts", []))
     logger.info(
-        f"✅ Part 2 done via {provider2} — "
-        f"{scene_count} scenes, {video_count} video prompts"
+        f"✅ GENERATION COMPLETE | "
+        f"Scenes: {len(merged['scene_breakdown'])} | "
+        f"Video prompts: {len(merged['video_prompts'])} | "
+        f"Image prompts: {len(merged['image_prompts'])} | "
+        f"API calls made: {len(all_providers)}"
     )
 
-    # ── MERGE both results ────────────────────────────────────────────────────
-    # Start with part1 as base, overlay part2 on top
-    merged = {**part1_result, **part2_result}
-
-    # Always preserve image_prompts from part1 — never overwrite with part2
-    merged["image_prompts"] = part1_result.get("image_prompts", [])
-
-    # Always preserve character_bible from part1
-    merged["character_bible"] = part1_result.get("character_bible", {})
-
-    # Log final counts
-    final_img  = len(merged.get("image_prompts", []))
-    final_sc   = len(merged.get("scene_breakdown", []))
-    final_vid  = len(merged.get("video_prompts", []))
-    logger.info(
-        f"✅ Merged: {final_sc} scenes | "
-        f"{final_vid} video prompts | "
-        f"{final_img} image prompts"
-    )
-
-    provider = f"{provider1}+{provider2}"
-    return merged, provider
+    # Deduplicate provider names for display
+    seen = []
+    for p in all_providers:
+        if p not in seen:
+            seen.append(p)
+    return merged, "+".join(seen)
