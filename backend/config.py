@@ -51,8 +51,10 @@ class Settings(BaseSettings):
     DEEPSEEK_MODEL_FREE: str = "deepseek-chat"
     GROQ_MODEL_FREE: str = "llama-3.3-70b-versatile"
     TOGETHER_MODEL_FREE: str = "Qwen/Qwen2.5-72B-Instruct-Turbo"
-    OPENROUTER_MODEL_FREE: str = "meta-llama/llama-3.3-70b-instruct:free"
-
+    # Replace with (more reliable free models):
+OPENROUTER_MODEL_FREE: str = "mistralai/mistral-7b-instruct:free"
+OPENROUTER_MODEL_FREE2: str = "meta-llama/llama-3.1-8b-instruct:free"
+OPENROUTER_MODEL_FREE3: str = "google/gemma-2-9b-it:free"
     # ── Flutterwave ───────────────────────────────────────────────────────────
     FLUTTERWAVE_SECRET_KEY:   Optional[str] = None
     FLUTTERWAVE_PUBLIC_KEY:   Optional[str] = None
