@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/project_model.dart';
 import '../services/api_service.dart';
 
-// ── Form State ─────────────────────────────────────────────────────────────
+// ── Form State ────────────────────────────────────────────────────────────────
 class GenerateFormState {
   final String idea;
   final String contentType;
@@ -11,6 +11,7 @@ class GenerateFormState {
   final String generator;
   final bool generateImagePrompts;
   final bool generateVoiceOver;
+  final Map<String, String> contentTypeOptions;
 
   // Preview data
   final int? totalScenes;
@@ -24,6 +25,7 @@ class GenerateFormState {
     this.generator = 'Kling',
     this.generateImagePrompts = false,
     this.generateVoiceOver = false,
+    this.contentTypeOptions = const {},
     this.totalScenes,
     this.clipDurationSeconds,
   });
@@ -36,6 +38,7 @@ class GenerateFormState {
     String? generator,
     bool? generateImagePrompts,
     bool? generateVoiceOver,
+    Map<String, String>? contentTypeOptions,
     int? totalScenes,
     int? clipDurationSeconds,
   }) =>
@@ -45,36 +48,65 @@ class GenerateFormState {
         platform: platform ?? this.platform,
         durationMinutes: durationMinutes ?? this.durationMinutes,
         generator: generator ?? this.generator,
-        generateImagePrompts: generateImagePrompts ?? this.generateImagePrompts,
+        generateImagePrompts:
+            generateImagePrompts ?? this.generateImagePrompts,
         generateVoiceOver: generateVoiceOver ?? this.generateVoiceOver,
+        contentTypeOptions: contentTypeOptions ?? this.contentTypeOptions,
         totalScenes: totalScenes ?? this.totalScenes,
         clipDurationSeconds: clipDurationSeconds ?? this.clipDurationSeconds,
       );
 
   bool get isValid => idea.trim().length >= 10;
+
+  /// Returns a human-readable summary of selected content type options
+  String get contentTypeOptionsSummary {
+    if (contentTypeOptions.isEmpty) return '';
+    return contentTypeOptions.entries
+        .map((e) => '${e.key}: ${e.value}')
+        .join(', ');
+  }
 }
 
 class GenerateFormNotifier extends StateNotifier<GenerateFormState> {
   GenerateFormNotifier() : super(const GenerateFormState());
 
   void setIdea(String v) => state = state.copyWith(idea: v);
-  void setContentType(String v) => state = state.copyWith(contentType: v);
+
+  void setContentType(String v) => state = state.copyWith(
+        contentType: v,
+        // Reset options when content type changes
+        contentTypeOptions: {},
+      );
+
   void setPlatform(String v) => state = state.copyWith(platform: v);
   void setDuration(int v) => state = state.copyWith(durationMinutes: v);
   void setGenerator(String v) => state = state.copyWith(generator: v);
-  void setGenerateImagePrompts(bool v) => state = state.copyWith(generateImagePrompts: v);
-  void setGenerateVoiceOver(bool v) => state = state.copyWith(generateVoiceOver: v);
-  void setPreview({required int totalScenes, required int clipDurationSeconds}) {
-    state = state.copyWith(totalScenes: totalScenes, clipDurationSeconds: clipDurationSeconds);
+  void setGenerateImagePrompts(bool v) =>
+      state = state.copyWith(generateImagePrompts: v);
+  void setGenerateVoiceOver(bool v) =>
+      state = state.copyWith(generateVoiceOver: v);
+
+  void setContentTypeOption(String key, String value) {
+    final updated = Map<String, String>.from(state.contentTypeOptions);
+    updated[key] = value;
+    state = state.copyWith(contentTypeOptions: updated);
   }
+
+  void setPreview(
+      {required int totalScenes, required int clipDurationSeconds}) {
+    state = state.copyWith(
+        totalScenes: totalScenes, clipDurationSeconds: clipDurationSeconds);
+  }
+
   void reset() => state = const GenerateFormState();
 }
 
-final generateFormProvider = StateNotifierProvider<GenerateFormNotifier, GenerateFormState>(
+final generateFormProvider =
+    StateNotifierProvider<GenerateFormNotifier, GenerateFormState>(
   (_) => GenerateFormNotifier(),
 );
 
-// ── Generation Result State ────────────────────────────────────────────────
+// ── Generation Result State ───────────────────────────────────────────────────
 class GenerationState {
   final bool isGenerating;
   final ProjectModel? project;
@@ -120,9 +152,9 @@ class GenerationNotifier extends StateNotifier<GenerationState> {
         generator: form.generator,
         generateImagePrompts: form.generateImagePrompts,
         generateVoiceOver: form.generateVoiceOver,
+        contentTypeOptions: form.contentTypeOptions,
       );
 
-      // Build a ProjectModel from the generation response
       final project = ProjectModel(
         id: response['project_id'] ?? 0,
         title: response['title'] ?? '',
@@ -137,7 +169,9 @@ class GenerationNotifier extends StateNotifier<GenerationState> {
         totalScenes: response['total_scenes'] ?? 0,
         clipDurationSeconds: response['clip_duration_seconds'] ?? 5,
         aiProviderUsed: response['ai_provider'],
-        result: response['result'] != null ? VideoResult.fromJson(response['result']) : null,
+        result: response['result'] != null
+            ? VideoResult.fromJson(response['result'])
+            : null,
       );
 
       state = GenerationState(
@@ -158,6 +192,7 @@ class GenerationNotifier extends StateNotifier<GenerationState> {
   void clear() => state = const GenerationState();
 }
 
-final generationProvider = StateNotifierProvider<GenerationNotifier, GenerationState>((ref) {
+final generationProvider =
+    StateNotifierProvider<GenerationNotifier, GenerationState>((ref) {
   return GenerationNotifier(ref.read(apiServiceProvider));
 });
