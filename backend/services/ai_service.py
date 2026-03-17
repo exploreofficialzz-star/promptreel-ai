@@ -285,11 +285,11 @@ For EVERY character/creature/object that appears in this video you MUST:
            vivid green eyes, worn blue leather collar, 3kg slender frame —
            sprinting through heavy rain, photorealistic, 4K cinematic"
 
-5. In EVERY image_prompt write the ACTUAL real prompt with character
-   details directly embedded. Example for Midjourney:
-   "jet black domestic shorthair cat, vivid green eyes, worn blue leather
-   collar, small 3kg slender frame, stalking through misty forest at dusk,
-   cinematic lighting, --ar 16:9 --v 6.1 --style raw --q 2"
+5. In EVERY image_prompt use your character_bible definitions to write
+   a REAL complete prompt. Example of correct image prompt output:
+   MIDJOURNEY: "jet black domestic shorthair cat, vivid green almond eyes,
+   worn blue leather collar, small 3kg slender frame, stalking through
+   misty ancient forest at golden hour, cinematic --ar 16:9 --v 6.1 --q 2"
 
 ENVIRONMENT CONSISTENCY: Lock locations — same trees, lighting,
 atmosphere every time that location reappears.
@@ -314,7 +314,7 @@ def build_generation_prompt(
     total_scenes: int,
     generate_image_prompts: bool,
     generate_voice_over: bool,
-    content_type_options: dict = {},  # ← Added
+    content_type_options: dict = {},
 ) -> str:
     detailed_scenes = min(total_scenes, 60)
 
@@ -349,32 +349,32 @@ def build_generation_prompt(
     }
 
     # ── Image prompts block ───────────────────────────────────────────────────
+    # Use concrete filled examples so AI generates real content not instructions
     if generate_image_prompts:
         img_block = f'''  "image_prompts": [
     {{
       "scene_number": 1,
-      "midjourney": "Write ACTUAL Midjourney prompt with real locked character details embedded. Format: [character exact appearance], [scene action], [environment], [lighting], [mood], photorealistic, ultra-detailed --ar 16:9 --v 6.1 --style raw --q 2",
-      "stable_diffusion": "Write ACTUAL Stable Diffusion prompt with real locked character details embedded. Format: [character exact appearance], [scene action], [environment], masterpiece, best quality, ultra-detailed, photorealistic, 8K, cinematic lighting",
-      "leonardo": "Write ACTUAL Leonardo AI prompt with real locked character details embedded. Format: [character exact appearance], [scene action], [environment], [mood], highly detailed, cinematic, professional photography",
-      "dall_e": "Write ACTUAL DALL-E 3 prompt as complete natural sentence with real locked character details. Format: A photorealistic image of [character exact appearance] [doing action] in [environment], [lighting], [mood]",
+      "midjourney": "Using your character_bible definitions above, output a real Midjourney prompt like this example (replace with your actual character): jet black domestic shorthair cat, vivid green almond eyes, worn blue leather collar, small 3kg slender frame, stalking through misty ancient forest at golden hour, dappled oak canopy light, ground fog, cinematic, photorealistic, ultra-detailed --ar 16:9 --v 6.1 --style raw --q 2",
+      "stable_diffusion": "Using your character_bible definitions above, output a real Stable Diffusion prompt like this example (replace with your actual character): jet black domestic shorthair cat, vivid green almond eyes, worn blue leather collar, small slender frame, misty forest, golden hour light, fog, masterpiece, best quality, ultra-detailed, photorealistic, 8K, cinematic lighting, sharp focus",
+      "leonardo": "Using your character_bible definitions above, output a real Leonardo AI prompt like this example (replace with your actual character): jet black small domestic shorthair cat with vivid green eyes and worn blue collar, stalking through ancient misty forest, golden hour dappled light, detailed fur texture, cinematic composition, professional wildlife photography, highly detailed",
+      "dall_e": "Using your character_bible definitions above, output a real DALL-E 3 prompt like this example (replace with your actual character): A photorealistic image of a small jet black domestic shorthair cat with vivid green almond eyes and a worn blue leather collar, stalking low through a misty ancient forest at golden hour, soft dappled light through oak canopy, ground fog swirling around its paws, cinematic mood",
       "purpose": "establishing_shot"
     }}
   ],'''
     else:
         img_block = '  "image_prompts": [],'
 
-    # ── Voice-over block — fixed to generate real timed content ──────────────
+    # ── Voice-over block ──────────────────────────────────────────────────────
     if generate_voice_over:
         vo = (
-            f"Write the complete {duration_minutes}-minute timed voice-over script. "
-            f"Format every line as [MM:SS] followed by the narration text. "
-            f"Include a new timestamp every 10 seconds from [00:00] to "
+            f"Write the complete {duration_minutes}-minute timed voice-over "
+            f"script with a timestamp every 10 seconds from [00:00] to "
             f"[{duration_minutes:02d}:00]. "
-            f"Example:\n"
+            f"Example format:\n"
             f"[00:00] Opening line that grabs attention immediately.\n"
             f"[00:10] Build on the opening with compelling detail.\n"
             f"[00:20] Continue developing the narrative with energy.\n"
-            f"Continue this exact format for the full {duration_minutes} minutes. "
+            f"Replace these example lines with real narration for the idea. "
             f"Minimum {duration_minutes * 130} words total."
         )
     else:
@@ -389,7 +389,6 @@ def build_generation_prompt(
         ])
         content_options_block = f"\nCONTENT SETTINGS (MUST be applied to all output):\n{opts}"
 
-    # Build the character bible
     character_bible = build_character_bible(idea, content_type)
 
     return f"""You are PromptReel AI — the world's most advanced AI video content strategist.
@@ -409,61 +408,63 @@ IMAGE PROMPTS: {"YES" if generate_image_prompts else "NO"}
 VOICE-OVER: {"YES" if generate_voice_over else "NO"}{content_options_block}
 ━━━━━━━━━━━━━━━━━
 
-STEP 1: Extract ALL characters/creatures from the idea and define their
-exact locked appearance in character_bible.
+STEP 1: Extract ALL characters from the idea. Define their exact locked
+appearance in character_bible — be very specific about every detail.
 
 STEP 2: Use those locked details WORD FOR WORD in every scene,
 every video prompt, and every image prompt.
 
-STEP 3: Apply ALL content settings above to every part of the output —
-narrator voice, accent, pacing, style, atmosphere must match exactly.
+STEP 3: Apply ALL content settings to narrator voice, accent, pace, style.
 
 STEP 4: Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
-Fill ALL fields with REAL content. NEVER write instructions as values.
 
-IMPORTANT FOR IMAGE PROMPTS:
-- Write REAL actual prompts — never write "INCLUDE FULL CHARACTER DESCRIPTION"
-- Take character details from character_bible and embed them directly
-- Every image prompt must be ready to copy-paste into the AI tool immediately
+CRITICAL IMAGE PROMPT RULE:
+The image_prompts template shows EXAMPLE prompts using a cat character.
+You MUST replace the cat example with YOUR actual character details from
+character_bible. Output real copy-paste ready prompts — never output
+the word "example" or any instructions in the final JSON values.
 
-IMPORTANT FOR VOICE-OVER:
-- Write the ACTUAL complete timed script with real [MM:SS] timestamps
-- Never write instructions — write the real narration text
-- Match the narrator voice/accent/pace from content settings above
+CORRECT image prompt output example:
+"medium-build male narrator, short black hair, brown eyes, silver watch,
+black glasses, standing in futuristic cityscape, neon lights, cinematic
+lighting, photorealistic --ar 16:9 --v 6.1 --style raw --q 2"
+
+WRONG image prompt output:
+"Using your character_bible definitions above, output a real prompt..."
 
 {{
   "character_bible": {{
     "characters": [
       {{
-        "id": "CHARACTER_ID e.g. MAIN_CAT",
-        "name": "Display name e.g. Shadow",
-        "type": "e.g. domestic shorthair cat",
+        "id": "NARRATOR",
+        "name": "Main Narrator",
+        "type": "human male presenter",
         "appearance": {{
-          "size": "e.g. small, 3kg, slender frame",
-          "colors": "e.g. jet black fur, no white patches",
-          "markings": "e.g. small white star on chest",
-          "eyes": "e.g. vivid green almond-shaped eyes",
-          "distinctive_features": "e.g. torn left ear tip",
-          "accessories": "e.g. worn blue leather collar with silver bell"
+          "size": "medium build, 180cm, athletic",
+          "colors": "light brown skin, black hair",
+          "markings": "none",
+          "eyes": "dark brown, sharp focused gaze",
+          "distinctive_features": "strong jawline, confident posture",
+          "accessories": "silver watch, black-rimmed glasses"
         }},
-        "movement_style": "e.g. graceful and silent, low to the ground",
-        "personality_visual": "e.g. alert ears, intense focused gaze"
+        "movement_style": "confident, purposeful strides",
+        "personality_visual": "commands attention, direct eye contact"
       }}
     ],
     "locations": [
       {{
-        "id": "LOCATION_ID e.g. MAIN_FOREST",
-        "name": "e.g. Ancient Misty Forest",
-        "description": "e.g. dense ancient oak trees, thick ground fog, moss-covered stones",
-        "lighting": "e.g. golden hour dappled light through canopy",
-        "atmosphere": "e.g. mysterious, serene, slightly eerie"
+        "id": "MAIN_LOCATION",
+        "name": "Primary Setting",
+        "description": "detailed description of the main environment",
+        "lighting": "specific lighting setup",
+        "atmosphere": "mood and atmosphere"
       }}
     ],
     "visual_style": {{
-      "style": "e.g. photorealistic cinematic",
-      "color_grading": "e.g. warm golden tones with deep shadows",
-      "lighting_mood": "e.g. golden hour, soft directional light",
-      "consistency_seed": "e.g. cinematic photorealistic warm golden tones"
+      "style": "photorealistic cinematic",
+      "color_grading": "warm tones with deep shadows",
+      "lighting_mood": "dramatic directional lighting",
+      "consistency_seed": "cinematic photorealistic warm dramatic"
     }}
   }},
   "titles": {{
@@ -474,11 +475,11 @@ IMPORTANT FOR VOICE-OVER:
     "shorts": "punchy title under 40 chars",
     "primary": "best cross-platform title"
   }},
-  "viral_hook": "2-3 sentence shocking/provocative opener that makes viewer unable to leave.",
-  "thumbnail_prompt": "Real detailed thumbnail prompt using actual locked character appearance: [character exact description], bold yellow text overlay '[3 word hook]', [background scene], high contrast cinematic color grade, rule of thirds composition, viral YouTube thumbnail style. Min 50 words.",
+  "viral_hook": "2-3 sentence shocking/provocative opener.",
+  "thumbnail_prompt": "Real thumbnail prompt using actual locked character: [exact character description], bold yellow text '[3 word hook]', [background], high contrast cinematic grade, rule of thirds. Min 50 words.",
   "youtube_seo": {{
     "title": "SEO title with exact-match keyword at start",
-    "description": "Full 1500+ char description: hook, what is covered with emoji bullets, timestamps, CTA, keywords",
+    "description": "Full 1500+ char description with emoji bullets, timestamps, CTA",
     "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13","tag14","tag15","tag16","tag17","tag18","tag19","tag20"],
     "category": "most appropriate YouTube category"
   }},
@@ -488,7 +489,7 @@ IMPORTANT FOR VOICE-OVER:
     "niche": ["#Tag16","#Tag17","#Tag18","#Tag19","#Tag20","#Tag21","#Tag22","#Tag23","#Tag24","#Tag25"],
     "trending": ["#Tag26","#Tag27","#Tag28","#Tag29","#Tag30"]
   }},
-  "subtitle_script": "1\\n00:00:00,000 --> 00:00:{clip_duration:02d},000\\nScene 1 narration text\\n\\n2\\n00:00:{clip_duration:02d},000 --> 00:00:{clip_duration*2:02d},000\\nScene 2 narration text",
+  "subtitle_script": "1\\n00:00:00,000 --> 00:00:{clip_duration:02d},000\\nOpening narration text here\\n\\n2\\n00:00:{clip_duration:02d},000 --> 00:00:{clip_duration*2:02d},000\\nContinuing narration text here",
   "voice_over_script": "{vo}",
   "production_notes": {{
     "total_scenes_needed": {total_scenes},
@@ -503,28 +504,28 @@ IMPORTANT FOR VOICE-OVER:
       "Monetization tip"
     ]
   }},
-  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words. Match narrator voice/accent/style from content settings. Reference characters by locked names.",
+  "full_script": "Complete {duration_minutes}-minute narration with [SCENE X] markers. Min {duration_minutes * 130} words. Match narrator voice/accent from content settings.",
   "scene_breakdown": [
     {{
       "scene_number": 1,
       "time_start": "0:00",
       "time_end": "0:{clip_duration:02d}",
       "title": "Evocative scene title",
-      "visual_description": "MAIN_CAT (jet black, green eyes, blue collar, 3kg) — [exact action]. Setting: MAIN_FOREST (dense oak trees, golden mist, dappled light). Camera: [angle].",
-      "narration_text": "Exact narrator words matching voice/accent/pace from content settings",
-      "mood": "intense/mysterious/dramatic/inspiring/etc",
+      "visual_description": "CHARACTER_ID (exact locked appearance) — action. Setting: LOCATION_ID (locked environment details). Camera: angle.",
+      "narration_text": "Exact narrator words for this scene matching voice/accent settings",
+      "mood": "intense/mysterious/dramatic/inspiring",
       "b_roll_suggestion": "Supplementary footage maintaining character consistency",
-      "transition": "cut/fade/zoom recommendation"
+      "transition": "cut/fade/zoom"
     }}
   ],
   "video_prompts": [
     {{
       "scene_number": 1,
-      "prompt": "[Character locked appearance from character_bible] — [scene action], [locked environment details], [camera movement], [locked lighting], [locked visual style], {generator} optimized, photorealistic, 4K, ultra-detailed, character consistency",
-      "negative_prompt": "inconsistent character, different appearance, character change, blurry, text, watermark, distorted, low quality",
-      "camera_work": "Specific camera movement",
-      "lighting": "Lighting matching character_bible visual_style",
-      "style_tags": ["consistent character", "character reference", "cinematic", "photorealistic", "4K"],
+      "prompt": "Character locked appearance — scene action, locked environment, camera movement, locked lighting, locked visual style, {generator} optimized, photorealistic, 4K, ultra-detailed, character consistency",
+      "negative_prompt": "inconsistent character, different appearance, character change, blurry, text, watermark, low quality",
+      "camera_work": "specific camera movement",
+      "lighting": "lighting matching character_bible visual_style",
+      "style_tags": ["consistent character", "cinematic", "photorealistic", "4K"],
       "duration": "{clip_duration}s"
     }}
   ],
@@ -532,12 +533,13 @@ IMPORTANT FOR VOICE-OVER:
 }}
 
 FINAL RULES:
-- character_bible defines LOCKED appearances — deviate = CRITICAL ERROR
+- character_bible defines LOCKED appearances — never deviate
 - content settings MUST be applied to narrator voice, accent, pace, style
 - Every scene visual_description MUST reference character ID + full appearance
 - Every video_prompt MUST start with the character's full locked description
-- Every image_prompt MUST contain REAL prompts with actual character details
-- voice_over_script MUST be real timed content with [MM:SS] every 10 seconds
+- image_prompts MUST contain real copy-paste ready prompts using your actual
+  character details — NEVER output instructions or the word "example" in values
+- voice_over_script MUST be real timed [MM:SS] narration every 10 seconds
 - Generate ALL {detailed_scenes} scene_breakdown entries
 - Generate ALL {detailed_scenes} video_prompts
 - Pure JSON only — no markdown, no explanation"""
@@ -562,7 +564,7 @@ async def generate_video_plan(
     generate_image_prompts: bool,
     generate_voice_over: bool,
     user_plan: str = "free",
-    content_type_options: dict = {},  # ← Added
+    content_type_options: dict = {},
 ) -> tuple[dict, str]:
     clip_duration = get_clip_duration(generator)
     total_scenes  = calculate_scenes(duration_minutes, generator)
@@ -577,7 +579,7 @@ async def generate_video_plan(
         total_scenes=total_scenes,
         generate_image_prompts=generate_image_prompts,
         generate_voice_over=generate_voice_over,
-        content_type_options=content_type_options,  # ← Added
+        content_type_options=content_type_options,
     )
 
     chain = get_provider_chain(user_plan)
@@ -607,4 +609,4 @@ async def generate_video_plan(
 
     raise RuntimeError(
         f"All AI providers failed for [{user_plan}] plan. Last: {last_error}"
-  )
+)
