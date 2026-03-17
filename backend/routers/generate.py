@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 from datetime import date
 from typing import Optional, Dict
+import asyncio
+import logging
 
 from database import get_db
 from models.user import User
@@ -10,7 +12,6 @@ from models.project import Project
 from routers.auth import get_current_user
 from services.ai_service import generate_video_plan, calculate_scenes, get_clip_duration
 from config import settings
-import logging
 
 router = APIRouter(prefix="/generate", tags=["Generation"])
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class GenerateRequest(BaseModel):
     generator: str
     generate_image_prompts: bool = False
     generate_voice_over: bool = False
-    content_type_options: Dict[str, str] = {}  # ← Added
+    content_type_options: Dict[str, str] = {}
 
     @field_validator("idea")
     @classmethod
@@ -69,7 +70,8 @@ class GenerateRequest(BaseModel):
     def validate_duration(cls, v):
         if v not in VALID_DURATIONS:
             raise ValueError(
-                f"Invalid duration. Must be one of: {', '.join(str(d) for d in sorted(VALID_DURATIONS))}"
+                f"Invalid duration. Must be one of: "
+                f"{', '.join(str(d) for d in sorted(VALID_DURATIONS))}"
             )
         return v
 
@@ -92,7 +94,7 @@ async def check_limits(user: User, req: GenerateRequest, db: AsyncSession):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             f"Free plan supports videos up to {settings.FREE_MAX_DURATION} minutes. "
-            f"Upgrade to Creator plan for videos up to 20 minutes.",
+            f"Upgrade to Creator or Studio plan for longer videos.",
         )
 
     today = date.today()
@@ -116,9 +118,10 @@ async def generate(
 ):
     await check_limits(current_user, req, db)
 
-    total_scenes = calculate_scenes(req.duration_minutes, req.generator)
+    total_scenes  = calculate_scenes(req.duration_minutes, req.generator)
     clip_duration = get_clip_duration(req.generator)
 
+    # Create project record immediately so we have an ID
     project = Project(
         user_id=current_user.id,
         title=f"Video: {req.idea[:80]}",
@@ -137,10 +140,12 @@ async def generate(
     await db.flush()
     await db.refresh(project)
     project_id = project.id
+
     logger.info(
-        f"Starting generation for project {project_id}, "
-        f"user {current_user.id}, "
-        f"content_type={req.content_type}, "
+        f"Starting generation | project={project_id} | "
+        f"user={current_user.id} | type={req.content_type} | "
+        f"duration={req.duration_minutes}min | scenes={total_scenes} | "
+        f"images={req.generate_image_prompts} | vo={req.generate_voice_over} | "
         f"options={req.content_type_options}"
     )
 
@@ -150,18 +155,24 @@ async def generate(
             if hasattr(current_user.plan, "value")
             else current_user.plan
         )
-        result, provider = await generate_video_plan(
-            idea=req.idea,
-            content_type=req.content_type,
-            platform=req.platform,
-            duration_minutes=req.duration_minutes,
-            generator=req.generator,
-            generate_image_prompts=req.generate_image_prompts,
-            generate_voice_over=req.generate_voice_over,
-            user_plan=user_plan,
-            content_type_options=req.content_type_options,  # ← Added
+
+        # ── Run generation with 280s timeout (just under Render's 300s limit) ──
+        result, provider = await asyncio.wait_for(
+            generate_video_plan(
+                idea=req.idea,
+                content_type=req.content_type,
+                platform=req.platform,
+                duration_minutes=req.duration_minutes,
+                generator=req.generator,
+                generate_image_prompts=req.generate_image_prompts,
+                generate_voice_over=req.generate_voice_over,
+                user_plan=user_plan,
+                content_type_options=req.content_type_options,
+            ),
+            timeout=280,
         )
 
+        # Extract best title from result
         titles = result.get("titles", {})
         title = (
             titles.get("primary")
@@ -169,33 +180,43 @@ async def generate(
             or f"Video: {req.idea[:80]}"
         )
 
-        project.result = result
+        project.result          = result
         project.ai_provider_used = provider
-        project.status = "completed"
-        project.title = title[:500]
+        project.status          = "completed"
+        project.title           = title[:500]
 
-        current_user.total_plans_generated += 1
-        current_user.plans_generated_today += 1
-        current_user.last_generation_date = date.today()
+        current_user.total_plans_generated  += 1
+        current_user.plans_generated_today  += 1
+        current_user.last_generation_date    = date.today()
 
         await db.flush()
-        logger.info(f"✅ Generation completed for project {project_id}")
+        logger.info(f"✅ Generation completed | project={project_id} | provider={provider}")
 
         return {
-            "project_id": project_id,
-            "title": title,
-            "status": "completed",
-            "ai_provider": provider,
-            "total_scenes": total_scenes,
-            "clip_duration_seconds": clip_duration,
-            "result": result,
+            "project_id":           project_id,
+            "title":                title,
+            "status":               "completed",
+            "ai_provider":          provider,
+            "total_scenes":         total_scenes,
+            "clip_duration_seconds":clip_duration,
+            "result":               result,
         }
 
+    except asyncio.TimeoutError:
+        project.status        = "failed"
+        project.error_message = "Generation timed out after 280 seconds."
+        await db.flush()
+        logger.error(f"⏱️ Generation timed out | project={project_id}")
+        raise HTTPException(
+            status.HTTP_504_GATEWAY_TIMEOUT,
+            "Generation timed out. Try a shorter video or fewer options.",
+        )
+
     except Exception as e:
-        project.status = "failed"
+        project.status        = "failed"
         project.error_message = str(e)[:500]
         await db.flush()
-        logger.error(f"Generation failed for project {project_id}: {e}")
+        logger.error(f"❌ Generation failed | project={project_id} | error={e}")
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             f"Generation failed: {str(e)}",
@@ -208,14 +229,25 @@ async def preview_plan(
     generator: str = "Kling",
     current_user: User = Depends(get_current_user),
 ):
-    """Preview plan details before generating."""
+    """Preview scene count and clip info before generating."""
     clip_duration = get_clip_duration(generator)
-    total_scenes = calculate_scenes(duration_minutes, generator)
+    total_scenes  = calculate_scenes(duration_minutes, generator)
+    detailed      = min(total_scenes, 60)
+
+    # Estimate generation time based on batch count
+    from services.ai_service import BATCH_SIZE
+    import math
+    batches       = math.ceil(detailed / BATCH_SIZE)
+    # META + IMG batches + SCENE batches + VP batches + SCRIPT
+    estimated_calls = 1 + batches + batches + batches + 1
+    estimated_secs  = estimated_calls * 8  # ~8s per call average
+
     return {
-        "duration_minutes": duration_minutes,
-        "generator": generator,
-        "clip_duration_seconds": clip_duration,
-        "total_scenes": total_scenes,
-        "detailed_scenes": min(total_scenes, 60),
-        "estimated_time_seconds": 30,
+        "duration_minutes":       duration_minutes,
+        "generator":              generator,
+        "clip_duration_seconds":  clip_duration,
+        "total_scenes":           total_scenes,
+        "detailed_scenes":        detailed,
+        "estimated_api_calls":    estimated_calls,
+        "estimated_time_seconds": estimated_secs,
     }
