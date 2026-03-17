@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 from datetime import date
-from typing import Optional
+from typing import Optional, Dict
 
 from database import get_db
 from models.user import User
@@ -34,6 +34,7 @@ class GenerateRequest(BaseModel):
     generator: str
     generate_image_prompts: bool = False
     generate_voice_over: bool = False
+    content_type_options: Dict[str, str] = {}  # ← Added
 
     @field_validator("idea")
     @classmethod
@@ -49,37 +50,44 @@ class GenerateRequest(BaseModel):
     @classmethod
     def validate_content_type(cls, v):
         if v not in VALID_CONTENT_TYPES:
-            raise ValueError(f"Invalid content type. Must be one of: {', '.join(VALID_CONTENT_TYPES)}")
+            raise ValueError(
+                f"Invalid content type. Must be one of: {', '.join(VALID_CONTENT_TYPES)}"
+            )
         return v
 
     @field_validator("platform")
     @classmethod
     def validate_platform(cls, v):
         if v not in VALID_PLATFORMS:
-            raise ValueError(f"Invalid platform. Must be one of: {', '.join(VALID_PLATFORMS)}")
+            raise ValueError(
+                f"Invalid platform. Must be one of: {', '.join(VALID_PLATFORMS)}"
+            )
         return v
 
     @field_validator("duration_minutes")
     @classmethod
     def validate_duration(cls, v):
         if v not in VALID_DURATIONS:
-            raise ValueError(f"Invalid duration. Must be one of: {', '.join(str(d) for d in sorted(VALID_DURATIONS))}")
+            raise ValueError(
+                f"Invalid duration. Must be one of: {', '.join(str(d) for d in sorted(VALID_DURATIONS))}"
+            )
         return v
 
     @field_validator("generator")
     @classmethod
     def validate_generator(cls, v):
         if v not in VALID_GENERATORS:
-            raise ValueError(f"Invalid generator. Must be one of: {', '.join(VALID_GENERATORS)}")
+            raise ValueError(
+                f"Invalid generator. Must be one of: {', '.join(VALID_GENERATORS)}"
+            )
         return v
 
 
 async def check_limits(user: User, req: GenerateRequest, db: AsyncSession):
     """Enforce plan limits."""
     if user.is_paid:
-        return  # Paid users have no limits
+        return
 
-    # Free: max 5-minute videos
     if req.duration_minutes > settings.FREE_MAX_DURATION:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -87,7 +95,6 @@ async def check_limits(user: User, req: GenerateRequest, db: AsyncSession):
             f"Upgrade to Creator plan for videos up to 20 minutes.",
         )
 
-    # Free: 3 plans per day
     today = date.today()
     if user.last_generation_date != today:
         user.plans_generated_today = 0
@@ -112,7 +119,6 @@ async def generate(
     total_scenes = calculate_scenes(req.duration_minutes, req.generator)
     clip_duration = get_clip_duration(req.generator)
 
-    # Create project record
     project = Project(
         user_id=current_user.id,
         title=f"Video: {req.idea[:80]}",
@@ -131,10 +137,19 @@ async def generate(
     await db.flush()
     await db.refresh(project)
     project_id = project.id
-    logger.info(f"Starting generation for project {project_id}, user {current_user.id}")
+    logger.info(
+        f"Starting generation for project {project_id}, "
+        f"user {current_user.id}, "
+        f"content_type={req.content_type}, "
+        f"options={req.content_type_options}"
+    )
 
     try:
-        user_plan = current_user.plan.value if hasattr(current_user.plan, 'value') else current_user.plan
+        user_plan = (
+            current_user.plan.value
+            if hasattr(current_user.plan, "value")
+            else current_user.plan
+        )
         result, provider = await generate_video_plan(
             idea=req.idea,
             content_type=req.content_type,
@@ -144,9 +159,9 @@ async def generate(
             generate_image_prompts=req.generate_image_prompts,
             generate_voice_over=req.generate_voice_over,
             user_plan=user_plan,
+            content_type_options=req.content_type_options,  # ← Added
         )
 
-        # Extract title from result
         titles = result.get("titles", {})
         title = (
             titles.get("primary")
@@ -159,7 +174,6 @@ async def generate(
         project.status = "completed"
         project.title = title[:500]
 
-        # Update user stats
         current_user.total_plans_generated += 1
         current_user.plans_generated_today += 1
         current_user.last_generation_date = date.today()
@@ -203,5 +217,5 @@ async def preview_plan(
         "clip_duration_seconds": clip_duration,
         "total_scenes": total_scenes,
         "detailed_scenes": min(total_scenes, 60),
-        "estimated_time_seconds": 30,  # Average generation time
+        "estimated_time_seconds": 30,
     }
