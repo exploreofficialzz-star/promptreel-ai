@@ -24,7 +24,6 @@ class ApiService {
       headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
     ));
 
-    // Auth interceptor — inject token automatically
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -155,6 +154,7 @@ class ApiService {
     required String generator,
     bool generateImagePrompts = false,
     bool generateVoiceOver = false,
+    Map<String, String> contentTypeOptions = const {}, // ← Added
   }) async {
     final res = await _dio.post('/generate/', data: {
       'idea': idea,
@@ -164,6 +164,7 @@ class ApiService {
       'generator': generator,
       'generate_image_prompts': generateImagePrompts,
       'generate_voice_over': generateVoiceOver,
+      'content_type_options': contentTypeOptions, // ← Added
     });
     return res.data;
   }
