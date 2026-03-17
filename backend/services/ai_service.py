@@ -290,10 +290,11 @@ For EVERY character/creature/object that appears in this video you MUST:
            vivid green eyes, worn blue leather collar, 3kg slender frame —
            sprinting through heavy rain, photorealistic, 4K cinematic"
 
-5. In EVERY image_prompt (midjourney/leonardo/stable_diffusion/dall_e),
-   include the full character description + style seed reference:
-   "jet black small cat, green eyes, blue collar, same character as scene 1,
-   character consistency, [style]"
+5. In EVERY image_prompt write the ACTUAL real prompt with the character
+   details directly embedded. Example for Midjourney:
+   "jet black domestic shorthair cat, vivid green eyes, worn blue leather
+   collar, small 3kg slender frame, stalking through misty forest at dusk,
+   cinematic lighting, --ar 16:9 --v 6.1 --style raw --q 2"
 
 ENVIRONMENT CONSISTENCY: Also lock locations:
    - If a forest appears in scene 1, it must have the same trees, lighting
@@ -356,17 +357,19 @@ def build_generation_prompt(
         "Other":   "detailed scene: style, lighting, camera angle, subject",
     }
 
-    img_block = ""
+    # ── FIXED: img_block now uses concrete format examples ────────────────────
+    # Never use placeholder instructions like "INCLUDE FULL CHARACTER DESCRIPTION"
+    # Always show the AI exactly what a real filled prompt looks like
     if generate_image_prompts:
-        img_block = '''  "image_prompts": [
-    {
+        img_block = f'''  "image_prompts": [
+    {{
       "scene_number": 1,
-      "midjourney": "INCLUDE FULL CHARACTER DESCRIPTION FROM CHARACTER BIBLE + ultra-detailed prompt --ar 16:9 --v 6.1 --style raw",
-      "stable_diffusion": "INCLUDE FULL CHARACTER DESCRIPTION + masterpiece, best quality, ultra-detailed, photorealistic",
-      "leonardo": "INCLUDE FULL CHARACTER DESCRIPTION + Leonardo AI prompt with style modifiers",
-      "dall_e": "INCLUDE FULL CHARACTER DESCRIPTION + DALL-E 3 natural language description",
-      "purpose": "scene_background OR character_reference OR establishing_shot"
-    }
+      "midjourney": "Write the ACTUAL Midjourney prompt here with the real locked character details from character_bible fully embedded. Format: [character exact appearance], [scene action], [environment], [lighting], [mood], photorealistic, ultra-detailed --ar 16:9 --v 6.1 --style raw --q 2",
+      "stable_diffusion": "Write the ACTUAL Stable Diffusion prompt here with real locked character details fully embedded. Format: [character exact appearance], [scene action], [environment], masterpiece, best quality, ultra-detailed, photorealistic, 8K, cinematic lighting",
+      "leonardo": "Write the ACTUAL Leonardo AI prompt here with real locked character details fully embedded. Format: [character exact appearance], [scene action], [environment], [mood], highly detailed, cinematic, professional photography",
+      "dall_e": "Write the ACTUAL DALL-E 3 prompt here as a complete natural sentence with real locked character details fully embedded. Format: A photorealistic image of [character exact appearance] [doing action] in [environment], [lighting], [mood]",
+      "purpose": "establishing_shot"
+    }}
   ],'''
     else:
         img_block = '  "image_prompts": [],'
@@ -397,47 +400,57 @@ IMAGE PROMPTS: {"YES" if generate_image_prompts else "NO"}
 VOICE-OVER: {"YES" if generate_voice_over else "NO"}
 ━━━━━━━━━━━━━━━━━
 
-STEP 1: Before generating anything, mentally extract ALL characters/creatures
-from the idea and define their exact locked appearance details.
+STEP 1: Extract ALL characters/creatures from the idea and define their
+exact locked appearance in character_bible.
 
-STEP 2: Use those locked details in EVERY scene and EVERY prompt.
+STEP 2: Use those locked details WORD FOR WORD in every scene,
+every video prompt, and every image prompt.
 
 STEP 3: Return ONLY valid JSON. No markdown. No explanation. Pure JSON.
-Fill ALL fields. Do NOT leave any field empty or null.
+Fill ALL fields with REAL content. NEVER write instructions as values.
+
+IMPORTANT FOR IMAGE PROMPTS:
+- Write REAL actual prompts — never write "INCLUDE FULL CHARACTER DESCRIPTION"
+- Take the character details from character_bible and paste them directly
+- Every image prompt must be ready to copy-paste into the AI tool immediately
+- Bad example: "INCLUDE FULL CHARACTER DESCRIPTION + ultra-detailed prompt"
+- Good example: "Jet black domestic shorthair cat, vivid green eyes, worn
+  blue leather collar, small 3kg slender frame, sitting on misty riverbank
+  at golden hour, cinematic lighting, ultra-detailed --ar 16:9 --v 6.1"
 
 {{
   "character_bible": {{
     "characters": [
       {{
-        "id": "CHARACTER_ID",
-        "name": "Character display name",
-        "type": "species/type of character",
+        "id": "CHARACTER_ID e.g. MAIN_CAT",
+        "name": "Display name e.g. Shadow",
+        "type": "e.g. domestic shorthair cat",
         "appearance": {{
-          "size": "exact size and build",
-          "colors": "exact colors — be specific, no vague terms",
-          "markings": "any unique markings, patterns, scars",
-          "eyes": "eye color and shape",
-          "distinctive_features": "anything unique that must never change",
-          "accessories": "clothing, collar, hat, etc if any"
+          "size": "e.g. small, 3kg, slender frame",
+          "colors": "e.g. jet black fur, no white patches",
+          "markings": "e.g. small white star on chest",
+          "eyes": "e.g. vivid green almond-shaped eyes",
+          "distinctive_features": "e.g. torn left ear tip",
+          "accessories": "e.g. worn blue leather collar with silver bell"
         }},
-        "movement_style": "how this character moves",
-        "personality_visual": "how their personality shows physically"
+        "movement_style": "e.g. graceful and silent, low to the ground",
+        "personality_visual": "e.g. alert ears, intense focused gaze"
       }}
     ],
     "locations": [
       {{
-        "id": "LOCATION_ID",
-        "name": "Location name",
-        "description": "exact visual details that stay consistent",
-        "lighting": "locked lighting and time of day",
-        "atmosphere": "mood and atmosphere"
+        "id": "LOCATION_ID e.g. MAIN_FOREST",
+        "name": "e.g. Ancient Misty Forest",
+        "description": "e.g. dense ancient oak trees, thick ground fog, moss-covered stones",
+        "lighting": "e.g. golden hour dappled light through canopy",
+        "atmosphere": "e.g. mysterious, serene, slightly eerie"
       }}
     ],
     "visual_style": {{
-      "style": "realistic/animated/cartoon/cinematic/etc",
-      "color_grading": "warm/cool/vibrant/desaturated/etc",
-      "lighting_mood": "golden hour/overcast/dramatic/natural/etc",
-      "consistency_seed": "describe the overall look in 20 words that applies to every scene"
+      "style": "e.g. photorealistic cinematic",
+      "color_grading": "e.g. warm golden tones with deep shadows",
+      "lighting_mood": "e.g. golden hour, soft directional light",
+      "consistency_seed": "e.g. cinematic photorealistic nature documentary warm golden tones"
     }}
   }},
   "titles": {{
@@ -449,7 +462,7 @@ Fill ALL fields. Do NOT leave any field empty or null.
     "primary": "best cross-platform title"
   }},
   "viral_hook": "2-3 sentence shocking/provocative opener that makes viewer unable to leave.",
-  "thumbnail_prompt": "Detailed thumbnail using LOCKED character appearance from character_bible: main character exact description, text overlay (3-word hook bold yellow), background, high contrast color grading, composition, emotional trigger, viral YouTube style. Min 50 words.",
+  "thumbnail_prompt": "Real detailed thumbnail prompt using actual locked character appearance: [character exact description], bold yellow text overlay '[3 word hook]', [background scene], high contrast cinematic color grade, rule of thirds composition, viral YouTube thumbnail style. Min 50 words.",
   "youtube_seo": {{
     "title": "SEO title with exact-match keyword at start",
     "description": "Full 1500+ char description: hook, what is covered with emoji bullets, timestamps, CTA, keywords",
@@ -483,21 +496,21 @@ Fill ALL fields. Do NOT leave any field empty or null.
       "scene_number": 1,
       "time_start": "0:00",
       "time_end": "0:{clip_duration:02d}",
-      "title": "evocative scene title",
-      "visual_description": "MUST include full locked character description from character_bible — e.g. 'MAIN_CAT: jet black, green eyes, blue collar, small 3kg frame — [action]. Setting: [locked location details]'",
-      "narration_text": "exact narrator words for this {clip_duration}s scene",
+      "title": "Evocative scene title",
+      "visual_description": "MAIN_CAT (jet black, green eyes, blue collar, 3kg) — [exact action]. Setting: MAIN_FOREST (dense oak trees, golden mist, dappled light). Camera: [angle].",
+      "narration_text": "Exact narrator words for this {clip_duration}s scene",
       "mood": "intense/mysterious/dramatic/inspiring/etc",
-      "b_roll_suggestion": "supplementary footage maintaining character consistency",
+      "b_roll_suggestion": "Supplementary footage maintaining character consistency",
       "transition": "cut/fade/zoom recommendation"
     }}
   ],
   "video_prompts": [
     {{
       "scene_number": 1,
-      "prompt": "CONSISTENCY REFERENCE: [paste full character appearance from character_bible here] — [scene action], [environment with locked details], [camera movement], [lighting from visual_style], [style from visual_style], {generator} optimized, photorealistic, 4K, ultra-detailed",
-      "negative_prompt": "inconsistent character, character change, different appearance, blurry, text, watermark, distorted, low quality",
-      "camera_work": "specific camera movement",
-      "lighting": "lighting matching visual_style lighting_mood",
+      "prompt": "[Character locked appearance from character_bible] — [scene action], [locked environment details], [camera movement], [locked lighting], [locked visual style], {generator} optimized, photorealistic, 4K, ultra-detailed, character consistency",
+      "negative_prompt": "inconsistent character, different appearance, character change, blurry, text, watermark, distorted, low quality",
+      "camera_work": "Specific camera movement",
+      "lighting": "Lighting matching character_bible visual_style",
       "style_tags": ["consistent character", "character reference", "cinematic", "photorealistic", "4K"],
       "duration": "{clip_duration}s"
     }}
@@ -505,11 +518,12 @@ Fill ALL fields. Do NOT leave any field empty or null.
 {img_block}
 }}
 
-FINAL REMINDER:
-- character_bible.characters defines LOCKED appearances — never deviate
-- Every scene_breakdown visual_description MUST reference the character by ID with full appearance
+FINAL RULES:
+- character_bible defines LOCKED appearances — deviate = CRITICAL ERROR
+- Every scene visual_description MUST reference character ID + full appearance
 - Every video_prompt MUST start with the character's full locked description
-- Every image_prompt MUST include full character description for consistency
+- Every image_prompt MUST contain REAL prompts with actual character details
+  embedded — NEVER write placeholder text like "INCLUDE CHARACTER DESCRIPTION"
 - Generate ALL {detailed_scenes} scene_breakdown entries
 - Generate ALL {detailed_scenes} video_prompts
 - Pure JSON only — no markdown, no explanation"""
