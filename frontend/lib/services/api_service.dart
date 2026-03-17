@@ -9,6 +9,7 @@ final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
 class ApiService {
   late final Dio _dio;
+  late final Dio _generateDio; // ← Separate Dio with 5-min timeout for generation
   final _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,
@@ -17,36 +18,59 @@ class ApiService {
   );
 
   ApiService() {
+    // ── Standard Dio (30s timeout for normal API calls) ──────────────────────
     _dio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
-      connectTimeout: const Duration(milliseconds: AppConfig.connectTimeoutMs),
-      receiveTimeout: const Duration(milliseconds: AppConfig.receiveTimeoutMs),
-      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
     ));
 
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final token = await _storage.read(key: AppConfig.tokenKey);
-          if (token != null) options.headers['Authorization'] = 'Bearer $token';
-          handler.next(options);
-        },
-        onError: (error, handler) async {
-          if (error.response?.statusCode == 401) {
-            final refreshed = await _tryRefreshToken();
-            if (refreshed) {
-              final token = await _storage.read(key: AppConfig.tokenKey);
-              error.requestOptions.headers['Authorization'] = 'Bearer $token';
-              try {
-                final response = await _dio.fetch(error.requestOptions);
-                handler.resolve(response);
-                return;
-              } catch (_) {}
-            }
+    // ── Generation Dio (5 min timeout — handles multi-batch AI calls) ────────
+    _generateDio = Dio(BaseOptions(
+      baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 300), // 5 minutes
+      sendTimeout: const Duration(seconds: 30),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    ));
+
+    // Add auth interceptor to both Dio instances
+    _dio.interceptors.add(_buildAuthInterceptor(_dio));
+    _generateDio.interceptors.add(_buildAuthInterceptor(_generateDio));
+  }
+
+  // ── Auth Interceptor factory ───────────────────────────────────────────────
+  InterceptorsWrapper _buildAuthInterceptor(Dio dioInstance) {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _storage.read(key: AppConfig.tokenKey);
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        if (error.response?.statusCode == 401) {
+          final refreshed = await _tryRefreshToken();
+          if (refreshed) {
+            final token = await _storage.read(key: AppConfig.tokenKey);
+            error.requestOptions.headers['Authorization'] = 'Bearer $token';
+            try {
+              final response = await dioInstance.fetch(error.requestOptions);
+              handler.resolve(response);
+              return;
+            } catch (_) {}
           }
-          handler.next(error);
-        },
-      ),
+        }
+        handler.next(error);
+      },
     );
   }
 
@@ -59,8 +83,10 @@ class ApiService {
         data: {'refresh_token': refreshToken},
       );
       final data = response.data;
-      await _storage.write(key: AppConfig.tokenKey, value: data['access_token']);
-      await _storage.write(key: AppConfig.refreshTokenKey, value: data['refresh_token']);
+      await _storage.write(
+          key: AppConfig.tokenKey, value: data['access_token']);
+      await _storage.write(
+          key: AppConfig.refreshTokenKey, value: data['refresh_token']);
       return true;
     } catch (_) {
       return false;
@@ -145,7 +171,7 @@ class ApiService {
     return token != null;
   }
 
-  // ── Generation ─────────────────────────────────────────────────────────────
+  // ── Generation (uses 5-min timeout Dio) ───────────────────────────────────
   Future<Map<String, dynamic>> generateVideoplan({
     required String idea,
     required String contentType,
@@ -154,9 +180,10 @@ class ApiService {
     required String generator,
     bool generateImagePrompts = false,
     bool generateVoiceOver = false,
-    Map<String, String> contentTypeOptions = const {}, // ← Added
+    Map<String, String> contentTypeOptions = const {},
   }) async {
-    final res = await _dio.post('/generate/', data: {
+    // Uses _generateDio with 5-minute timeout instead of standard _dio
+    final res = await _generateDio.post('/generate/', data: {
       'idea': idea,
       'content_type': contentType,
       'platform': platform,
@@ -164,7 +191,7 @@ class ApiService {
       'generator': generator,
       'generate_image_prompts': generateImagePrompts,
       'generate_voice_over': generateVoiceOver,
-      'content_type_options': contentTypeOptions, // ← Added
+      'content_type_options': contentTypeOptions,
     });
     return res.data;
   }
@@ -210,9 +237,9 @@ class ApiService {
     return res.data;
   }
 
-  // ── Export ─────────────────────────────────────────────────────────────────
+  // ── Export (uses longer timeout for zip downloads) ─────────────────────────
   Future<List<int>> exportProjectZip(int projectId) async {
-    final res = await _dio.get<List<int>>(
+    final res = await _generateDio.get<List<int>>(
       '/export/$projectId/zip',
       options: Options(responseType: ResponseType.bytes),
     );
@@ -263,6 +290,12 @@ class ApiService {
   // ── Error helper ───────────────────────────────────────────────────────────
   static String extractError(dynamic error) {
     if (error is DioException) {
+      // Timeout — show friendly message
+      if (error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.sendTimeout) {
+        return 'Generation is taking longer than expected. Please try again.';
+      }
       final data = error.response?.data;
       if (data is Map && data['detail'] != null)
         return data['detail'].toString();
@@ -274,6 +307,8 @@ class ApiService {
         return 'Upgrade your plan to access this feature.';
       if (error.response?.statusCode == 401)
         return 'Session expired. Please log in again.';
+      if (error.response?.statusCode == 500)
+        return 'AI generation failed. Please try again.';
       return error.message ?? 'Network error. Please try again.';
     }
     return error.toString();
