@@ -252,14 +252,18 @@ def get_provider_chain(user_plan: str) -> list[tuple[str, any, str]]:
             ("together-qwen2.5",    call_together,  s.TOGETHER_MODEL_FREE,    s.TOGETHER_API_KEY),
         ],
         "free": [
-            ("gemini-flash",        call_gemini,    s.GEMINI_MODEL_FREE,      s.GEMINI_API_KEY),
-            ("groq-llama3.3-70b",   call_groq,      s.GROQ_MODEL_FREE,        s.GROQ_API_KEY),
-            ("deepseek-v3",         call_deepseek,  s.DEEPSEEK_MODEL_FREE,    s.DEEPSEEK_API_KEY),
-            ("together-qwen2.5",    call_together,  s.TOGETHER_MODEL_FREE,    s.TOGETHER_API_KEY),
-            ("openrouter-llama",    call_openrouter,s.OPENROUTER_MODEL_FREE,  s.OPENROUTER_API_KEY),
-            ("openai-gpt4o-mini",   call_openai,    s.OPENAI_MODEL_CREATOR,   s.OPENAI_API_KEY),
-            ("mistral-large",       call_mistral,   s.MISTRAL_MODEL_CREATOR,  s.MISTRAL_API_KEY),
-        ],
+    ("gemini-flash",         call_gemini,    s.GEMINI_MODEL_FREE,       s.GEMINI_API_KEY),
+    ("groq-llama3.3-70b",    call_groq,      s.GROQ_MODEL_FREE,         s.GROQ_API_KEY),
+    ("groq-llama3.1-8b",     call_groq,      s.GROQ_MODEL_FREE_FAST,    s.GROQ_API_KEY),
+    ("groq-mixtral",         call_groq,      s.GROQ_MODEL_FREE_MIX,     s.GROQ_API_KEY),
+    ("deepseek-v3",          call_deepseek,  s.DEEPSEEK_MODEL_FREE,     s.DEEPSEEK_API_KEY),
+    ("together-qwen2.5",     call_together,  s.TOGETHER_MODEL_FREE,     s.TOGETHER_API_KEY),
+    ("openrouter-mistral7b", call_openrouter,"mistralai/mistral-7b-instruct:free", s.OPENROUTER_API_KEY),
+    ("openrouter-llama8b",   call_openrouter,"meta-llama/llama-3.1-8b-instruct:free", s.OPENROUTER_API_KEY),
+    ("openrouter-gemma",     call_openrouter,"google/gemma-2-9b-it:free", s.OPENROUTER_API_KEY),
+    ("openai-gpt4o-mini",    call_openai,    s.OPENAI_MODEL_CREATOR,    s.OPENAI_API_KEY),
+    ("mistral-large",        call_mistral,   s.MISTRAL_MODEL_CREATOR,   s.MISTRAL_API_KEY),
+],
     }
     raw = chains.get(user_plan, chains["free"])
     return [(label, fn, model) for label, fn, model, key in raw if key]
