@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     MISTRAL_MODEL_CREATOR: str = "mistral-large-latest"
 
     # Free tier
-    GEMINI_MODEL_FREE: str = "gemini-1.5-flash"
+    GEMINI_MODEL_FREE: str = "gemini-2.0-flash"
     DEEPSEEK_MODEL_FREE: str = "deepseek-chat"
     GROQ_MODEL_FREE: str = "llama-3.3-70b-versatile"
     TOGETHER_MODEL_FREE: str = "Qwen/Qwen2.5-72B-Instruct-Turbo"
