@@ -1,9 +1,9 @@
 """
-PromptReel AI — Flutterwave Payment Router (No APP_URL Required)
-=================================================================
+PromptReel AI — Flutterwave Payment Router (Production Ready)
+=============================================================
 - Shows fixed $15 Creator and $35 Studio USD plans
 - Accepts ALL Flutterwave payment methods
-- Works without APP_URL configuration
+- Handles transaction lookup by tx_ref when needed
 """
 import hashlib
 import hmac
@@ -14,7 +14,7 @@ from typing import List, Optional, Dict
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,7 +67,7 @@ _flw_plan_cache: Dict[str, int] = {}
 
 # ─── Pydantic Models ───────────────────────────────────────────────────────────
 class VerifyPaymentRequest(BaseModel):
-    transaction_id: str
+    transaction_id: str  # Can be "0" - will lookup by tx_ref
     tx_ref: str
     plan_id: str
 
@@ -131,15 +131,42 @@ async def _get_or_create_flw_plan(plan_key: str) -> int:
             _flw_plan_cache[plan_key] = plan_id
             return plan_id
         else:
+            logger.error(f"Failed to create plan: {resp.text}")
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
                 "Could not create payment plan",
             )
 
 
+async def _lookup_tx_by_ref(tx_ref: str) -> Optional[str]:
+    """
+    Look up transaction ID by tx_ref.
+    Used when frontend sends transaction_id="0".
+    """
+    logger.info(f"Looking up transaction by tx_ref: {tx_ref}")
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(
+            f"{FLW_BASE_URL}/transactions",
+            params={"tx_ref": tx_ref},
+            headers=_flw_headers(),
+        )
+        
+        if resp.status_code != 200:
+            logger.error(f"Lookup failed: {resp.status_code} - {resp.text}")
+            return None
+        
+        data = resp.json().get("data", [])
+        if not data:
+            logger.warning(f"No transaction found for tx_ref: {tx_ref}")
+            return None
+        
+        tx_id = str(data[0].get("id"))
+        logger.info(f"Found transaction ID: {tx_id}")
+        return tx_id
+
+
 async def _get_flw_payment_methods(currency: str = "USD") -> List[str]:
     """Get available payment methods for currency."""
-    # Comprehensive list based on Flutterwave documentation
     methods_by_currency = {
         "USD": ["card", "account", "googlepay", "applepay"],
         "NGN": ["card", "ussd", "banktransfer", "account", "internetbanking", "nqr", "enaira", "opay", "googlepay", "applepay"],
@@ -167,9 +194,10 @@ async def _verify_with_flutterwave(transaction_id: str) -> dict:
         resp = await client.get(url, headers=_flw_headers())
     
     if resp.status_code != 200:
+        logger.error(f"Verification failed: {resp.status_code} - {resp.text}")
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            "Could not verify payment",
+            "Could not verify payment with Flutterwave",
         )
     
     body = resp.json()
@@ -185,9 +213,7 @@ async def _verify_with_flutterwave(transaction_id: str) -> dict:
 # ─── API Endpoints ───────────────────────────────────────────────────────────
 @router.get("/plans")
 async def get_app_plans():
-    """
-    Return the $15 Creator and $35 Studio plans for app display.
-    """
+    """Return the $15 Creator and $35 Studio plans."""
     return {
         "status": "success",
         "plans": list(APP_PLANS.values()),
@@ -197,9 +223,7 @@ async def get_app_plans():
 
 @router.get("/methods")
 async def get_payment_methods(currency: str = Query("USD")):
-    """
-    Get available payment methods for a currency.
-    """
+    """Get available payment methods."""
     currency = currency.upper()
     methods = await _get_flw_payment_methods(currency)
     
@@ -240,9 +264,7 @@ async def create_checkout(
     req: CheckoutRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Create checkout session. Returns payment link.
-    """
+    """Create checkout session."""
     if req.plan_id not in APP_PLANS:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -254,7 +276,6 @@ async def create_checkout(
     
     tx_ref = f"PR-{current_user.id}-{req.plan_id}-{int(datetime.now(timezone.utc).timestamp())}"
     
-    # Get all payment methods
     methods = await _get_flw_payment_methods(plan["currency"])
     payment_options = ",".join(methods)
     
@@ -264,7 +285,7 @@ async def create_checkout(
         "currency": plan["currency"],
         "payment_options": payment_options,
         "payment_plan": flw_plan_id,
-        "redirect_url": "/api/payments/callback",  # Relative URL - will use same host
+        "redirect_url": "/api/payments/callback",
         "customer": {
             "email": req.email,
             "name": req.name,
@@ -319,9 +340,7 @@ async def checkout_page(
     tx_ref: Optional[str] = None,
     request: Request = None,
 ):
-    """
-    Checkout page with all payment methods. No APP_URL needed.
-    """
+    """Checkout page."""
     if plan_id not in APP_PLANS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan")
     
@@ -340,11 +359,10 @@ async def checkout_page(
     methods = await _get_flw_payment_methods(plan["currency"])
     payment_options = ",".join(methods)
     
-    # Build callback URL from request
     base_url = str(request.base_url).rstrip("/")
     callback_url = f"{base_url}/api/payments/callback"
     
-    # Sanitize
+    # Sanitize inputs
     safe_name = name.replace("'", "\\'").replace('"', '\\"')[:50]
     safe_email = email.replace("'", "").replace('"', "")[:100]
     safe_tx_ref = tx_ref.replace("'", "").replace('"', "")[:100]
@@ -511,16 +529,12 @@ async def payment_callback(
     transaction_id: Optional[str] = None,
     status: Optional[str] = None,
 ):
-    """
-    Handle return from Flutterwave.
-    Returns JSON that your app can parse.
-    """
+    """Handle return from Flutterwave."""
     return {
         "status": status or "unknown",
         "tx_ref": tx_ref,
         "transaction_id": transaction_id,
         "message": "Payment completed. Return to app to verify.",
-        "next_step": "Call POST /api/payments/verify with transaction_id",
     }
 
 
@@ -532,11 +546,26 @@ async def verify_payment(
 ):
     """
     Verify payment and upgrade user plan.
+    Handles transaction_id="0" by looking up tx_ref.
     """
     if req.plan_id not in APP_PLANS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan")
     
-    tx_data = await _verify_with_flutterwave(req.transaction_id)
+    transaction_id = req.transaction_id
+    
+    # If transaction_id is "0" or empty, lookup by tx_ref
+    if transaction_id in ("0", "pending", "", None):
+        logger.info(f"Transaction ID is '{transaction_id}', looking up by tx_ref: {req.tx_ref}")
+        transaction_id = await _lookup_tx_by_ref(req.tx_ref)
+        
+        if not transaction_id:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Payment still processing. Please wait 30 seconds and try again.",
+            )
+    
+    # Verify with Flutterwave
+    tx_data = await _verify_with_flutterwave(transaction_id)
     
     if tx_data.get("status") != "successful":
         raise HTTPException(
@@ -544,15 +573,18 @@ async def verify_payment(
             f"Payment failed: {tx_data.get('status')}",
         )
     
+    # Validate amount
     expected_amount = APP_PLANS[req.plan_id]["amount"]
     charged_amount = float(tx_data.get("charged_amount", 0))
     
     if abs(charged_amount - expected_amount) > 0.50:
+        logger.warning(f"Amount mismatch: expected ${expected_amount}, got ${charged_amount}")
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Amount mismatch. Expected ${expected_amount}, got ${charged_amount}",
+            f"Payment amount mismatch. Expected ${expected_amount}, received ${charged_amount}",
         )
     
+    # Validate currency
     expected_currency = APP_PLANS[req.plan_id]["currency"]
     if tx_data.get("currency") != expected_currency:
         raise HTTPException(
@@ -560,17 +592,23 @@ async def verify_payment(
             f"Currency mismatch. Expected {expected_currency}",
         )
     
-    # Upgrade user
-    current_user.plan = PlanType(req.plan_id)
-    await db.commit()
-    await db.refresh(current_user)
+    # Upgrade user plan
+    try:
+        current_user.plan = PlanType(req.plan_id)
+        await db.commit()
+        await db.refresh(current_user)
+    except Exception as e:
+        logger.error(f"Database error upgrading user: {e}")
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Failed to upgrade plan. Please contact support.",
+        )
     
     payment_method = tx_data.get("payment_type", "unknown")
     
     logger.info(
         f"✅ User {current_user.id} upgraded to {req.plan_id} | "
-        f"tx={req.transaction_id} | method={payment_method} | "
-        f"amount=${charged_amount}"
+        f"tx={transaction_id} | method={payment_method} | amount=${charged_amount}"
     )
     
     return {
@@ -579,7 +617,7 @@ async def verify_payment(
         "plan_name": APP_PLANS[req.plan_id]["name"],
         "message": f"🎉 Welcome to {APP_PLANS[req.plan_id]['name']} Plan!",
         "payment_details": {
-            "transaction_id": req.transaction_id,
+            "transaction_id": transaction_id,
             "amount": charged_amount,
             "currency": expected_currency,
             "method": payment_method,
@@ -594,9 +632,7 @@ async def flutterwave_webhook(
     request: Request,
     verif_hash: Optional[str] = Header(None, alias="verif-hash"),
 ):
-    """
-    Handle Flutterwave webhooks.
-    """
+    """Handle Flutterwave webhooks."""
     if not settings.FLUTTERWAVE_WEBHOOK_HASH:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Webhook not configured")
     
@@ -634,13 +670,12 @@ async def _handle_successful_charge(data: dict):
     plan_id = meta.get("plan_id")
     user_id = meta.get("user_id")
     
-    logger.info(f"Payment success: tx_ref={tx_ref}, plan={plan_id}, user={user_id}")
-    # TODO: Update database if needed
+    logger.info(f"Webhook: Payment success for tx_ref={tx_ref}, plan={plan_id}, user={user_id}")
 
 
 async def _handle_subscription_cancelled(data: dict):
     """Handle cancellation."""
-    logger.info(f"Subscription cancelled: {data.get('plan_id')}")
+    logger.info(f"Webhook: Subscription cancelled for plan={data.get('plan_id')}")
 
 
 @router.on_event("startup")
@@ -649,6 +684,6 @@ async def initialize_payment_plans():
     try:
         for plan_key in APP_PLANS:
             await _get_or_create_flw_plan(plan_key)
-        logger.info("✅ Payment plans initialized")
+        logger.info("✅ Payment plans initialized in Flutterwave")
     except Exception as e:
-        logger.error(f"Failed to initialize plans: {e}")
+        logger.error(f"Failed to initialize payment plans: {e}")
