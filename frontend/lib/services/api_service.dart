@@ -9,7 +9,7 @@ final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 
 class ApiService {
   late final Dio _dio;
-  late final Dio _generateDio; // ← Separate Dio with 5-min timeout for generation
+  late final Dio _generateDio;
   final _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,
@@ -18,7 +18,7 @@ class ApiService {
   );
 
   ApiService() {
-    // ── Standard Dio (30s timeout for normal API calls) ──────────────────────
+    // ── Standard Dio (30s timeout) ────────────────────────────────────────
     _dio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
       connectTimeout: const Duration(seconds: 30),
@@ -29,11 +29,11 @@ class ApiService {
       },
     ));
 
-    // ── Generation Dio (5 min timeout — handles multi-batch AI calls) ────────
+    // ── Generation Dio (5 min timeout) ────────────────────────────────────
     _generateDio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
       connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 300), // 5 minutes
+      receiveTimeout: const Duration(seconds: 300),
       sendTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
@@ -41,12 +41,11 @@ class ApiService {
       },
     ));
 
-    // Add auth interceptor to both Dio instances
     _dio.interceptors.add(_buildAuthInterceptor(_dio));
     _generateDio.interceptors.add(_buildAuthInterceptor(_generateDio));
   }
 
-  // ── Auth Interceptor factory ───────────────────────────────────────────────
+  // ── Auth Interceptor ──────────────────────────────────────────────────────
   InterceptorsWrapper _buildAuthInterceptor(Dio dioInstance) {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -76,7 +75,8 @@ class ApiService {
 
   Future<bool> _tryRefreshToken() async {
     try {
-      final refreshToken = await _storage.read(key: AppConfig.refreshTokenKey);
+      final refreshToken =
+          await _storage.read(key: AppConfig.refreshTokenKey);
       if (refreshToken == null) return false;
       final response = await Dio().post(
         '${AppConfig.baseUrl}${AppConfig.apiPrefix}/auth/refresh',
@@ -155,6 +155,47 @@ class ApiService {
     await _dio.put('/auth/notifications', data: prefs);
   }
 
+  // ── Email Verification ─────────────────────────────────────────────────────
+  Future<void> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    await _dio.post('/auth/verify-email', data: {
+      'email': email,
+      'code': code,
+    });
+  }
+
+  Future<void> resendVerification({required String email}) async {
+    await _dio.post('/auth/resend-verification',
+        data: {'email': email});
+  }
+
+  // ── Forgot / Reset Password ────────────────────────────────────────────────
+  Future<void> forgotPassword({required String email}) async {
+    await _dio.post('/auth/forgot-password',
+        data: {'email': email});
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    await _dio.post('/auth/reset-password', data: {
+      'email':    email,
+      'code':     code,
+      'password': password,
+    });
+  }
+
+  // ── FCM Token (Push Notifications) ────────────────────────────────────────
+  Future<void> saveFcmToken(String token) async {
+    await _dio.post('/auth/fcm-token',
+        data: {'fcm_token': token});
+  }
+
+  // ── Tokens ────────────────────────────────────────────────────────────────
   Future<void> _saveTokens(Map<String, dynamic> data) async {
     if (data['access_token'] != null) {
       await _storage.write(
@@ -162,7 +203,8 @@ class ApiService {
     }
     if (data['refresh_token'] != null) {
       await _storage.write(
-          key: AppConfig.refreshTokenKey, value: data['refresh_token']);
+          key: AppConfig.refreshTokenKey,
+          value: data['refresh_token']);
     }
   }
 
@@ -171,7 +213,7 @@ class ApiService {
     return token != null;
   }
 
-  // ── Generation (uses 5-min timeout Dio) ───────────────────────────────────
+  // ── Generation (5-min timeout) ─────────────────────────────────────────────
   Future<Map<String, dynamic>> generateVideoplan({
     required String idea,
     required String contentType,
@@ -182,15 +224,14 @@ class ApiService {
     bool generateVoiceOver = false,
     Map<String, String> contentTypeOptions = const {},
   }) async {
-    // Uses _generateDio with 5-minute timeout instead of standard _dio
     final res = await _generateDio.post('/generate/', data: {
-      'idea': idea,
-      'content_type': contentType,
-      'platform': platform,
-      'duration_minutes': durationMinutes,
-      'generator': generator,
+      'idea':                 idea,
+      'content_type':         contentType,
+      'platform':             platform,
+      'duration_minutes':     durationMinutes,
+      'generator':            generator,
       'generate_image_prompts': generateImagePrompts,
-      'generate_voice_over': generateVoiceOver,
+      'generate_voice_over':  generateVoiceOver,
       'content_type_options': contentTypeOptions,
     });
     return res.data;
@@ -202,7 +243,7 @@ class ApiService {
   }) async {
     final res = await _dio.get('/generate/preview', queryParameters: {
       'duration_minutes': durationMinutes,
-      'generator': generator,
+      'generator':        generator,
     });
     return res.data;
   }
@@ -215,7 +256,7 @@ class ApiService {
     String? status,
   }) async {
     final res = await _dio.get('/projects/', queryParameters: {
-      'page': page,
+      'page':  page,
       'limit': limit,
       if (search != null) 'search': search,
       if (status != null) 'status': status,
@@ -237,7 +278,7 @@ class ApiService {
     return res.data;
   }
 
-  // ── Export (uses longer timeout for zip downloads) ─────────────────────────
+  // ── Export ─────────────────────────────────────────────────────────────────
   Future<List<int>> exportProjectZip(int projectId) async {
     final res = await _generateDio.get<List<int>>(
       '/export/$projectId/zip',
@@ -276,8 +317,8 @@ class ApiService {
   }) async {
     final res = await _dio.post('/payments/verify', data: {
       'transaction_id': transactionId,
-      'tx_ref': txRef,
-      'plan': plan,
+      'tx_ref':         txRef,
+      'plan':           plan,
     });
     return res.data;
   }
@@ -290,7 +331,6 @@ class ApiService {
   // ── Error helper ───────────────────────────────────────────────────────────
   static String extractError(dynamic error) {
     if (error is DioException) {
-      // Timeout — show friendly message
       if (error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.sendTimeout) {
