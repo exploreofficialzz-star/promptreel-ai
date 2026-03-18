@@ -1,4 +1,3 @@
-
 """
 PromptReel AI — Flutterwave Payment Router
 ==========================================
@@ -60,7 +59,7 @@ def _flw_headers() -> dict:
 async def _lookup_tx_by_ref(tx_ref: str) -> str:
     """
     Look up a Flutterwave transaction ID using tx_ref.
-    Used when the app sends transaction_id=\'0\' (Chrome browser flow).
+    Used when the app sends transaction_id='0' (Chrome browser flow).
     """
     logger.info(f"Looking up transaction by tx_ref: {tx_ref}")
     async with httpx.AsyncClient(timeout=30) as client:
@@ -126,7 +125,7 @@ async def _verify_with_flutterwave(transaction_id: str) -> dict:
     if body.get("status") != "success":
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Flutterwave error: {body.get(\'message\', \'Unknown error\')}",
+            f"Flutterwave error: {body.get('message', 'Unknown error')}",
         )
 
     return body.get("data", {})
@@ -148,13 +147,13 @@ async def checkout_page(
     The app opens this in Chrome browser via url_launcher.
     Chrome has no popup restrictions — Flutterwave modal works perfectly.
     """
-    safe_name     = name.replace("\'", "\\\'").replace("\"", "\\\"")
-    safe_email    = email.replace("\'", "").replace("\"", "")
-    safe_tx_ref   = tx_ref.replace("\'", "").replace("\"", "")
-    safe_plan     = plan_name.replace("\'", "").replace("\"", "")
-    safe_amount   = amount.replace("\'", "").replace("\"", "")
-    safe_currency = currency.replace("\'", "").replace("\"", "")
-    safe_key      = public_key.replace("\'", "").replace("\"", "")
+    safe_name     = name.replace("'", "\\'").replace('"', '\\"')
+    safe_email    = email.replace("'", "").replace('"', "")
+    safe_tx_ref   = tx_ref.replace("'", "").replace('"', "")
+    safe_plan     = plan_name.replace("'", "").replace('"', "")
+    safe_amount   = amount.replace("'", "").replace('"', "")
+    safe_currency = currency.replace("'", "").replace('"', "")
+    safe_key      = public_key.replace("'", "").replace('"', "")
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -231,59 +230,59 @@ async def checkout_page(
 </div>
 
 <script>
-  function st(t) {{ document.getElementById(\'st\').textContent = t; }}
+  function st(t) {{ document.getElementById('st').textContent = t; }}
 
   function pay() {{
-    var btn = document.getElementById(\'btn\');
+    var btn = document.getElementById('btn');
     btn.disabled  = true;
-    btn.innerHTML = \'<span class="spin"></span>Opening payment...\';
-    st(\'Connecting to Flutterwave...\');
+    btn.innerHTML = '<span class="spin"></span>Opening payment...';
+    st('Connecting to Flutterwave...');
 
     try {{
       FlutterwaveCheckout({{
-        public_key:      \'{safe_key}\',
-        tx_ref:          \'{safe_tx_ref}\',
+        public_key:      '{safe_key}',
+        tx_ref:          '{safe_tx_ref}',
         amount:           {safe_amount},
-        currency:        \'{safe_currency}\',
-        payment_options: \'card,banktransfer,ussd,mobilemoney\',
-        redirect_url:    \'https://promptreel.ai/payment/callback\',
+        currency:        '{safe_currency}',
+        payment_options: 'card,banktransfer,ussd,mobilemoney',
+        redirect_url:    'https://promptreel.ai/payment/callback',
         meta: {{
-          source:      \'promptreel_mobile_app\',
-          plan:        \'{safe_plan}\',
-          consumer_id: \'{safe_tx_ref}\'
+          source:      'promptreel_mobile_app',
+          plan:        '{safe_plan}',
+          consumer_id: '{safe_tx_ref}'
         }},
         customer: {{
-          email:        \'{safe_email}\',
-          phone_number: \'0000000000\',
-          name:         \'{safe_name}\'
+          email:        '{safe_email}',
+          phone_number: '0000000000',
+          name:         '{safe_name}'
         }},
         customizations: {{
-          title:       \'PromptReel AI\',
-          description: \'{safe_plan} Plan — Monthly Subscription\',
-          logo:        \'https://promptreel.ai/logo.png\'
+          title:       'PromptReel AI',
+          description: '{safe_plan} Plan — Monthly Subscription',
+          logo:        'https://promptreel.ai/logo.png'
         }},
         callback: function(data) {{
-          var s   = data.status         || \'unknown\';
-          var tid = data.transaction_id || \'0\';
-          st(\'Payment \' + s + \'! You can return to the app.\');
+          var s   = data.status         || 'unknown';
+          var tid = data.transaction_id || '0';
+          st('Payment ' + s + '! You can return to the app.');
           btn.disabled    = false;
-          btn.textContent = \'✅ Payment \' + s + \' — Return to app\';
+          btn.textContent = '✅ Payment ' + s + ' — Return to app';
         }},
         onclose: function() {{
           btn.disabled    = false;
-          btn.textContent = \'Pay Securely — ${safe_amount}\';
-          st(\'Window closed. Tap button to try again.\');
+          btn.textContent = 'Pay Securely — ${safe_amount}';
+          st('Window closed. Tap button to try again.');
         }}
       }});
-      st(\'Payment window opening...\');
+      st('Payment window opening...');
     }} catch (e) {{
       btn.disabled    = false;
-      btn.textContent = \'Retry Payment\';
-      st(\'Error: \' + e.message);
+      btn.textContent = 'Retry Payment';
+      st('Error: ' + e.message);
     }}
   }}
 
-  window.addEventListener(\'load\', function() {{
+  window.addEventListener('load', function() {{
     setTimeout(pay, 600);
   }});
 </script>
@@ -308,10 +307,10 @@ async def verify_payment(
     """
     Called by the Flutter app immediately after Flutterwave returns a
     successful ChargeResponse.  Verifies the transaction server-side,
-    checks the amount, and upgrades the user\'s plan.
+    checks the amount, and upgrades the user's plan.
     """
     if req.plan not in ("creator", "studio"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan. Must be \'creator\' or \'studio\'.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan. Must be 'creator' or 'studio'.")
 
     tx = await _verify_with_flutterwave(req.transaction_id)
 
@@ -319,14 +318,14 @@ async def verify_payment(
     if tx.get("status") != "successful":
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Transaction status is \'{tx.get(\'status\')}\', not \'successful\'.",
+            f"Transaction status is '{tx.get('status')}', not 'successful'.",
         )
 
     # ── Validate currency ─────────────────────────────────────────────────────
     if tx.get("currency") != "USD":
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Unexpected currency \'{tx.get(\'currency\')}\'. Expected USD.",
+            f"Unexpected currency '{tx.get('currency')}'. Expected USD.",
         )
 
     # ── Validate amount (allow $0.10 tolerance for rounding) ─────────────────
@@ -346,7 +345,7 @@ async def verify_payment(
     if tx.get("tx_ref") != req.tx_ref:
         logger.warning(
             f"tx_ref mismatch for user {current_user.id}: "
-            f"expected {req.tx_ref!r}, got {tx.get(\'tx_ref\')!r}"
+            f"expected {req.tx_ref!r}, got {tx.get('tx_ref')!r}"
         )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Transaction reference mismatch.")
 
@@ -421,11 +420,11 @@ async def flutterwave_webhook(
     logger.info(f"📡 Flutterwave webhook: event={event}, status={tx_status}, tx_ref={tx_ref}")
 
     # TODO: Implement logic for handling webhook events (e.g., subscription updates, chargebacks)
-    # For example, if event == \'charge.completed\' and tx_status == \'successful\':
+    # For example, if event == 'charge.completed' and tx_status == 'successful':
     #   - Retrieve tx_ref from payload.get("data", {}).get("tx_ref")
     #   - Query your database for the user associated with this tx_ref
-    #   - Update user\'s plan or subscription status
-    #   - Handle cases like \'charge.failed\', \'subscription.cancelled\', etc.
+    #   - Update user's plan or subscription status
+    #   - Handle cases like 'charge.failed', 'subscription.cancelled', etc.
     #   - Ensure idempotency to prevent duplicate processing of events.
 
     return {"status": "ok"}
