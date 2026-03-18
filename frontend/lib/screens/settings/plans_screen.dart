@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutterwave_standard/flutterwave.dart';
 import 'package:go_router/go_router.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
@@ -30,7 +30,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'amount_usd': 0.0,
       'color': 0xFF66667A,
       'ai_primary': 'Gemini 2.0 Flash',
-      'ai_chain': 'Gemini Flash · Groq Llama 3.3 · DeepSeek-V3 · Qwen 2.5 · OpenRouter',
+      'ai_chain':
+          'Gemini Flash · Groq Llama 3.3 · DeepSeek-V3 · Qwen 2.5 · OpenRouter',
       'ai_badge': '⚡ Fast Free Models',
       'features': [
         '3 video plans per day',
@@ -55,7 +56,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'popular': true,
       'color': 0xFFFFB830,
       'ai_primary': 'GPT-4o-mini',
-      'ai_chain': 'GPT-4o-mini · Grok-2 · Gemini 1.5 Pro · Mistral Large · DeepSeek-V3',
+      'ai_chain':
+          'GPT-4o-mini · Grok-2 · Gemini 1.5 Pro · Mistral Large · DeepSeek-V3',
       'ai_badge': '🚀 Pro Models',
       'features': [
         'Unlimited video plans',
@@ -77,7 +79,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'amount_usd': AppConfig.studioPriceUsd,
       'color': 0xFF00E5CC,
       'ai_primary': 'GPT-4o',
-      'ai_chain': 'GPT-4o · Claude 3.5 Sonnet · Grok-2 · Gemini 1.5 Pro · Mistral Large',
+      'ai_chain':
+          'GPT-4o · Claude 3.5 Sonnet · Grok-2 · Gemini 1.5 Pro · Mistral Large',
       'ai_badge': '🏆 Frontier Models',
       'features': [
         'Everything in Creator',
@@ -93,6 +96,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     },
   ];
 
+  // ── Handle Plan Select ────────────────────────────────────────────────────
   Future<void> _handleSelect(Map<String, dynamic> plan) async {
     final planId = plan['id'] as String;
     if (planId == 'free') return;
@@ -112,73 +116,47 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef =
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
-      final flutterwave = Flutterwave(
-        publicKey:      AppConfig.flutterwavePublicKey,
-        currency:       'USD',
-        amount:         (plan['amount_usd'] as double).toStringAsFixed(2),
-        customer: Customer(
-          name:        user.name,
-          phoneNumber: '0000000000',  // ← required by Flutterwave, cannot be empty
-          email:       user.email,
+      // ── Use WebView checkout instead of SDK ──────────────────────────────
+      final result = await Navigator.of(context).push<Map<String, String>>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => _FlutterwaveWebView(
+            email:   user.email,
+            name:    user.name,
+            amount:  (plan['amount_usd'] as double).toStringAsFixed(2),
+            txRef:   txRef,
+            planName: plan['name'] as String,
+          ),
         ),
-        paymentOptions: 'card',  // ← simpler — card only avoids auth issues
-        customization: Customization(
-          title:       'PromptReel AI',
-          description: '${plan['name']} Plan — Monthly Subscription',
-          logo:        'https://promptreel.ai/logo.png',
-        ),
-        txRef:          txRef,
-        isTestMode:     AppConfig.flutterwaveTestMode,
-        redirectUrl:    'https://promptreel.ai/payment/callback', // ← valid HTTPS URL
       );
-
-      final ChargeResponse response =
-          await flutterwave.charge(context);
 
       if (!mounted) return;
 
-      final status = (response.status ?? '').toLowerCase().trim();
+      if (result == null) {
+        _showInfo('Payment cancelled.');
+        return;
+      }
+
+      final status        = result['status'] ?? '';
+      final transactionId = result['transaction_id'] ?? '0';
 
       if (status == 'successful' || status == 'completed') {
-        if (response.transactionId != null) {
-          await _verifyAndUpgrade(
-            transactionId: response.transactionId!,
-            txRef:         txRef,
-            planId:        planId,
-            planName:      plan['name'] as String,
-          );
-        } else {
-          // No transaction ID — verify by txRef
-          await _verifyAndUpgrade(
-            transactionId: '0',
-            txRef:         txRef,
-            planId:        planId,
-            planName:      plan['name'] as String,
-          );
-        }
-      } else if (status == 'cancelled' ||
-                 status == 'cancel' ||
-                 status == 'user_cancelled') {
+        await _verifyAndUpgrade(
+          transactionId: transactionId,
+          txRef:         txRef,
+          planId:        planId,
+          planName:      plan['name'] as String,
+        );
+      } else if (status == 'cancelled') {
         _showInfo('Payment cancelled.');
-      } else if (status.isEmpty || status == 'null') {
-        _showInfo('Payment window closed.');
       } else {
         _showError(
-          'Payment was not completed. Status: $status\n'
-          'Please try again or use a different card.',
+          'Payment was not completed.\nPlease try again.',
         );
       }
     } catch (e) {
       if (mounted) {
-        final errStr = e.toString().toLowerCase();
-        if (errStr.contains('cancel') || errStr.contains('closed')) {
-          _showInfo('Payment cancelled.');
-        } else {
-          _showError(
-            'Payment error. Please try again.\n'
-            'If issue persists, contact support.',
-          );
-        }
+        _showError('Payment error. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -190,6 +168,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     }
   }
 
+  // ── Verify & Upgrade ──────────────────────────────────────────────────────
   Future<void> _verifyAndUpgrade({
     required String transactionId,
     required String txRef,
@@ -203,8 +182,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     );
 
     try {
-      final api = ref.read(apiServiceProvider);
-      await api.verifyPayment(
+      await ref.read(apiServiceProvider).verifyPayment(
         transactionId: transactionId,
         txRef:         txRef,
         plan:          planId,
@@ -220,12 +198,13 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         Navigator.of(context).pop();
         _showError(
           'Payment received but verification failed.\n'
-          'Contact support with reference: $txRef',
+          'Contact support with reference:\n$txRef',
         );
       }
     }
   }
 
+  // ── Success Dialog ─────────────────────────────────────────────────────────
   void _showSuccess(String planName) {
     showDialog(
       context: context,
@@ -305,6 +284,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     ));
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -342,14 +322,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         final isLoading = _isProcessing &&
                             _processingPlan == plan['id'];
                         return Padding(
-                          padding:
-                              const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
                             plan:       plan,
                             isCurrent:  isCurrent,
                             isLoading:  isLoading,
-                            isDisabled:
-                                _isProcessing && !isLoading,
+                            isDisabled: _isProcessing && !isLoading,
                             onSelect:   () => _handleSelect(plan),
                           ).animate(
                             delay: Duration(
@@ -414,8 +392,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.sm),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: const Text('🌍',
                     style: TextStyle(fontSize: 20)),
@@ -443,7 +420,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           _payMethod('📲', 'Mobile Money', 'Where available'),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Prices in USD. Subscriptions are monthly and can be cancelled anytime.',
+            'Prices in USD. Subscriptions monthly, cancel anytime.',
             style: AppTypography.bodySmall
                 .copyWith(color: AppColors.textMuted),
           ),
@@ -489,7 +466,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             ),
             (
               'Do you generate actual videos?',
-              'No. We generate scripts, prompts & SEO. You use those with Runway, Kling, Pika etc.'
+              'No. We generate scripts, prompts & SEO. Use those with Runway, Kling, Pika etc.'
             ),
             (
               'Is my payment secure?',
@@ -504,11 +481,368 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         style: AppTypography.labelLarge
                             .copyWith(color: AppColors.primary)),
                     const SizedBox(height: 4),
-                    Text(faq.$2,
-                        style: AppTypography.bodySmall),
+                    Text(faq.$2, style: AppTypography.bodySmall),
                   ],
                 ),
               )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Flutterwave WebView Checkout ─────────────────────────────────────────────
+class _FlutterwaveWebView extends StatefulWidget {
+  final String email;
+  final String name;
+  final String amount;
+  final String txRef;
+  final String planName;
+
+  const _FlutterwaveWebView({
+    required this.email,
+    required this.name,
+    required this.amount,
+    required this.txRef,
+    required this.planName,
+  });
+
+  @override
+  State<_FlutterwaveWebView> createState() => _FlutterwaveWebViewState();
+}
+
+class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initWebView();
+  }
+
+  void _initWebView() {
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF0A0A0F))
+      ..addJavaScriptChannel(
+        'PaymentResult',
+        onMessageReceived: (msg) {
+          // Receive result from JS
+          final parts = msg.message.split('|');
+          final status        = parts.isNotEmpty ? parts[0] : '';
+          final transactionId = parts.length > 1 ? parts[1] : '0';
+          if (mounted) {
+            Navigator.of(context).pop({
+              'status':         status,
+              'transaction_id': transactionId,
+            });
+          }
+        },
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            if (mounted) setState(() => _isLoading = true);
+          },
+          onPageFinished: (_) {
+            if (mounted) setState(() => _isLoading = false);
+          },
+          onNavigationRequest: (req) {
+            final url = req.url;
+            // Catch redirect callbacks
+            if (url.contains('promptreel.ai/payment/callback')) {
+              final uri    = Uri.parse(url);
+              final status = uri.queryParameters['status'] ?? '';
+              final txId   = uri.queryParameters['transaction_id'] ?? '0';
+              if (mounted) {
+                Navigator.of(context).pop({
+                  'status':         status,
+                  'transaction_id': txId,
+                });
+              }
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadHtmlString(_buildHtml());
+  }
+
+  String _buildHtml() {
+    final key      = AppConfig.flutterwavePublicKey;
+    final amount   = widget.amount;
+    final email    = widget.email;
+    final name     = widget.name.replaceAll("'", "\\'");
+    final txRef    = widget.txRef;
+    final planName = widget.planName;
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>PromptReel Payment</title>
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0A0A0F;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, Arial, sans-serif;
+      padding: 24px;
+    }
+    .card {
+      background: #12121A;
+      border: 1px solid #2A2A3A;
+      border-radius: 20px;
+      padding: 36px 28px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .emoji { font-size: 48px; margin-bottom: 12px; }
+    .app-name {
+      color: #FFB830;
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .tagline {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 28px;
+    }
+    .price-box {
+      background: #1A1A2E;
+      border: 1px solid #2A2A3A;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 28px;
+    }
+    .price {
+      color: white;
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .price span { font-size: 18px; font-weight: 400; color: #888; }
+    .plan-badge {
+      display: inline-block;
+      background: rgba(255,184,48,0.15);
+      color: #FFB830;
+      border: 1px solid rgba(255,184,48,0.3);
+      border-radius: 50px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+    .pay-btn {
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(135deg, #FFB830, #FF8C00);
+      color: #000;
+      font-size: 16px;
+      font-weight: 800;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+    .pay-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .secure {
+      color: #444;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .loader {
+      display: none;
+      width: 20px; height: 20px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="emoji">🎬</div>
+    <div class="app-name">PromptReel AI</div>
+    <div class="tagline">AI Video Production Platform</div>
+
+    <div class="price-box">
+      <div class="price">\$$amount<span>/mo</span></div>
+      <div class="plan-badge">$planName Plan</div>
+    </div>
+
+    <button class="pay-btn" id="payBtn" onclick="makePayment()">
+      Pay Securely — \$$amount
+    </button>
+
+    <div class="secure">
+      🔒 Secured by Flutterwave
+    </div>
+  </div>
+
+  <script>
+    // Auto-trigger on load
+    window.addEventListener('load', function() {
+      setTimeout(makePayment, 500);
+    });
+
+    function makePayment() {
+      const btn = document.getElementById('payBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loader" style="display:inline-block"></div>';
+
+      FlutterwaveCheckout({
+        public_key: "$key",
+        tx_ref: "$txRef",
+        amount: $amount,
+        currency: "USD",
+        payment_options: "card,banktransfer,ussd,mobilemoney",
+        redirect_url: "https://promptreel.ai/payment/callback",
+        meta: {
+          source: "promptreel_mobile_app",
+          plan: "$planName",
+          consumer_id: "$txRef"
+        },
+        customer: {
+          email: "$email",
+          phone_number: "0000000000",
+          name: "$name"
+        },
+        customizations: {
+          title: "PromptReel AI",
+          description: "$planName Plan — Monthly Subscription",
+          logo: "https://promptreel.ai/logo.png"
+        },
+        callback: function(data) {
+          const status = data.status || 'unknown';
+          const txId   = data.transaction_id || '0';
+
+          // Send result back to Flutter via JS channel
+          if (window.PaymentResult) {
+            window.PaymentResult.postMessage(status + '|' + txId);
+          } else {
+            // Fallback — redirect
+            window.location.href =
+              'https://promptreel.ai/payment/callback?status=' +
+              status + '&transaction_id=' + txId;
+          }
+        },
+        onclose: function() {
+          if (window.PaymentResult) {
+            window.PaymentResult.postMessage('cancelled|0');
+          } else {
+            window.location.href =
+              'https://promptreel.ai/payment/callback?status=cancelled';
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
+''';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF12121A),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(null),
+        ),
+        title: const Text(
+          'Secure Checkout',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 11, color: Colors.green),
+                SizedBox(width: 4),
+                Text('Secure',
+                    style: TextStyle(
+                        color: Colors.green,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            Container(
+              color: const Color(0xFF0A0A0F),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB830).withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFFFB830),
+                          strokeWidth: 2.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Loading secure payment...',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -533,11 +867,11 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color    = Color(plan['color'] as int);
+    final color     = Color(plan['color'] as int);
     final isPopular = plan['popular'] == true;
-    final isFree   = plan['id'] == 'free';
-    final features = plan['features'] as List<dynamic>;
-    final missing  = plan['missing'] as List<dynamic>;
+    final isFree    = plan['id'] == 'free';
+    final features  = plan['features'] as List<dynamic>;
+    final missing   = plan['missing'] as List<dynamic>;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -548,7 +882,7 @@ class _PlanCard extends StatelessWidget {
                 ? LinearGradient(
                     colors: [
                       color.withOpacity(0.08),
-                      AppColors.surface
+                      AppColors.surface,
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -577,36 +911,31 @@ class _PlanCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header Row ────────────────────────────────────────────
+              // ── Header ───────────────────────────────────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(plan['name'] as String,
-                            style:
-                                AppTypography.headlineMedium),
+                            style: AppTypography.headlineMedium),
                         if (isCurrent)
                           Container(
-                            margin:
-                                const EdgeInsets.only(top: 4),
+                            margin: const EdgeInsets.only(top: 4),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.success
-                                  .withOpacity(0.15),
-                              borderRadius:
-                                  BorderRadius.circular(
-                                      AppRadius.full),
+                              color:
+                                  AppColors.success.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(
+                                  AppRadius.full),
                             ),
                             child: Text('Your current plan',
                                 style: AppTypography.labelSmall
                                     .copyWith(
-                                        color:
-                                            AppColors.success)),
+                                        color: AppColors.success)),
                           ),
                       ],
                     ),
@@ -620,8 +949,7 @@ class _PlanCard extends StatelessWidget {
                           style: AppTypography.displaySmall
                               .copyWith(color: color),
                         ),
-                        TextSpan(
-                            text: plan['period'] as String),
+                        TextSpan(text: plan['period'] as String),
                       ],
                     ),
                   ),
@@ -636,10 +964,8 @@ class _PlanCard extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.08),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.sm),
-                    border:
-                        Border.all(color: color.withOpacity(0.2)),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(color: color.withOpacity(0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -664,8 +990,7 @@ class _PlanCard extends StatelessWidget {
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.check_circle_rounded,
                             size: 16, color: color),
@@ -674,33 +999,29 @@ class _PlanCard extends StatelessWidget {
                             child: Text(f as String,
                                 style: AppTypography.bodySmall
                                     .copyWith(
-                                        color: AppColors
-                                            .textPrimary))),
+                                        color:
+                                            AppColors.textPrimary))),
                       ],
                     ),
                   )),
 
-              // ── Missing Features ──────────────────────────────────────
+              // ── Missing ───────────────────────────────────────────────
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
-                      padding:
-                          const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: Row(children: [
-                        const Icon(
-                            Icons.remove_circle_outline,
-                            size: 16,
-                            color: AppColors.textMuted),
+                        const Icon(Icons.remove_circle_outline,
+                            size: 16, color: AppColors.textMuted),
                         const SizedBox(width: 8),
                         Expanded(
                             child: Text(f as String,
-                                style:
-                                    AppTypography.bodySmall)),
+                                style: AppTypography.bodySmall)),
                       ]),
                     )),
 
               const SizedBox(height: AppSpacing.md),
 
-              // ── CTA Button ────────────────────────────────────────────
+              // ── CTA ───────────────────────────────────────────────────
               if (!isFree && !isCurrent)
                 AppButton(
                   label: isLoading
@@ -717,28 +1038,23 @@ class _PlanCard extends StatelessWidget {
               else if (isCurrent)
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.1),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     border: Border.all(
-                        color:
-                            AppColors.success.withOpacity(0.3)),
+                        color: AppColors.success.withOpacity(0.3)),
                   ),
                   child: Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.check_rounded,
-                            size: 16,
-                            color: AppColors.success),
+                            size: 16, color: AppColors.success),
                         const SizedBox(width: 6),
                         Text('Active Plan',
                             style: AppTypography.labelLarge
-                                .copyWith(
-                                    color: AppColors.success)),
+                                .copyWith(color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -746,18 +1062,15 @@ class _PlanCard extends StatelessWidget {
               else
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHighlight,
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text('Current Plan',
                         style: AppTypography.labelLarge
-                            .copyWith(
-                                color: AppColors.textMuted)),
+                            .copyWith(color: AppColors.textMuted)),
                   ),
                 ),
             ],
@@ -776,14 +1089,12 @@ class _PlanCard extends StatelessWidget {
                     horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.full),
+                  borderRadius: BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
                 child: Text('⭐ MOST POPULAR',
                     style: AppTypography.labelSmall.copyWith(
-                        color: Colors.black,
-                        letterSpacing: 1.0)),
+                        color: Colors.black, letterSpacing: 1.0)),
               ),
             ),
           ),
@@ -811,8 +1122,9 @@ class _VerifyingDialog extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  shape: BoxShape.circle),
+                gradient: AppColors.primaryGradient,
+                shape: BoxShape.circle,
+              ),
               child: const Padding(
                 padding: EdgeInsets.all(14),
                 child: CircularProgressIndicator(
@@ -824,7 +1136,7 @@ class _VerifyingDialog extends StatelessWidget {
                 style: AppTypography.titleLarge),
             const SizedBox(height: 6),
             Text(
-              'Please wait while we confirm your payment with Flutterwave.',
+              'Please wait while we confirm\nyour payment with Flutterwave.',
               style: AppTypography.bodySmall,
               textAlign: TextAlign.center,
             ),
