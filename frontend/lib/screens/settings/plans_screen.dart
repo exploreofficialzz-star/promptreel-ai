@@ -18,9 +18,10 @@ class PlansScreen extends ConsumerStatefulWidget {
 }
 
 class _PlansScreenState extends ConsumerState<PlansScreen> {
-  bool _isProcessing  = false;
+  bool _isProcessing = false;
   String? _processingPlan;
 
+  // Plans now match backend exactly - $15 and $35 USD
   static const _plans = [
     {
       'id': 'free',
@@ -52,7 +53,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'name': 'Creator',
       'price_label': r'$15',
       'period': '/month',
-      'amount_usd': AppConfig.creatorPriceUsd,
+      'amount_usd': 15.0, // Matches backend exactly
       'popular': true,
       'color': 0xFFFFB830,
       'ai_primary': 'GPT-4o-mini',
@@ -76,7 +77,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'name': 'Studio',
       'price_label': r'$35',
       'period': '/month',
-      'amount_usd': AppConfig.studioPriceUsd,
+      'amount_usd': 35.0, // Matches backend exactly
       'color': 0xFF00E5CC,
       'ai_primary': 'GPT-4o',
       'ai_chain':
@@ -108,7 +109,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     }
 
     setState(() {
-      _isProcessing   = true;
+      _isProcessing = true;
       _processingPlan = planId;
     });
 
@@ -116,20 +117,21 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef =
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
-      // ── Build checkout URL from backend ──────────────────────────────────
+      // ── Build checkout URL ─────────────────────────────────────────────
+      // Backend handles public_key, we just send user data
       final checkoutUrl = Uri.parse(
         '${AppConfig.baseUrl}/api/payments/checkout-page',
       ).replace(queryParameters: {
-        'public_key': AppConfig.flutterwavePublicKey,
-        'amount':     (plan['amount_usd'] as double).toStringAsFixed(2),
-        'email':      user.email,
-        'name':       user.name,
-        'tx_ref':     txRef,
-        'plan_name':  plan['name'] as String,
-        'currency':   'USD',
+        'plan_id': planId, // Backend needs this to identify plan
+        'email': user.email,
+        'name': user.name ?? user.email.split('@')[0],
+        'tx_ref': txRef,
+        'currency': 'USD',
       });
 
-      // ── Open in Chrome — no popup blocking, works 100% ───────────────────
+      debugPrint('Opening checkout: $checkoutUrl');
+
+      // ── Open in Chrome (external browser) ───────────────────────────────
       final launched = await launchUrl(
         checkoutUrl,
         mode: LaunchMode.externalApplication,
@@ -142,14 +144,14 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
       if (!mounted) return;
 
-      // ── Show waiting dialog while user pays in browser ───────────────────
+      // ── Show waiting dialog ────────────────────────────────────────────
       final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (_) => _PaymentWaitingDialog(
           planName: plan['name'] as String,
-          amount:   (plan['amount_usd'] as double).toStringAsFixed(2),
-          txRef:    txRef,
+          amount: (plan['amount_usd'] as double).toStringAsFixed(2),
+          txRef: txRef,
         ),
       );
 
@@ -157,20 +159,21 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
       if (confirmed == true) {
         await _verifyAndUpgrade(
-          transactionId: '0', // backend looks up by txRef
-          txRef:         txRef,
-          planId:        planId,
-          planName:      plan['name'] as String,
+          txRef: txRef,
+          planId: planId,
+          planName: plan['name'] as String,
         );
       } else {
         _showInfo('Payment cancelled.');
       }
-    } catch (e) {
-      if (mounted) _showError('Payment error. Please try again.');
+    } catch (e, stackTrace) {
+      debugPrint('Payment error: $e');
+      debugPrint(stackTrace.toString());
+      if (mounted) _showError('Payment error: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() {
-          _isProcessing   = false;
+          _isProcessing = false;
           _processingPlan = null;
         });
       }
@@ -179,7 +182,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
   // ── Verify & Upgrade ──────────────────────────────────────────────────────
   Future<void> _verifyAndUpgrade({
-    required String transactionId,
     required String txRef,
     required String planId,
     required String planName,
@@ -191,30 +193,34 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     );
 
     try {
-      await ref.read(apiServiceProvider).verifyPayment(
-        transactionId: transactionId,
-        txRef:         txRef,
-        plan:          planId,
+      // Call backend verify endpoint
+      // Backend will look up transaction by txRef if needed
+      final response = await ref.read(apiServiceProvider).verifyPayment(
+        txRef: txRef,
+        planId: planId,
       );
+
       await ref.read(authProvider.notifier).refreshUser();
+
       if (mounted) {
-        Navigator.of(context).pop();
-        _showSuccess(planName);
+        Navigator.of(context).pop(); // Close verifying dialog
+        _showSuccess(planName, response);
       }
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
         _showError(
-          'Verification failed. If you paid, contact support with:\n$txRef',
+          'Verification failed. If you completed payment, please contact support with this reference:\n\n$txRef',
         );
       }
     }
   }
 
   // ── Success Dialog ────────────────────────────────────────────────────────
-  void _showSuccess(String planName) {
+  void _showSuccess(String planName, dynamic response) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(
@@ -223,10 +229,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72, height: 72,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  shape: BoxShape.circle),
+                  gradient: AppColors.primaryGradient, shape: BoxShape.circle),
               child: const Icon(Icons.check_rounded,
                   color: Colors.black, size: 40),
             ).animate().scale(curve: Curves.elasticOut, duration: 600.ms),
@@ -236,8 +242,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(
-              'Your plan has been upgraded successfully. '
-              'Enjoy all the new features!',
+              'Your plan has been upgraded successfully!\n\n'
+              'Payment confirmed. You now have access to all premium features.',
               style: AppTypography.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -263,12 +269,13 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         const Icon(Icons.error_outline_rounded,
             color: Colors.white, size: 18),
         const SizedBox(width: 8),
-        Expanded(child: Text(message,
-            style: const TextStyle(fontSize: 13))),
+        Expanded(
+            child: Text(message,
+                style: const TextStyle(fontSize: 13))),
       ]),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 6),
+      duration: const Duration(seconds: 8),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md)),
       margin: const EdgeInsets.all(16),
@@ -287,7 +294,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     ));
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ... rest of your build methods remain the same ...
+  // (_buildHeader, _buildPaymentInfo, _payMethod, _buildFaq, etc.)
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -316,7 +325,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                       _buildHeader(),
                       const SizedBox(height: AppSpacing.lg),
                       ..._plans.asMap().entries.map((e) {
-                        final plan      = e.value;
+                        final plan = e.value;
                         final isCurrent =
                             (user?.plan ?? 'free').toLowerCase() ==
                                 (plan['id'] as String).toLowerCase();
@@ -325,14 +334,14 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
-                            plan:       plan,
-                            isCurrent:  isCurrent,
-                            isLoading:  isLoading,
+                            plan: plan,
+                            isCurrent: isCurrent,
+                            isLoading: isLoading,
                             isDisabled: _isProcessing && !isLoading,
-                            onSelect:   () => _handleSelect(plan),
-                          ).animate(delay: Duration(
-                              milliseconds: e.key * 120))
-                              .fadeIn().slideY(begin: 0.15),
+                            onSelect: () => _handleSelect(plan),
+                          ).animate(delay: Duration(milliseconds: e.key * 120))
+                              .fadeIn()
+                              .slideY(begin: 0.15),
                         );
                       }),
                       _buildPaymentInfo(),
@@ -353,7 +362,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     return Column(
       children: [
         Container(
-          width: 64, height: 64,
+          width: 64,
+          height: 64,
           decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               shape: BoxShape.circle,
@@ -400,7 +410,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 children: [
                   Text('Secure Payment via Flutterwave',
                       style: AppTypography.titleMedium),
-                  Text('Worldwide · Cards · Bank Transfer',
+                  Text('Worldwide • Cards • Bank Transfer • Mobile Money',
                       style: AppTypography.labelSmall),
                 ],
               ),
@@ -410,12 +420,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           const Divider(),
           const SizedBox(height: AppSpacing.sm),
           _payMethod('💳', 'Cards', 'Visa, Mastercard, Amex'),
-          _payMethod('🏦', 'Bank Transfer', 'International wire'),
-          _payMethod('📱', 'USSD', 'Available in supported regions'),
-          _payMethod('📲', 'Mobile Money', 'Where available'),
+          _payMethod('🏦', 'Bank Transfer', 'ACH, Wire, Local banks'),
+          _payMethod('📱', 'USSD', 'Nigeria, Ghana, etc.'),
+          _payMethod('📲', 'Mobile Money', 'M-Pesa, MTN, etc.'),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Prices in USD. Subscriptions monthly, cancel anytime.',
+            'Prices in USD. Monthly subscription, cancel anytime.',
             style: AppTypography.bodySmall
                 .copyWith(color: AppColors.textMuted),
           ),
@@ -430,8 +440,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       child: Row(children: [
         Text(icon, style: const TextStyle(fontSize: 16)),
         const SizedBox(width: 10),
-        Text(name, style: AppTypography.labelMedium
-            .copyWith(color: AppColors.textPrimary)),
+        Text(name,
+            style: AppTypography.labelMedium
+                .copyWith(color: AppColors.textPrimary)),
         const SizedBox(width: 6),
         Text('· $desc', style: AppTypography.labelSmall),
       ]),
@@ -446,28 +457,39 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           Text('FAQ', style: AppTypography.titleMedium),
           const SizedBox(height: 12),
           ...[
-            ('Can I cancel anytime?',
-              'Yes. Cancel from Settings — access continues until billing period ends.'),
-            ('Is there a free trial?',
-              'The Free plan gives you 3 plans/day forever — no card needed.'),
-            ('Which AI models do I get?',
-              'Creator gets GPT-4o-mini & Gemini Pro. Studio gets GPT-4o & Claude 3.5 Sonnet.'),
-            ('Do you generate actual videos?',
-              'No. We generate scripts, prompts & SEO. Use those with Runway, Kling, Pika etc.'),
-            ('Is my payment secure?',
-              'Yes — processed entirely by Flutterwave. We never store your card details.'),
-          ].map((faq) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(faq.$1, style: AppTypography.labelLarge
-                    .copyWith(color: AppColors.primary)),
-                const SizedBox(height: 4),
-                Text(faq.$2, style: AppTypography.bodySmall),
-              ],
+            (
+              'Can I cancel anytime?',
+              'Yes. Cancel from Settings — access continues until billing period ends.'
             ),
-          )),
+            (
+              'Is there a free trial?',
+              'The Free plan gives you 3 plans/day forever — no card needed.'
+            ),
+            (
+              'Which AI models do I get?',
+              'Creator gets GPT-4o-mini & Gemini Pro. Studio gets GPT-4o & Claude 3.5 Sonnet.'
+            ),
+            (
+              'Do you generate actual videos?',
+              'No. We generate scripts, prompts & SEO. Use those with Runway, Kling, Pika etc.'
+            ),
+            (
+              'Is my payment secure?',
+              'Yes — processed by Flutterwave. We never store your card details.'
+            ),
+          ].map((faq) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(faq.$1,
+                        style: AppTypography.labelLarge
+                            .copyWith(color: AppColors.primary)),
+                    const SizedBox(height: 4),
+                    Text(faq.$2, style: AppTypography.bodySmall),
+                  ],
+                ),
+              )),
         ],
       ),
     );
@@ -502,9 +524,9 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Icon ──────────────────────────────────────────────────────────
           Container(
-            width: 72, height: 72,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.12),
               shape: BoxShape.circle,
@@ -514,14 +536,10 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // ── Title ─────────────────────────────────────────────────────────
           Text('Complete Payment\nin Browser',
               style: AppTypography.headlineMedium,
               textAlign: TextAlign.center),
           const SizedBox(height: 10),
-
-          // ── Plan info ─────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: 16, vertical: 10),
@@ -544,7 +562,6 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 12),
-
           Text(
             'Flutterwave has opened in your browser.\n'
             'Complete your payment there, then\n'
@@ -553,8 +570,6 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
-
-          // ── Show txRef toggle ─────────────────────────────────────────────
           GestureDetector(
             onTap: () => setState(() => _showTxRef = !_showTxRef),
             child: Text(
@@ -565,16 +580,12 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // ── Paid button ───────────────────────────────────────────────────
           AppButton(
             label: '✅  I Have Paid',
             onPressed: () => Navigator.of(context).pop(true),
             fullWidth: true,
           ),
           const SizedBox(height: 8),
-
-          // ── Cancel button ─────────────────────────────────────────────────
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(
@@ -605,7 +616,8 @@ class _VerifyingDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 56, height: 56,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
                   shape: BoxShape.circle),
@@ -649,11 +661,11 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color     = Color(plan['color'] as int);
+    final color = Color(plan['color'] as int);
     final isPopular = plan['popular'] == true;
-    final isFree    = plan['id'] == 'free';
-    final features  = plan['features'] as List<dynamic>;
-    final missing   = plan['missing'] as List<dynamic>;
+    final isFree = plan['id'] == 'free';
+    final features = plan['features'] as List<dynamic>;
+    final missing = plan['missing'] as List<dynamic>;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -670,19 +682,24 @@ class _PlanCard extends StatelessWidget {
             border: Border.all(
               color: isCurrent
                   ? AppColors.success.withOpacity(0.6)
-                  : isPopular ? color.withOpacity(0.5) : AppColors.border,
+                  : isPopular
+                      ? color.withOpacity(0.5)
+                      : AppColors.border,
               width: isPopular || isCurrent ? 1.5 : 1,
             ),
             boxShadow: isPopular
-                ? [BoxShadow(color: color.withOpacity(0.12),
-                    blurRadius: 30, spreadRadius: -5)]
+                ? [
+                    BoxShadow(
+                        color: color.withOpacity(0.12),
+                        blurRadius: 30,
+                        spreadRadius: -5)
+                  ]
                 : null,
           ),
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header ───────────────────────────────────────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -724,8 +741,6 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ],
               ),
-
-              // ── AI Badge ──────────────────────────────────────────────────
               if (plan['ai_badge'] != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
@@ -750,43 +765,37 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ),
               ],
-
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),
-
-              // ── Features ──────────────────────────────────────────────────
               ...features.map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.check_circle_rounded,
-                        size: 16, color: color),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(f as String,
-                        style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.textPrimary))),
-                  ],
-                ),
-              )),
-
-              // ── Missing ───────────────────────────────────────────────────
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.check_circle_rounded,
+                            size: 16, color: color),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Text(f as String,
+                                style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textPrimary))),
+                      ],
+                    ),
+                  )),
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(children: [
-                    const Icon(Icons.remove_circle_outline,
-                        size: 16, color: AppColors.textMuted),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(f as String,
-                        style: AppTypography.bodySmall)),
-                  ]),
-                )),
-
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(children: [
+                        const Icon(Icons.remove_circle_outline,
+                            size: 16, color: AppColors.textMuted),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: Text(f as String,
+                                style: AppTypography.bodySmall)),
+                      ]),
+                    )),
               const SizedBox(height: AppSpacing.md),
-
-              // ── CTA ───────────────────────────────────────────────────────
               if (!isFree && !isCurrent)
                 AppButton(
                   label: isLoading
@@ -840,11 +849,11 @@ class _PlanCard extends StatelessWidget {
             ],
           ),
         ),
-
-        // ── Popular Badge ─────────────────────────────────────────────────
         if (isPopular)
           Positioned(
-            top: -12, left: 0, right: 0,
+            top: -12,
+            left: 0,
+            right: 0,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(
