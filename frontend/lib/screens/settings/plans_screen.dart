@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
@@ -97,6 +96,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     },
   ];
 
+  // ── Handle Plan Select ────────────────────────────────────────────────────
   Future<void> _handleSelect(Map<String, dynamic> plan) async {
     final planId = plan['id'] as String;
     if (planId == 'free') return;
@@ -116,42 +116,54 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef =
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
-      final result = await Navigator.of(context).push<Map<String, String>>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => _FlutterwaveWebView(
-            email:    user.email,
-            name:     user.name,
-            amount:   (plan['amount_usd'] as double).toStringAsFixed(2),
-            txRef:    txRef,
-            planName: plan['name'] as String,
-          ),
+      // ── Build checkout URL from backend ──────────────────────────────────
+      final checkoutUrl = Uri.parse(
+        '${AppConfig.baseUrl}/api/payments/checkout-page',
+      ).replace(queryParameters: {
+        'public_key': AppConfig.flutterwavePublicKey,
+        'amount':     (plan['amount_usd'] as double).toStringAsFixed(2),
+        'email':      user.email,
+        'name':       user.name,
+        'tx_ref':     txRef,
+        'plan_name':  plan['name'] as String,
+        'currency':   'USD',
+      });
+
+      // ── Open in Chrome — no popup blocking, works 100% ───────────────────
+      final launched = await launchUrl(
+        checkoutUrl,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        _showError('Could not open payment page. Please try again.');
+        return;
+      }
+
+      if (!mounted) return;
+
+      // ── Show waiting dialog while user pays in browser ───────────────────
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _PaymentWaitingDialog(
+          planName: plan['name'] as String,
+          amount:   (plan['amount_usd'] as double).toStringAsFixed(2),
+          txRef:    txRef,
         ),
       );
 
       if (!mounted) return;
 
-      if (result == null) {
-        _showInfo('Payment cancelled.');
-        return;
-      }
-
-      final status        = result['status'] ?? '';
-      final transactionId = result['transaction_id'] ?? '0';
-
-      if (status == 'successful' || status == 'completed') {
+      if (confirmed == true) {
         await _verifyAndUpgrade(
-          transactionId: transactionId,
+          transactionId: '0', // backend looks up by txRef
           txRef:         txRef,
           planId:        planId,
           planName:      plan['name'] as String,
         );
-      } else if (status == 'cancelled') {
-        _showInfo('Payment cancelled.');
-      } else if (status == 'timeout') {
-        _showError('Connection timed out. Please try again.');
       } else {
-        _showError('Payment was not completed. Please try again.');
+        _showInfo('Payment cancelled.');
       }
     } catch (e) {
       if (mounted) _showError('Payment error. Please try again.');
@@ -165,6 +177,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     }
   }
 
+  // ── Verify & Upgrade ──────────────────────────────────────────────────────
   Future<void> _verifyAndUpgrade({
     required String transactionId,
     required String txRef,
@@ -176,6 +189,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       barrierDismissible: false,
       builder: (_) => const _VerifyingDialog(),
     );
+
     try {
       await ref.read(apiServiceProvider).verifyPayment(
         transactionId: transactionId,
@@ -191,13 +205,13 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       if (mounted) {
         Navigator.of(context).pop();
         _showError(
-          'Payment received but verification failed.\n'
-          'Contact support with ref: $txRef',
+          'Verification failed. If you paid, contact support with:\n$txRef',
         );
       }
     }
   }
 
+  // ── Success Dialog ────────────────────────────────────────────────────────
   void _showSuccess(String planName) {
     showDialog(
       context: context,
@@ -273,6 +287,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     ));
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -355,9 +370,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                   .copyWith(color: Colors.white)),
         ),
         const SizedBox(height: 4),
-        Text('Generate unlimited AI video plans with no restrictions',
-            style: AppTypography.bodySmall,
-            textAlign: TextAlign.center),
+        Text(
+          'Generate unlimited AI video plans with no restrictions',
+          style: AppTypography.bodySmall,
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
@@ -397,9 +414,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           _payMethod('📱', 'USSD', 'Available in supported regions'),
           _payMethod('📲', 'Mobile Money', 'Where available'),
           const SizedBox(height: AppSpacing.sm),
-          Text('Prices in USD. Subscriptions monthly, cancel anytime.',
-              style: AppTypography.bodySmall
-                  .copyWith(color: AppColors.textMuted)),
+          Text(
+            'Prices in USD. Subscriptions monthly, cancel anytime.',
+            style: AppTypography.bodySmall
+                .copyWith(color: AppColors.textMuted),
+          ),
         ],
       ),
     );
@@ -455,269 +474,158 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 }
 
-// ─── Flutterwave WebView ──────────────────────────────────────────────────────
-class _FlutterwaveWebView extends StatefulWidget {
-  final String email;
-  final String name;
+// ─── Payment Waiting Dialog ───────────────────────────────────────────────────
+class _PaymentWaitingDialog extends StatefulWidget {
+  final String planName;
   final String amount;
   final String txRef;
-  final String planName;
 
-  const _FlutterwaveWebView({
-    required this.email,
-    required this.name,
+  const _PaymentWaitingDialog({
+    required this.planName,
     required this.amount,
     required this.txRef,
-    required this.planName,
   });
 
   @override
-  State<_FlutterwaveWebView> createState() => _FlutterwaveWebViewState();
+  State<_PaymentWaitingDialog> createState() => _PaymentWaitingDialogState();
 }
 
-class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
-  late final WebViewController _controller;
-  bool _isLoading = true;
-  bool _hasError  = false;
-  bool _timedOut  = false;
-
-  static const _userAgent =
-      'Mozilla/5.0 (Linux; Android 12; Pixel 6) '
-      'AppleWebKit/537.36 (KHTML, like Gecko) '
-      'Chrome/120.0.6099.144 Mobile Safari/537.36';
-
-  @override
-  void initState() {
-    super.initState();
-    _initWebView();
-    Future.delayed(const Duration(seconds: 30), () {
-      if (mounted && _isLoading && !_hasError) {
-        setState(() { _isLoading = false; _timedOut = true; });
-      }
-    });
-  }
-
-  // ── Build checkout URL — loads from backend as REAL https:// URL ──────────
-  // This is the KEY FIX: loadRequest() instead of loadHtmlString()
-  // Flutterwave modal REQUIRES a real URL context — about:srcdoc blocks it
-  Uri _buildCheckoutUrl() {
-    return Uri.parse(
-      '${AppConfig.baseUrl}/api/payments/checkout-page',
-    ).replace(queryParameters: {
-      'public_key': AppConfig.flutterwavePublicKey,
-      'amount':     widget.amount,
-      'email':      widget.email,
-      'name':       widget.name,
-      'tx_ref':     widget.txRef,
-      'plan_name':  widget.planName,
-      'currency':   'USD',
-    });
-  }
-
-  void _initWebView() {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0A0A0F))
-      ..setUserAgent(_userAgent)
-      ..setOnJavaScriptAlertDialog((req) async => true)
-      ..setOnJavaScriptConfirmDialog((req) async => true)
-      ..setOnJavaScriptTextInputDialog((req) async => '')
-      ..addJavaScriptChannel(
-        'PaymentResult',
-        onMessageReceived: (msg) {
-          final parts         = msg.message.split('|');
-          final status        = parts.isNotEmpty ? parts[0] : '';
-          final transactionId = parts.length > 1 ? parts[1] : '0';
-          if (mounted) {
-            Navigator.of(context).pop({
-              'status':         status,
-              'transaction_id': transactionId,
-            });
-          }
-        },
-      )
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (_) {
-          if (mounted) setState(() => _isLoading = true);
-        },
-        onPageFinished: (_) {
-          if (mounted) setState(() => _isLoading = false);
-        },
-        onWebResourceError: (error) {
-          if (error.isForMainFrame == true && mounted) {
-            setState(() { _isLoading = false; _hasError = true; });
-          }
-        },
-        onNavigationRequest: (req) {
-          final url = req.url;
-          if (url.contains('promptreel.ai/payment/callback')) {
-            final uri    = Uri.parse(url);
-            final status = uri.queryParameters['status'] ?? '';
-            final txId   = uri.queryParameters['transaction_id'] ?? '0';
-            if (mounted) {
-              Navigator.of(context).pop({
-                'status':         status,
-                'transaction_id': txId,
-              });
-            }
-            return NavigationDecision.prevent;
-          }
-          return NavigationDecision.navigate;
-        },
-      ))
-      // ── KEY FIX: loadRequest loads from real HTTPS URL ─────────────────
-      // Flutterwave JS modal works on real pages, not about:srcdoc
-      ..loadRequest(_buildCheckoutUrl());
-
-    // ── Android-specific settings ──────────────────────────────────────────
-    final platform = _controller.platform;
-    if (platform is AndroidWebViewController) {
-      AndroidWebViewController.enableDebugging(false);
-      platform.setMediaPlaybackRequiresUserGesture(false);
-    }
-  }
-
-  void _retry() {
-    setState(() {
-      _isLoading = true;
-      _hasError  = false;
-      _timedOut  = false;
-    });
-    // ── Also use loadRequest for retry ─────────────────────────────────────
-    _controller.loadRequest(_buildCheckoutUrl());
-  }
+class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
+  bool _showTxRef = false;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0F),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF12121A),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(null),
-        ),
-        title: const Text('Secure Checkout',
-            style: TextStyle(color: Colors.white, fontSize: 16,
-                fontWeight: FontWeight.w600)),
-        centerTitle: true,
-        actions: [
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Icon ──────────────────────────────────────────────────────────
           Container(
-            margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            width: 72, height: 72,
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              color: AppColors.primary.withOpacity(0.12),
+              shape: BoxShape.circle,
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
+            child: const Center(
+              child: Text('🌐', style: TextStyle(fontSize: 34)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Title ─────────────────────────────────────────────────────────
+          Text('Complete Payment\nin Browser',
+              style: AppTypography.headlineMedium,
+              textAlign: TextAlign.center),
+          const SizedBox(height: 10),
+
+          // ── Plan info ─────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(
+                  color: AppColors.primary.withOpacity(0.2)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.lock_outline, size: 11, color: Colors.green),
-                SizedBox(width: 4),
-                Text('Secure', style: TextStyle(color: Colors.green,
-                    fontSize: 11, fontWeight: FontWeight.w600)),
+                Text('\$${widget.amount}',
+                    style: AppTypography.titleLarge
+                        .copyWith(color: AppColors.primary)),
+                const SizedBox(width: 8),
+                Text('${widget.planName} Plan',
+                    style: AppTypography.bodySmall),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Text(
+            'Flutterwave has opened in your browser.\n'
+            'Complete your payment there, then\n'
+            'tap "I Have Paid" below.',
+            style: AppTypography.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+
+          // ── Show txRef toggle ─────────────────────────────────────────────
+          GestureDetector(
+            onTap: () => setState(() => _showTxRef = !_showTxRef),
+            child: Text(
+              _showTxRef ? widget.txRef : 'Show transaction reference',
+              style: AppTypography.labelSmall
+                  .copyWith(color: AppColors.textMuted),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Paid button ───────────────────────────────────────────────────
+          AppButton(
+            label: '✅  I Have Paid',
+            onPressed: () => Navigator.of(context).pop(true),
+            fullWidth: true,
+          ),
+          const SizedBox(height: 8),
+
+          // ── Cancel button ─────────────────────────────────────────────────
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              "I haven't paid yet — Cancel",
+              style: AppTypography.bodySmall
+                  .copyWith(color: AppColors.textMuted),
             ),
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // ── WebView ────────────────────────────────────────────────────
-          if (!_timedOut && !_hasError)
-            WebViewWidget(controller: _controller),
+    );
+  }
+}
 
-          // ── Loading overlay ────────────────────────────────────────────
-          if (_isLoading && !_timedOut && !_hasError)
+// ─── Verifying Dialog ─────────────────────────────────────────────────────────
+class _VerifyingDialog extends StatelessWidget {
+  const _VerifyingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl)),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Container(
-              color: const Color(0xFF0A0A0F),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 64, height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFB830).withOpacity(0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                            color: Color(0xFFFFB830), strokeWidth: 2.5),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('Loading secure payment...',
-                        style: TextStyle(color: Colors.grey, fontSize: 14)),
-                    const SizedBox(height: 6),
-                    const Text('Powered by Flutterwave',
-                        style: TextStyle(
-                            color: Color(0xFF444455), fontSize: 12)),
-                  ],
-                ),
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  shape: BoxShape.circle),
+              child: const Padding(
+                padding: EdgeInsets.all(14),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.5, color: Colors.black),
               ),
             ),
-
-          // ── Error / Timeout screen ─────────────────────────────────────
-          if (_timedOut || _hasError)
-            Container(
-              color: const Color(0xFF0A0A0F),
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 72, height: 72,
-                      decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          shape: BoxShape.circle),
-                      child: const Icon(Icons.wifi_off_rounded,
-                          color: Colors.red, size: 36),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('Connection Issue',
-                        style: TextStyle(color: Color(0xFFFFB830),
-                            fontSize: 20, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 10),
-                    Text(
-                      _timedOut
-                          ? 'Payment page took too long.\nCheck your internet and try again.'
-                          : 'Could not load payment page.\nCheck your internet and try again.',
-                      style: const TextStyle(color: Colors.grey,
-                          fontSize: 14, height: 1.6),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 32),
-                    GestureDetector(
-                      onTap: _retry,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 40, vertical: 16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [
-                            Color(0xFFFFB830), Color(0xFFFF8C00),
-                          ]),
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        child: const Text('Try Again',
-                            style: TextStyle(color: Colors.black,
-                                fontSize: 16, fontWeight: FontWeight.w800)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(null),
-                      child: const Text('Cancel',
-                          style: TextStyle(color: Colors.grey, fontSize: 14)),
-                    ),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 16),
+            Text('Verifying Payment…',
+                style: AppTypography.titleLarge),
+            const SizedBox(height: 6),
+            Text(
+              'Please wait while we confirm\nyour payment with Flutterwave.',
+              style: AppTypography.bodySmall,
+              textAlign: TextAlign.center,
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -755,7 +663,8 @@ class _PlanCard extends StatelessWidget {
             gradient: isPopular
                 ? LinearGradient(
                     colors: [color.withOpacity(0.08), AppColors.surface],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight)
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight)
                 : AppColors.cardGradient,
             borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(
@@ -773,6 +682,7 @@ class _PlanCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Header ───────────────────────────────────────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -814,6 +724,8 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ],
               ),
+
+              // ── AI Badge ──────────────────────────────────────────────────
               if (plan['ai_badge'] != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
@@ -838,9 +750,12 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ),
               ],
+
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),
+
+              // ── Features ──────────────────────────────────────────────────
               ...features.map((f) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
@@ -855,6 +770,8 @@ class _PlanCard extends StatelessWidget {
                   ],
                 ),
               )),
+
+              // ── Missing ───────────────────────────────────────────────────
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -866,10 +783,14 @@ class _PlanCard extends StatelessWidget {
                         style: AppTypography.bodySmall)),
                   ]),
                 )),
+
               const SizedBox(height: AppSpacing.md),
+
+              // ── CTA ───────────────────────────────────────────────────────
               if (!isFree && !isCurrent)
                 AppButton(
-                  label: isLoading ? 'Processing…'
+                  label: isLoading
+                      ? 'Processing…'
                       : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
                   onPressed: (isDisabled || isLoading) ? null : onSelect,
                   isLoading: isLoading,
@@ -919,6 +840,8 @@ class _PlanCard extends StatelessWidget {
             ],
           ),
         ),
+
+        // ── Popular Badge ─────────────────────────────────────────────────
         if (isPopular)
           Positioned(
             top: -12, left: 0, right: 0,
@@ -938,46 +861,6 @@ class _PlanCard extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-// ─── Verifying Dialog ─────────────────────────────────────────────────────────
-class _VerifyingDialog extends StatelessWidget {
-  const _VerifyingDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.xl)),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  shape: BoxShape.circle),
-              child: const Padding(
-                padding: EdgeInsets.all(14),
-                child: CircularProgressIndicator(
-                    strokeWidth: 2.5, color: Colors.black),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Verifying Payment…',
-                style: AppTypography.titleLarge),
-            const SizedBox(height: 6),
-            Text('Please wait while we confirm\nyour payment.',
-                style: AppTypography.bodySmall,
-                textAlign: TextAlign.center),
-          ],
-        ),
-      ),
     );
   }
 }
