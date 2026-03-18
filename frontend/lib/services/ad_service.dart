@@ -10,39 +10,52 @@ class AdService {
 
   bool _initialized = false;
 
+  // ── Initialize ────────────────────────────────────────────────────────────
   Future<void> initialize() async {
     if (_initialized) return;
     await MobileAds.instance.initialize();
     _initialized = true;
     debugPrint('✅ AdMob initialized');
-    await loadInterstitial();
+    // Pre-load all ad types
+    await Future.wait([
+      loadInterstitial(),
+      loadInterstitial2(),
+      loadRewarded(),
+    ]);
   }
 
+  // ── Ad Unit ID Getters ────────────────────────────────────────────────────
   String get _bannerAdUnit => kIsWeb
-      ? ''
-      : Platform.isAndroid
+      ? '' : Platform.isAndroid
           ? AppConfig.bannerAdUnitAndroid
           : AppConfig.bannerAdUnitIos;
 
   String get _interstitialAdUnit => kIsWeb
-      ? ''
-      : Platform.isAndroid
+      ? '' : Platform.isAndroid
           ? AppConfig.interstitialAdUnitAndroid
           : AppConfig.interstitialAdUnitIos;
 
+  String get _interstitial2AdUnit => kIsWeb
+      ? '' : Platform.isAndroid
+          ? AppConfig.interstitial2AdUnitAndroid
+          : AppConfig.interstitial2AdUnitIos;
+
   String get _rewardedAdUnit => kIsWeb
-      ? ''
-      : Platform.isAndroid
+      ? '' : Platform.isAndroid
           ? AppConfig.rewardedAdUnitAndroid
           : AppConfig.rewardedAdUnitIos;
 
   String get _nativeAdUnit => kIsWeb
-      ? ''
-      : Platform.isAndroid
+      ? '' : Platform.isAndroid
           ? AppConfig.nativeAdUnitAndroid
           : AppConfig.nativeAdUnitIos;
 
-  // ── Interstitial ──────────────────────────────────────────────────────────
+  String get _banner2AdUnit => kIsWeb
+      ? '' : Platform.isAndroid
+          ? AppConfig.banner2AdUnitAndroid
+          : AppConfig.banner2AdUnitIos;
+
+  // ── Interstitial 1 (after generation) ────────────────────────────────────
   InterstitialAd? _interstitialAd;
   bool _isInterstitialLoading = false;
 
@@ -85,7 +98,51 @@ class AdService {
     await _interstitialAd!.show();
   }
 
-  // ── Rewarded ──────────────────────────────────────────────────────────────
+  // ── Interstitial 2 (when opening saved project) ───────────────────────────
+  InterstitialAd? _interstitial2Ad;
+  bool _isInterstitial2Loading = false;
+
+  Future<void> loadInterstitial2() async {
+    if (_isInterstitial2Loading || _interstitial2Ad != null) return;
+    _isInterstitial2Loading = true;
+    await InterstitialAd.load(
+      adUnitId: _interstitial2AdUnit,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitial2Ad = ad;
+          _isInterstitial2Loading = false;
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              _interstitial2Ad = null;
+              loadInterstitial2();
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              _interstitial2Ad = null;
+            },
+          );
+        },
+        onAdFailedToLoad: (error) {
+          _isInterstitial2Loading = false;
+          debugPrint('Interstitial2 failed: $error');
+        },
+      ),
+    );
+  }
+
+  /// Show when free user opens a saved project
+  Future<void> showProjectViewInterstitial(UserModel? user) async {
+    if (user?.isPaid ?? false) return;
+    if (_interstitial2Ad == null) {
+      await loadInterstitial2();
+      return;
+    }
+    await _interstitial2Ad!.show();
+  }
+
+  // ── Rewarded (export gate) ────────────────────────────────────────────────
   RewardedAd? _rewardedAd;
   bool _isRewardedLoading = false;
 
@@ -132,7 +189,7 @@ class AdService {
     return rewarded;
   }
 
-  // ── Banner ────────────────────────────────────────────────────────────────
+  // ── Banner 1 (sticky bottom) ──────────────────────────────────────────────
   BannerAd? createBannerAd() {
     if (kIsWeb) return null;
     final banner = BannerAd(
@@ -151,6 +208,25 @@ class AdService {
     return banner;
   }
 
+  // ── Banner 2 (large — settings screen) ───────────────────────────────────
+  BannerAd? createBanner2Ad() {
+    if (kIsWeb) return null;
+    final banner = BannerAd(
+      adUnitId: _banner2AdUnit,
+      size: AdSize.largeBanner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) => debugPrint('✅ Banner2 loaded'),
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          debugPrint('Banner2 failed: $error');
+        },
+      ),
+    );
+    banner.load();
+    return banner;
+  }
+
   // ── Native ────────────────────────────────────────────────────────────────
   NativeAd? createNativeAd({required NativeAdListener listener}) {
     if (kIsWeb) return null;
@@ -162,8 +238,10 @@ class AdService {
     );
   }
 
+  // ── Dispose ───────────────────────────────────────────────────────────────
   void dispose() {
     _interstitialAd?.dispose();
+    _interstitial2Ad?.dispose();
     _rewardedAd?.dispose();
   }
 }
