@@ -11,20 +11,15 @@ class AppConfig {
   static const String version      = '1.0.0';
 
   // ── API ───────────────────────────────────────────────────────────────────
-  // ⚠️ IMPORTANT: Set API_BASE_URL in your build environment
-  // Development: http://localhost:8000
-  // Production: https://your-domain.com
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    // No default for production safety - will throw if not set
     defaultValue: kDebugMode ? 'http://localhost:8000' : '',
   );
   
   static const String apiPrefix       = '/api';
   static const int    connectTimeoutMs = 30000;
-  static const int    receiveTimeoutMs = 300000; // 5 minutes for generation
+  static const int    receiveTimeoutMs = 300000;
 
-  // Validate baseUrl is set
   static String get apiBaseUrl {
     if (baseUrl.isEmpty) {
       throw Exception(
@@ -37,28 +32,26 @@ class AppConfig {
   }
 
   // ── Flutterwave ───────────────────────────────────────────────────────────
-  // ⚠️ SECURITY: Public key is NOT secret, but should still be from environment
-  // This key can be exposed in frontend - it's safe
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
-    defaultValue: '', // No hardcoded key for security
+    defaultValue: '',
   );
   
-  // Validate Flutterwave key is set
   static String get flwPublicKey {
     if (flutterwavePublicKey.isEmpty) {
       throw Exception(
-        'FLW_PUBLIC_KEY not set! Get it from your Flutterwave Dashboard:\n'
-        'Settings → API Keys → Public Key\n'
-        'Add to build: --dart-define=FLW_PUBLIC_KEY=FLWPUBK-...'
+        'FLW_PUBLIC_KEY not set! Get it from Flutterwave Dashboard:\n'
+        'Settings → API Keys → Public Key'
       );
     }
     return flutterwavePublicKey;
   }
 
+  // 🔴 FIXED: Default to FALSE for production safety
+  // You must explicitly set FLW_TEST_MODE=true for testing
   static const bool flutterwaveTestMode = bool.fromEnvironment(
     'FLW_TEST_MODE',
-    defaultValue: true, // Default to test mode for safety
+    defaultValue: false, // ✅ FIXED: Default to LIVE mode for production
   );
 
   // Plan prices - matches backend exactly
@@ -73,7 +66,6 @@ class AppConfig {
   static const String themeKey        = 'app_theme';
 
   // ── AdMob ───────────────────────────────────────────────────────────────────
-  // Android LIVE IDs
   static const String admobAppIdAndroid          = 'ca-app-pub-2492078126313994~1571011892';
   static const String bannerAdUnitAndroid        = 'ca-app-pub-2492078126313994/7847678030';
   static const String interstitialAdUnitAndroid  = 'ca-app-pub-2492078126313994/5357246065';
@@ -187,14 +179,13 @@ class AppConfig {
   ];
 
   // ── Debug Helpers ─────────────────────────────────────────────────────────
-  /// Print current configuration (safe values only)
   static void printConfig() {
     if (kDebugMode) {
       print('=== AppConfig ===');
       print('API Base URL: ${baseUrl.isEmpty ? "NOT SET" : baseUrl}');
       print('API Prefix: $apiPrefix');
-      print('Flutterwave Key: ${flutterwavePublicKey.isEmpty ? "NOT SET" : "SET (${flutterwavePublicKey.substring(0, 10)}...)"}');
-      print('Test Mode: $flutterwaveTestMode');
+      print('Flutterwave Key: ${flutterwavePublicKey.isEmpty ? "NOT SET" : "SET"}');
+      print('Test Mode: $flutterwaveTestMode (${flutterwaveTestMode ? "TEST" : "LIVE"})');
       print('Creator Price: \$$creatorPriceUsd');
       print('Studio Price: \$$studioPriceUsd');
       print('=================');
