@@ -1,18 +1,21 @@
+
 """
 PromptReel AI — Flutterwave Payment Router
 ==========================================
-POST /api/payments/verify  — Verify a completed Flutterwave transaction and
-                              upgrade the authenticated user's plan in the DB.
-POST /api/payments/webhook — Optional Flutterwave webhook for server-side events.
-GET  /api/payments/prices  — Return current USD plan prices (for display in app).
+POST /api/payments/verify        — Verify transaction & upgrade user plan
+POST /api/payments/webhook       — Flutterwave server-side webhook
+GET  /api/payments/prices        — Return current USD plan prices
+GET  /api/payments/checkout-page — Serve Flutterwave checkout as real HTML page
 """
 import hashlib
 import hmac
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,27 +27,77 @@ from routers.auth import get_current_user
 router = APIRouter(prefix="/payments", tags=["Payments"])
 logger = logging.getLogger(__name__)
 
-FLW_VERIFY_URL = "https://api.flutterwave.com/v3/transactions/{}/verify"
+FLW_BASE_URL   = "https://api.flutterwave.com/v3"
+FLW_VERIFY_URL = f"{FLW_BASE_URL}/transactions/{{}}/verify"
 
-# ─── Schemas ─────────────────────────────────────────────────────────────────
+PLAN_PRICES_USD = {
+    "creator": 15.00,
+    "studio":  35.00,
+}
 
+AMOUNT_TOLERANCE_PCT = 0.10
+
+
+# ─── Schemas ──────────────────────────────────────────────────────────────────
 class VerifyPaymentRequest(BaseModel):
-    transaction_id: str   # Flutterwave transaction ID returned after payment
-    tx_ref: str           # Your unique tx_ref passed into the SDK
-    plan: str             # "creator" or "studio"
+    transaction_id: str
+    tx_ref:         str
+    plan:           str
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+def _expected_usd(plan: str) -> float:
+    return PLAN_PRICES_USD.get(plan, 0.0)
 
-def _expected_amount(plan: str) -> float:
+
+def _flw_headers() -> dict:
     return {
-        "creator": settings.CREATOR_PRICE_USD,
-        "studio":  settings.STUDIO_PRICE_USD,
-    }.get(plan, 0.0)
+        "Authorization": f"Bearer {settings.FLUTTERWAVE_SECRET_KEY}",
+        "Content-Type":  "application/json",
+    }
+
+
+async def _lookup_tx_by_ref(tx_ref: str) -> str:
+    """
+    Look up a Flutterwave transaction ID using tx_ref.
+    Used when the app sends transaction_id=\'0\' (Chrome browser flow).
+    """
+    logger.info(f"Looking up transaction by tx_ref: {tx_ref}")
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(
+            f"{FLW_BASE_URL}/transactions",
+            params={"tx_ref": tx_ref},
+            headers=_flw_headers(),
+        )
+
+    if resp.status_code != 200:
+        logger.error(
+            f"FLW tx_ref lookup failed: "
+            f"status={resp.status_code} body={resp.text}"
+        )
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            "Could not find your payment. "
+            "Please wait a moment and try again.",
+        )
+
+    body = resp.json()
+    data = body.get("data", [])
+
+    if not data:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Payment not found. "
+            "If you just paid, please wait 30 seconds and try again.",
+        )
+
+    tx_id = str(data[0].get("id", "0"))
+    logger.info(f"Found transaction by tx_ref: tx_id={tx_id}")
+    return tx_id
 
 
 async def _verify_with_flutterwave(transaction_id: str) -> dict:
-    """Call Flutterwave's verify endpoint and return the transaction data dict."""
+    """Call Flutterwave verify endpoint and return transaction data."""
     if not settings.FLUTTERWAVE_SECRET_KEY:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -53,30 +106,199 @@ async def _verify_with_flutterwave(transaction_id: str) -> dict:
 
     url = FLW_VERIFY_URL.format(transaction_id)
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            url,
-            headers={"Authorization": f"Bearer {settings.FLUTTERWAVE_SECRET_KEY}"},
-        )
+        resp = await client.get(url, headers=_flw_headers())
 
+    logger.info(f"FLW verify response: status={resp.status_code}")
+
+    if resp.status_code == 404:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Transaction not found. Please contact support.",
+        )
     if resp.status_code != 200:
         logger.error(f"FLW verify HTTP {resp.status_code}: {resp.text}")
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            "Could not verify payment with Flutterwave. Try again.",
+            "Could not verify payment with Flutterwave. Please try again.",
         )
 
     body = resp.json()
     if body.get("status") != "success":
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Flutterwave error: {body.get('message', 'Unknown')}",
+            f"Flutterwave error: {body.get(\'message\', \'Unknown error\')}",
         )
 
     return body.get("data", {})
 
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
+# ─── Checkout Page ────────────────────────────────────────────────────────────
+@router.get("/checkout-page", response_class=HTMLResponse)
+async def checkout_page(
+    public_key: str,
+    amount:     str,
+    email:      str,
+    name:       str,
+    tx_ref:     str,
+    plan_name:  str,
+    currency:   str = "USD",
+):
+    """
+    Serve Flutterwave checkout as a real HTTPS page.
+    The app opens this in Chrome browser via url_launcher.
+    Chrome has no popup restrictions — Flutterwave modal works perfectly.
+    """
+    safe_name     = name.replace("\'", "\\\'").replace("\"", "\\\"")
+    safe_email    = email.replace("\'", "").replace("\"", "")
+    safe_tx_ref   = tx_ref.replace("\'", "").replace("\"", "")
+    safe_plan     = plan_name.replace("\'", "").replace("\"", "")
+    safe_amount   = amount.replace("\'", "").replace("\"", "")
+    safe_currency = currency.replace("\'", "").replace("\"", "")
+    safe_key      = public_key.replace("\'", "").replace("\"", "")
 
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>PromptReel AI — Checkout</title>
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
+  <style>
+    *{{margin:0;padding:0;box-sizing:border-box;
+       -webkit-tap-highlight-color:transparent;}}
+    html,body{{width:100%;height:100%;overflow-x:hidden;}}
+    body{{
+      background:#0A0A0F;min-height:100vh;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      font-family:-apple-system,Arial,sans-serif;padding:20px;
+    }}
+    .card{{
+      background:#12121A;border:1px solid #2A2A3A;
+      border-radius:20px;padding:32px 24px;
+      width:100%;max-width:420px;text-align:center;
+    }}
+    .emoji{{font-size:44px;margin-bottom:10px;}}
+    .title{{color:#FFB830;font-size:22px;font-weight:800;margin-bottom:4px;}}
+    .sub{{color:#555;font-size:13px;margin-bottom:24px;}}
+    .pbox{{
+      background:#1A1A2E;border:1px solid #2A2A3A;
+      border-radius:12px;padding:18px;margin-bottom:24px;
+    }}
+    .price{{color:#fff;font-size:40px;font-weight:900;line-height:1;}}
+    .price span{{font-size:16px;font-weight:400;color:#666;}}
+    .badge{{
+      display:inline-block;
+      background:rgba(255,184,48,.15);color:#FFB830;
+      border:1px solid rgba(255,184,48,.3);border-radius:50px;
+      padding:3px 14px;font-size:11px;font-weight:700;
+      text-transform:uppercase;letter-spacing:1px;margin-top:8px;
+    }}
+    .btn{{
+      width:100%;padding:17px;
+      background:linear-gradient(135deg,#FFB830,#FF8C00);
+      color:#000;font-size:16px;font-weight:800;
+      border:none;border-radius:50px;cursor:pointer;
+      margin-bottom:12px;-webkit-appearance:none;
+    }}
+    .btn:disabled{{opacity:.55;cursor:not-allowed;}}
+    .lock{{color:#444;font-size:12px;margin-bottom:6px;}}
+    .status{{color:#888;font-size:13px;min-height:20px;margin-top:4px;}}
+    .spin{{
+      display:inline-block;width:16px;height:16px;
+      border:2px solid rgba(0,0,0,.25);border-top-color:#000;
+      border-radius:50%;animation:sp .7s linear infinite;
+      vertical-align:middle;margin-right:6px;
+    }}
+    @keyframes sp{{to{{transform:rotate(360deg);}}}}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="emoji">🎬</div>
+  <div class="title">PromptReel AI</div>
+  <div class="sub">AI Video Production Platform</div>
+  <div class="pbox">
+    <div class="price">${safe_amount}<span>/mo</span></div>
+    <div class="badge">{safe_plan} Plan</div>
+  </div>
+  <button class="btn" id="btn" onclick="pay()">
+    Pay Securely — ${safe_amount}
+  </button>
+  <div class="lock">🔒 Secured by Flutterwave</div>
+  <div class="status" id="st"></div>
+</div>
+
+<script>
+  function st(t) {{ document.getElementById(\'st\').textContent = t; }}
+
+  function pay() {{
+    var btn = document.getElementById(\'btn\');
+    btn.disabled  = true;
+    btn.innerHTML = \'<span class="spin"></span>Opening payment...\';
+    st(\'Connecting to Flutterwave...\');
+
+    try {{
+      FlutterwaveCheckout({{
+        public_key:      \'{safe_key}\',
+        tx_ref:          \'{safe_tx_ref}\',
+        amount:           {safe_amount},
+        currency:        \'{safe_currency}\',
+        payment_options: \'card,banktransfer,ussd,mobilemoney\',
+        redirect_url:    \'https://promptreel.ai/payment/callback\',
+        meta: {{
+          source:      \'promptreel_mobile_app\',
+          plan:        \'{safe_plan}\',
+          consumer_id: \'{safe_tx_ref}\'
+        }},
+        customer: {{
+          email:        \'{safe_email}\',
+          phone_number: \'0000000000\',
+          name:         \'{safe_name}\'
+        }},
+        customizations: {{
+          title:       \'PromptReel AI\',
+          description: \'{safe_plan} Plan — Monthly Subscription\',
+          logo:        \'https://promptreel.ai/logo.png\'
+        }},
+        callback: function(data) {{
+          var s   = data.status         || \'unknown\';
+          var tid = data.transaction_id || \'0\';
+          st(\'Payment \' + s + \'! You can return to the app.\');
+          btn.disabled    = false;
+          btn.textContent = \'✅ Payment \' + s + \' — Return to app\';
+        }},
+        onclose: function() {{
+          btn.disabled    = false;
+          btn.textContent = \'Pay Securely — ${safe_amount}\';
+          st(\'Window closed. Tap button to try again.\');
+        }}
+      }});
+      st(\'Payment window opening...\');
+    }} catch (e) {{
+      btn.disabled    = false;
+      btn.textContent = \'Retry Payment\';
+      st(\'Error: \' + e.message);
+    }}
+  }}
+
+  window.addEventListener(\'load\', function() {{
+    setTimeout(pay, 600);
+  }});
+</script>
+</body>
+</html>"""
+
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+    )
+
+
+# ─── Verify Payment ───────────────────────────────────────────────────────────
 @router.post("/verify")
 async def verify_payment(
     req: VerifyPaymentRequest,
@@ -86,10 +308,10 @@ async def verify_payment(
     """
     Called by the Flutter app immediately after Flutterwave returns a
     successful ChargeResponse.  Verifies the transaction server-side,
-    checks the amount, and upgrades the user's plan.
+    checks the amount, and upgrades the user\'s plan.
     """
     if req.plan not in ("creator", "studio"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan. Must be 'creator' or 'studio'.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan. Must be \'creator\' or \'studio\'.")
 
     tx = await _verify_with_flutterwave(req.transaction_id)
 
@@ -97,20 +319,20 @@ async def verify_payment(
     if tx.get("status") != "successful":
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Transaction status is '{tx.get('status')}', not 'successful'.",
+            f"Transaction status is \'{tx.get(\'status\')}\', not \'successful\'.",
         )
 
     # ── Validate currency ─────────────────────────────────────────────────────
     if tx.get("currency") != "USD":
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Unexpected currency '{tx.get('currency')}'. Expected USD.",
+            f"Unexpected currency \'{tx.get(\'currency\')}\'. Expected USD.",
         )
 
     # ── Validate amount (allow $0.10 tolerance for rounding) ─────────────────
-    expected = _expected_amount(req.plan)
+    expected = _expected_usd(req.plan)
     actual   = float(tx.get("amount", 0))
-    if actual < expected - 0.10:
+    if actual < expected - AMOUNT_TOLERANCE_PCT:
         logger.warning(
             f"Amount mismatch for user {current_user.id}: "
             f"expected ≥${expected}, got ${actual} (plan={req.plan})"
@@ -124,7 +346,7 @@ async def verify_payment(
     if tx.get("tx_ref") != req.tx_ref:
         logger.warning(
             f"tx_ref mismatch for user {current_user.id}: "
-            f"expected {req.tx_ref!r}, got {tx.get('tx_ref')!r}"
+            f"expected {req.tx_ref!r}, got {tx.get(\'tx_ref\')!r}"
         )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Transaction reference mismatch.")
 
@@ -163,12 +385,12 @@ async def flutterwave_webhook(
     """
     Optional: Flutterwave server-side webhook.
     Configure the URL in your Flutterwave dashboard under Settings → Webhooks.
-    Set the secret hash to match FLUTTERWAVE_SECRET_KEY.
+    Set the secret hash to match FLUTTERWAVE_WEBHOOK_HASH.
 
     This endpoint logs the event. Extend it to handle subscription renewals,
     chargebacks, etc. as your business grows.
     """
-    if not settings.FLUTTERWAVE_WEBHOOK_SECRET:
+    if not settings.FLUTTERWAVE_WEBHOOK_HASH:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Webhook secret not configured.")
 
     # Validate webhook signature using HMAC SHA512
@@ -178,7 +400,7 @@ async def flutterwave_webhook(
 
     request_body = await request.body()
     computed_hash = hmac.new(
-        settings.FLUTTERWAVE_WEBHOOK_SECRET.encode("utf-8"),
+        settings.FLUTTERWAVE_WEBHOOK_HASH.encode("utf-8"),
         msg=request_body,
         digestmod=hashlib.sha512,
     ).hexdigest()
@@ -199,11 +421,11 @@ async def flutterwave_webhook(
     logger.info(f"📡 Flutterwave webhook: event={event}, status={tx_status}, tx_ref={tx_ref}")
 
     # TODO: Implement logic for handling webhook events (e.g., subscription updates, chargebacks)
-    # For example, if event == 'charge.completed' and tx_status == 'successful':
+    # For example, if event == \'charge.completed\' and tx_status == \'successful\':
     #   - Retrieve tx_ref from payload.get("data", {}).get("tx_ref")
     #   - Query your database for the user associated with this tx_ref
-    #   - Update user's plan or subscription status
-    #   - Handle cases like 'charge.failed', 'subscription.cancelled', etc.
+    #   - Update user\'s plan or subscription status
+    #   - Handle cases like \'charge.failed\', \'subscription.cancelled\', etc.
     #   - Ensure idempotency to prevent duplicate processing of events.
 
     return {"status": "ok"}

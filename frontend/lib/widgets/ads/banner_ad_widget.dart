@@ -5,7 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/ad_service.dart';
 import '../../theme/app_theme.dart';
 
-/// Inline banner ad — auto-hides for paid users.
+// ─── Inline Banner Ad ─────────────────────────────────────────────────────────
 class BannerAdWidget extends ConsumerStatefulWidget {
   const BannerAdWidget({super.key});
 
@@ -25,11 +25,12 @@ class _BannerAdWidgetState extends ConsumerState<BannerAdWidget> {
 
   void _loadAd() {
     final user = ref.read(currentUserProvider);
-    if (user?.isPaid ?? false) return; // Skip for paid users
+    if (user?.isPaid ?? false) return;
     final ad = AdService.instance.createBannerAd();
     if (ad == null) return;
-    ad.load().then((_) {
-      if (mounted) setState(() { _ad = ad; _loaded = true; });
+    setState(() {
+      _ad     = ad;
+      _loaded = true;
     });
   }
 
@@ -59,7 +60,7 @@ class _BannerAdWidgetState extends ConsumerState<BannerAdWidget> {
   }
 }
 
-/// Sticky bottom banner — shown in footer for free users.
+// ─── Sticky Bottom Banner Ad ──────────────────────────────────────────────────
 class StickyBannerAd extends ConsumerStatefulWidget {
   final Widget child;
   const StickyBannerAd({super.key, required this.child});
@@ -83,17 +84,21 @@ class _StickyBannerAdState extends ConsumerState<StickyBannerAd> {
     if (user?.isPaid ?? false) return;
     final ad = AdService.instance.createBannerAd();
     if (ad == null) return;
-    ad.load().then((_) {
-      if (mounted) setState(() { _ad = ad; _loaded = true; });
+    setState(() {
+      _ad     = ad;
+      _loaded = true;
     });
   }
 
   @override
-  void dispose() { _ad?.dispose(); super.dispose(); }
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider);
+    final user  = ref.watch(currentUserProvider);
     final showAd = !(user?.isPaid ?? false) && _loaded && _ad != null;
 
     return Column(
@@ -105,11 +110,67 @@ class _StickyBannerAdState extends ConsumerState<StickyBannerAd> {
             height: _ad!.size.height.toDouble() + 1,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.border)),
+              border: Border(
+                  top: BorderSide(color: AppColors.border)),
             ),
             child: AdWidget(ad: _ad!),
           ),
       ],
+    );
+  }
+}
+
+// ─── Large Banner Ad (Settings / History screens) ─────────────────────────────
+class LargeBannerAd extends ConsumerStatefulWidget {
+  const LargeBannerAd({super.key});
+
+  @override
+  ConsumerState<LargeBannerAd> createState() => _LargeBannerAdState();
+}
+
+class _LargeBannerAdState extends ConsumerState<LargeBannerAd> {
+  BannerAd? _ad;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  void _load() {
+    final user = ref.read(currentUserProvider);
+    if (user?.isPaid ?? false) return;
+    final ad = AdService.instance.createBanner2Ad();
+    if (ad == null) return;
+    setState(() {
+      _ad     = ad;
+      _loaded = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider);
+    if (user?.isPaid ?? false) return const SizedBox.shrink();
+    if (!_loaded || _ad == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      height: _ad!.size.height.toDouble(),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: AdWidget(ad: _ad!),
     );
   }
 }

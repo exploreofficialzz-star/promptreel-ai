@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
+import '../screens/splash/splash_screen.dart'; // ← Added
 import '../screens/home/home_screen.dart';
 import '../screens/create/create_screen.dart';
 import '../screens/results/results_screen.dart';
@@ -17,19 +18,28 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
 
   return GoRouter(
-    initialLocation: '/home',
+    initialLocation: '/', // ← Changed to splash first
     debugLogDiagnostics: false,
     redirect: (context, state) {
-      final isLoggedIn = authState.isLoggedIn;
-      final isLoading = authState.isLoading;
-      final isAuthRoute = state.matchedLocation == '/login';
+      final isLoggedIn  = authState.isLoggedIn;
+      final isLoading   = authState.isLoading;
+      final currentPath = state.matchedLocation;
+
+      // Never redirect away from splash — it handles its own navigation
+      if (currentPath == '/') return null;
 
       if (isLoading) return null;
-      if (!isLoggedIn && !isAuthRoute) return '/login';
-      if (isLoggedIn && isAuthRoute) return '/home';
+      if (!isLoggedIn && currentPath != '/login') return '/login';
+      if (isLoggedIn && currentPath == '/login') return '/home';
       return null;
     },
     routes: [
+      // ── Splash ─────────────────────────────────────────────────────────
+      GoRoute(
+        path: '/',
+        name: 'splash',
+        builder: (_, __) => const SplashScreen(), // ← Added
+      ),
       GoRoute(
         path: '/login',
         name: 'login',
@@ -52,7 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/results/:id',
         name: 'results',
         builder: (context, state) {
-          final id = int.tryParse(state.pathParameters['id'] ?? '0') ?? 0;
+          final id      = int.tryParse(state.pathParameters['id'] ?? '0') ?? 0;
           final project = state.extra as ProjectModel?;
           return ResultsScreen(projectId: id, project: project);
         },
@@ -90,7 +100,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('404', style: TextStyle(fontSize: 64, color: Color(0xFFFFB830))),
+            const Text('404',
+                style: TextStyle(
+                    fontSize: 64, color: Color(0xFFFFB830))),
             const SizedBox(height: 16),
             Text('Page not found: ${state.matchedLocation}'),
             const SizedBox(height: 16),

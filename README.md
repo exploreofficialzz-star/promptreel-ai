@@ -356,7 +356,7 @@ flutter pub run flutter_launcher_icons
 
 ---
 
-## 🧩 TECH STACK
+## 🧩 TECH STACK  
 
 | Layer | Technology |
 |---|---|

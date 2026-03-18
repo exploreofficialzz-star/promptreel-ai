@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/ad_service.dart';
 import '../../theme/app_theme.dart';
@@ -18,17 +19,30 @@ class RewardedExportGate extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<RewardedExportGate> createState() => _RewardedExportGateState();
+  ConsumerState<RewardedExportGate> createState() =>
+      _RewardedExportGateState();
 }
 
 class _RewardedExportGateState extends ConsumerState<RewardedExportGate> {
   bool _loading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // ── Fix: Pre-load rewarded ad as soon as widget mounts ──
+    // So it's ready immediately when user taps the button
+    final user = ref.read(currentUserProvider);
+    if (!(user?.isPaid ?? false)) {
+      AdService.instance.loadRewarded();
+    }
+  }
+
   Future<void> _watchAd() async {
     setState(() => _loading = true);
     final user = ref.read(currentUserProvider);
     final rewarded = await AdService.instance.showRewarded(user);
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
+
     if (rewarded || (user?.isPaid ?? false)) {
       widget.onUnlocked();
     } else {
@@ -37,6 +51,7 @@ class _RewardedExportGateState extends ConsumerState<RewardedExportGate> {
           const SnackBar(
             content: Text('Watch the full ad to unlock your export.'),
             backgroundColor: AppColors.warning,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -47,7 +62,7 @@ class _RewardedExportGateState extends ConsumerState<RewardedExportGate> {
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
 
-    // Paid users: show button directly, no gate
+    // Paid users: show button directly — no gate
     if (user?.isPaid ?? false) {
       return AppButton(
         label: '⬇  ${widget.exportLabel}',
@@ -95,7 +110,8 @@ class _RewardedExportGateState extends ConsumerState<RewardedExportGate> {
           const SizedBox(height: 8),
           AppButton(
             label: '⭐  Upgrade for Instant Export',
-            onPressed: () => Navigator.of(context).pushNamed('/settings/plans'),
+            // ── Fix: use GoRouter instead of pushNamed ──
+            onPressed: () => context.go('/settings/plans'),
             fullWidth: true,
             variant: AppButtonVariant.outline,
           ),

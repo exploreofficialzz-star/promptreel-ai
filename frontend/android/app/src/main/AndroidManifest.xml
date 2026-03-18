@@ -1,29 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet & Network -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- ── Internet & Network ─────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
 
-    <!-- Storage (for export/download) -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
+    <!-- ── Storage (for export/download) ─────────────────────────────────── -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
 
-    <!-- Android 13+ granular media permissions -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- ── Android 13+ granular media permissions ────────────────────────── -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
 
-    <!-- Vibration for UI feedback -->
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- ── Vibration for UI feedback ─────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
 
-    <!-- AdMob requires this for ad personalization -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+    <!-- ── AdMob requires this for ad personalization ────────────────────── -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
 
     <application
-        android:name="io.flutter.app.FlutterApplication"
         android:label="PromptReel AI"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -36,20 +32,20 @@
         android:theme="@style/LaunchTheme"
         android:networkSecurityConfig="@xml/network_security_config">
 
-        <!-- AdMob App ID — REPLACE with your real App ID from AdMob console -->
+        <!-- ── AdMob App ID ──────────────────────────────────────────────── -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${admobAppId}" />
+            android:value="ca-app-pub-2492078126313994~1571011892"/>
 
-        <!-- Opt out of Ad personalization if needed -->
-        <!-- <meta-data
-            android:name="com.google.android.gms.ads.DELAY_APP_MEASUREMENT_INIT"
-            android:value="true" /> -->
-
-        <!-- Flutter engine -->
+        <!-- ── Flutter engine ───────────────────────────────────────────── -->
         <meta-data
             android:name="flutterEmbedding"
-            android:value="2" />
+            android:value="2"/>
+
+        <!-- ── WebView metrics opt-out ──────────────────────────────────── -->
+        <meta-data
+            android:name="android.webkit.WebView.MetricsOptOut"
+            android:value="true"/>
 
         <activity
             android:name=".MainActivity"
@@ -58,33 +54,31 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
 
+            <!-- ── App launcher ─────────────────────────────────────────── -->
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- Deep link support -->
+            <!-- ── Deep link support ────────────────────────────────────── -->
             <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="app.promptreel.ai" />
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="app.promptreel.ai"/>
             </intent-filter>
 
-            <!-- App link for payment callbacks -->
+            <!-- ── Payment callback deep link ───────────────────────────── -->
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="promptreel"
-                    android:host="payment" />
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="promptreel" android:host="payment"/>
             </intent-filter>
+
         </activity>
 
-        <!-- File provider for downloading/sharing exports -->
+        <!-- ── File provider for downloading/sharing exports ────────────── -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -92,14 +86,8 @@
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
+                android:resource="@xml/file_paths"/>
         </provider>
 
-        <!-- Prevents cleartext traffic in production -->
-        <meta-data
-            android:name="android.webkit.WebView.MetricsOptOut"
-            android:value="true" />
-
     </application>
-
 </manifest>

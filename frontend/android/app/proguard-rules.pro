@@ -10,7 +10,7 @@
 
 # Kotlin Coroutines
 -keepclassmembernames class kotlinx.** {
-    volatile <fields>;
+   volatile <fields>;
 }
 
 # Secure Storage
@@ -31,3 +31,12 @@
 # General Android
 -keepattributes SourceFile,LineNumberTable
 -keep public class * extends java.lang.Exception
+
+# Play Core SplitCompat - FIX for R8 error
+-keep class com.google.android.play.core.splitcompat.** { *; }
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
+
+# Flutter Play Store Split Application - FIX for R8 error
+-keep class io.flutter.app.FlutterPlayStoreSplitApplication { *; }
+-dontwarn io.flutter.app.FlutterPlayStoreSplitApplication

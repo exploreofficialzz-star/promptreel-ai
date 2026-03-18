@@ -5,8 +5,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+# ── Fix URL for asyncpg (Render gives postgres:// or postgresql://) ───────────
+def _fix_db_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgresql://") and "+asyncpg" not in url:
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    _fix_db_url(settings.DATABASE_URL),
     echo=settings.DEBUG,
     pool_size=10,
     max_overflow=20,
@@ -41,14 +51,9 @@ async def get_db() -> AsyncSession:
 
 async def create_tables():
     from models import user, project  # noqa: F401
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
-        logger.info("✅ Database tables created/verified")
-    except Exception as e:
-        # Tables or types may already exist — safe to continue
-        logger.warning(f"⚠️  create_tables warning (safe to ignore): {e}")
-        logger.info("✅ Continuing startup — tables already exist")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("✅ Database tables created/verified")
 
 
 async def drop_tables():
