@@ -749,8 +749,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   '${formState.durationMinutes} minutes'),
               _reviewRow(Icons.movie_creation_outlined, 'Generator',
                   formState.generator),
-              _reviewRow(Icons.film_outlined ?? Icons.slideshow_outlined,
-                  'Total Scenes', '$totalScenes clips × ${clipDuration}s'),
+              _reviewRow(Icons.slideshow_outlined,
+    'Total Scenes', '$totalScenes clips × ${clipDuration}s'),
               _reviewRow(
                 Icons.record_voice_over_outlined,
                 'Voice-Over',
