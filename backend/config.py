@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, List
 
 
 class Settings(BaseSettings):
@@ -11,10 +11,14 @@ class Settings(BaseSettings):
     ENVIRONMENT:  str = "production"
 
     # ── Database ──────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost/promptreel"
+    # ⚠️ REQUIRED: Set in Render dashboard
+    # Format: postgresql+asyncpg://username:password@host:port/database
+    DATABASE_URL: str
 
     # ── Security ──────────────────────────────────────────────────────────────
-    SECRET_KEY:                  str = "CHANGE-ME-IN-PRODUCTION-USE-STRONG-RANDOM-KEY"
+    # ⚠️ REQUIRED: Generate strong random key for production
+    # Use: openssl rand -hex 32
+    SECRET_KEY: str
     ALGORITHM:                   str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     REFRESH_TOKEN_EXPIRE_DAYS:   int = 30
@@ -55,13 +59,15 @@ class Settings(BaseSettings):
 
     # ── Email (Resend) ────────────────────────────────────────────────────────
     RESEND_API_KEY: Optional[str] = None
-    EMAIL_FROM:     str = "onboarding@resend.dev"  # ← no domain needed
+    EMAIL_FROM:     str = "onboarding@resend.dev"
 
     # ── Flutterwave ───────────────────────────────────────────────────────────
-    FLUTTERWAVE_SECRET_KEY:   Optional[str] = None    # sk.env_...
-    FLUTTERWAVE_PUBLIC_KEY:   Optional[str] = None    # FLWPUBK_...
-    FLUTTERWAVE_ENCRYPT_KEY:  Optional[str] = None  # ← Added
-    FLUTTERWAVE_WEBHOOK_HASH: Optional[str] = None # For webhook HMAC verification
+    # ⚠️ REQUIRED for payments to work
+    # Get from: https://dashboard.flutterwave.com → Settings → API Keys
+    FLUTTERWAVE_SECRET_KEY:   str   # Live: FLWSECK-... (NOT FLWSECK_TEST-...)
+    FLUTTERWAVE_PUBLIC_KEY:   str   # Live: FLWPUBK-... (NOT FLWPUBK_TEST-...)
+    FLUTTERWAVE_ENCRYPT_KEY:  Optional[str] = None  # Optional for now
+    FLUTTERWAVE_WEBHOOK_HASH: str   # Generate random string: openssl rand -hex 32
 
     # ── Plan Prices USD ───────────────────────────────────────────────────────
     CREATOR_PRICE_USD: float = 15.00
@@ -72,11 +78,13 @@ class Settings(BaseSettings):
     FREE_MAX_DURATION: int = 5
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = [
+    # ⚠️ Add your Render URL here or set CORS_ORIGINS in environment
+    CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:8080",
         "https://promptreel.ai",
         "https://app.promptreel.ai",
+        "https://promptreel-ai.onrender.com",  # ← Your Render backend
     ]
 
     FRONTEND_URL: str = "https://app.promptreel.ai"
@@ -84,6 +92,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        case_sensitive = False  # Allow FLUTTERWAVE_SECRET_KEY or flutterwave_secret_key
 
 
 @lru_cache()
@@ -97,4 +106,4 @@ PLAN_TIER = {
     "free":    "free",
     "creator": "creator",
     "studio":  "studio",
-    }
+}
