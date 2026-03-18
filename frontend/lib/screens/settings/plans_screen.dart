@@ -176,7 +176,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       barrierDismissible: false,
       builder: (_) => const _VerifyingDialog(),
     );
-
     try {
       await ref.read(apiServiceProvider).verifyPayment(
         transactionId: transactionId,
@@ -456,7 +455,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 }
 
-// ─── Flutterwave WebView — FULLY FIXED ───────────────────────────────────────
+// ─── Flutterwave WebView ──────────────────────────────────────────────────────
 class _FlutterwaveWebView extends StatefulWidget {
   final String email;
   final String name;
@@ -482,7 +481,6 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
   bool _hasError  = false;
   bool _timedOut  = false;
 
-  // Chrome mobile user agent — makes Flutterwave think it's a real browser
   static const _userAgent =
       'Mozilla/5.0 (Linux; Android 12; Pixel 6) '
       'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -492,11 +490,27 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
   void initState() {
     super.initState();
     _initWebView();
-    // 25 second timeout
-    Future.delayed(const Duration(seconds: 25), () {
+    Future.delayed(const Duration(seconds: 30), () {
       if (mounted && _isLoading && !_hasError) {
         setState(() { _isLoading = false; _timedOut = true; });
       }
+    });
+  }
+
+  // ── Build checkout URL — loads from backend as REAL https:// URL ──────────
+  // This is the KEY FIX: loadRequest() instead of loadHtmlString()
+  // Flutterwave modal REQUIRES a real URL context — about:srcdoc blocks it
+  Uri _buildCheckoutUrl() {
+    return Uri.parse(
+      '${AppConfig.baseUrl}/api/payments/checkout-page',
+    ).replace(queryParameters: {
+      'public_key': AppConfig.flutterwavePublicKey,
+      'amount':     widget.amount,
+      'email':      widget.email,
+      'name':       widget.name,
+      'tx_ref':     widget.txRef,
+      'plan_name':  widget.planName,
+      'currency':   'USD',
     });
   }
 
@@ -505,12 +519,9 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF0A0A0F))
       ..setUserAgent(_userAgent)
-
-      // ── Allow JS dialogs (Flutterwave uses these) ──────────────────
       ..setOnJavaScriptAlertDialog((req) async => true)
       ..setOnJavaScriptConfirmDialog((req) async => true)
       ..setOnJavaScriptTextInputDialog((req) async => '')
-
       ..addJavaScriptChannel(
         'PaymentResult',
         onMessageReceived: (msg) {
@@ -519,7 +530,8 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
           final transactionId = parts.length > 1 ? parts[1] : '0';
           if (mounted) {
             Navigator.of(context).pop({
-              'status': status, 'transaction_id': transactionId,
+              'status':         status,
+              'transaction_id': transactionId,
             });
           }
         },
@@ -532,21 +544,20 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
           if (mounted) setState(() => _isLoading = false);
         },
         onWebResourceError: (error) {
-          // Only show error for main frame failures
           if (error.isForMainFrame == true && mounted) {
             setState(() { _isLoading = false; _hasError = true; });
           }
         },
         onNavigationRequest: (req) {
           final url = req.url;
-          // Catch payment callback
           if (url.contains('promptreel.ai/payment/callback')) {
             final uri    = Uri.parse(url);
             final status = uri.queryParameters['status'] ?? '';
             final txId   = uri.queryParameters['transaction_id'] ?? '0';
             if (mounted) {
               Navigator.of(context).pop({
-                'status': status, 'transaction_id': txId,
+                'status':         status,
+                'transaction_id': txId,
               });
             }
             return NavigationDecision.prevent;
@@ -554,9 +565,11 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
           return NavigationDecision.navigate;
         },
       ))
-      ..loadHtmlString(_buildHtml());
+      // ── KEY FIX: loadRequest loads from real HTTPS URL ─────────────────
+      // Flutterwave JS modal works on real pages, not about:srcdoc
+      ..loadRequest(_buildCheckoutUrl());
 
-    // ── Enable Android-specific settings ──────────────────────────────
+    // ── Android-specific settings ──────────────────────────────────────────
     final platform = _controller.platform;
     if (platform is AndroidWebViewController) {
       AndroidWebViewController.enableDebugging(false);
@@ -570,185 +583,8 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       _hasError  = false;
       _timedOut  = false;
     });
-    _controller.loadHtmlString(_buildHtml());
-  }
-
-  String _buildHtml() {
-    final key      = AppConfig.flutterwavePublicKey;
-    final amount   = widget.amount;
-    final email    = widget.email;
-    final name     = widget.name.replaceAll("'", "\\'")
-        .replaceAll('"', '\\"');
-    final txRef    = widget.txRef;
-    final planName = widget.planName;
-
-    return '''
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PromptReel Payment</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-    html, body { width:100%; height:100%; overflow-x:hidden; }
-    body {
-      background:#0A0A0F;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      font-family:-apple-system,Arial,sans-serif;
-      padding:24px; min-height:100vh;
-    }
-    .card {
-      background:#12121A; border:1px solid #2A2A3A;
-      border-radius:20px; padding:32px 24px;
-      width:100%; max-width:420px; text-align:center;
-    }
-    .emoji  { font-size:44px; margin-bottom:10px; }
-    .title  { color:#FFB830; font-size:22px; font-weight:800; margin-bottom:4px; }
-    .sub    { color:#555; font-size:13px; margin-bottom:24px; }
-    .pbox   {
-      background:#1A1A2E; border:1px solid #2A2A3A;
-      border-radius:12px; padding:18px; margin-bottom:24px;
-    }
-    .price  { color:#fff; font-size:40px; font-weight:900; line-height:1; }
-    .price span { font-size:16px; font-weight:400; color:#666; }
-    .badge  {
-      display:inline-block; background:rgba(255,184,48,.15);
-      color:#FFB830; border:1px solid rgba(255,184,48,.3);
-      border-radius:50px; padding:3px 14px; font-size:11px;
-      font-weight:700; text-transform:uppercase; letter-spacing:1px;
-      margin-top:8px;
-    }
-    .btn {
-      width:100%; padding:17px;
-      background:linear-gradient(135deg,#FFB830,#FF8C00);
-      color:#000; font-size:16px; font-weight:800;
-      border:none; border-radius:50px; cursor:pointer;
-      margin-bottom:14px; -webkit-appearance:none;
-    }
-    .btn:disabled { opacity:.55; }
-    .lock   { color:#444; font-size:12px; margin-bottom:8px; }
-    .status { color:#888; font-size:13px; min-height:18px; margin-top:6px; }
-    .spin {
-      display:inline-block; width:16px; height:16px;
-      border:2px solid rgba(0,0,0,.25); border-top-color:#000;
-      border-radius:50%; animation:sp .7s linear infinite;
-      vertical-align:middle; margin-right:6px;
-    }
-    @keyframes sp { to { transform:rotate(360deg); } }
-  </style>
-</head>
-<body>
-<div class="card">
-  <div class="emoji">🎬</div>
-  <div class="title">PromptReel AI</div>
-  <div class="sub">AI Video Production Platform</div>
-  <div class="pbox">
-    <div class="price">\$$amount<span>/mo</span></div>
-    <div class="badge">$planName Plan</div>
-  </div>
-  <button class="btn" id="btn" onclick="pay()">
-    Pay Securely — \$$amount
-  </button>
-  <div class="lock">🔒 Secured by Flutterwave</div>
-  <div class="status" id="status"></div>
-</div>
-
-<script>
-var loaded = false;
-
-// Load Flutterwave script
-(function(){
-  var s = document.createElement('script');
-  s.src = 'https://checkout.flutterwave.com/v3.js';
-  s.async = true;
-  s.onload = function(){
-    loaded = true;
-    setStatus('Ready — tap button to pay');
-    // Auto-trigger
-    setTimeout(pay, 800);
-  };
-  s.onerror = function(){
-    setStatus('⚠️ Could not load payment. Check internet.');
-    document.getElementById('btn').disabled = false;
-    document.getElementById('btn').textContent = 'Retry';
-  };
-  document.head.appendChild(s);
-})();
-
-function setStatus(t){ document.getElementById('status').textContent = t; }
-
-function pay(){
-  if(!loaded){
-    setStatus('Loading payment SDK...');
-    return;
-  }
-  var btn = document.getElementById('btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>Opening payment...';
-  setStatus('Connecting to Flutterwave...');
-
-  try {
-    FlutterwaveCheckout({
-      public_key:      "$key",
-      tx_ref:          "$txRef",
-      amount:           $amount,
-      currency:        "USD",
-      payment_options: "card,banktransfer,ussd,mobilemoney",
-      redirect_url:    "https://promptreel.ai/payment/callback",
-      meta: {
-        source:      "promptreel_app",
-        plan:        "$planName",
-        consumer_id: "$txRef"
-      },
-      customer: {
-        email:        "$email",
-        phone_number: "0000000000",
-        name:         "$name"
-      },
-      customizations: {
-        title:       "PromptReel AI",
-        description: "$planName Plan — Monthly",
-        logo:        "https://promptreel.ai/logo.png"
-      },
-      callback: function(d){
-        var st  = d.status          || 'unknown';
-        var tid = d.transaction_id  || '0';
-        setStatus('Payment ' + st + '...');
-        send(st + '|' + tid);
-      },
-      onclose: function(){
-        btn.disabled = false;
-        btn.textContent = 'Pay Securely — \$$amount';
-        setStatus('Payment window closed.');
-        send('cancelled|0');
-      }
-    });
-    setStatus('Payment window opening...');
-  } catch(e){
-    btn.disabled = false;
-    btn.textContent = 'Retry Payment';
-    setStatus('Error: ' + e.message);
-  }
-}
-
-function send(msg){
-  if(window.PaymentResult){
-    window.PaymentResult.postMessage(msg);
-  } else {
-    var st  = msg.split('|')[0];
-    var tid = msg.split('|')[1] || '0';
-    window.location.href =
-      'https://promptreel.ai/payment/callback?status='
-      + st + '&transaction_id=' + tid;
-  }
-}
-</script>
-</body>
-</html>
-''';
+    // ── Also use loadRequest for retry ─────────────────────────────────────
+    _controller.loadRequest(_buildCheckoutUrl());
   }
 
   @override
@@ -789,11 +625,11 @@ function send(msg){
       ),
       body: Stack(
         children: [
-          // ── WebView ─────────────────────────────────────────────────────
+          // ── WebView ────────────────────────────────────────────────────
           if (!_timedOut && !_hasError)
             WebViewWidget(controller: _controller),
 
-          // ── Initial loading overlay ──────────────────────────────────────
+          // ── Loading overlay ────────────────────────────────────────────
           if (_isLoading && !_timedOut && !_hasError)
             Container(
               color: const Color(0xFF0A0A0F),
@@ -824,7 +660,7 @@ function send(msg){
               ),
             ),
 
-          // ── Error / Timeout screen ───────────────────────────────────────
+          // ── Error / Timeout screen ─────────────────────────────────────
           if (_timedOut || _hasError)
             Container(
               color: const Color(0xFF0A0A0F),
@@ -862,7 +698,7 @@ function send(msg){
                             horizontal: 40, vertical: 16),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(colors: [
-                            Color(0xFFFFB830), Color(0xFFFF8C00)
+                            Color(0xFFFFB830), Color(0xFFFF8C00),
                           ]),
                           borderRadius: BorderRadius.circular(50),
                         ),
@@ -953,7 +789,8 @@ class _PlanCard extends StatelessWidget {
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: AppColors.success.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(AppRadius.full),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.full),
                             ),
                             child: Text('Your current plan',
                                 style: AppTypography.labelSmall
@@ -1009,7 +846,8 @@ class _PlanCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.check_circle_rounded, size: 16, color: color),
+                    Icon(Icons.check_circle_rounded,
+                        size: 16, color: color),
                     const SizedBox(width: 8),
                     Expanded(child: Text(f as String,
                         style: AppTypography.bodySmall
@@ -1131,7 +969,8 @@ class _VerifyingDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Verifying Payment…', style: AppTypography.titleLarge),
+            Text('Verifying Payment…',
+                style: AppTypography.titleLarge),
             const SizedBox(height: 6),
             Text('Please wait while we confirm\nyour payment.',
                 style: AppTypography.bodySmall,
