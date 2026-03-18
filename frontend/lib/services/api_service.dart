@@ -303,26 +303,58 @@ class ApiService {
     return res.data ?? '';
   }
 
-  // ── Plans ──────────────────────────────────────────────────────────────────
+  // ─── PAYMENTS ───────────────────────────────────────────────────────────────
+
+  /// Get available plans from backend ($15 Creator, $35 Studio)
   Future<Map<String, dynamic>> getPlans() async {
-    final res = await _dio.get('/plans');
+    final res = await _dio.get('/payments/plans');
     return res.data;
   }
 
-  // ── Payments ───────────────────────────────────────────────────────────────
-  Future<Map<String, dynamic>> verifyPayment({
-    required String transactionId,
-    required String txRef,
-    required String plan,
+  /// Get available payment methods for a currency
+  Future<Map<String, dynamic>> getPaymentMethods({
+    String currency = 'USD',
   }) async {
-    final res = await _dio.post('/payments/verify', data: {
-      'transaction_id': transactionId,
-      'tx_ref':         txRef,
-      'plan':           plan,
+    final res = await _dio.get('/payments/methods', queryParameters: {
+      'currency': currency,
     });
     return res.data;
   }
 
+  /// Create checkout session and get payment link
+  Future<Map<String, dynamic>> createCheckout({
+    required String planId,
+    required String email,
+    required String name,
+    required String currency,
+  }) async {
+    final res = await _dio.post('/payments/checkout', data: {
+      'plan_id': planId,
+      'email': email,
+      'name': name,
+      'currency': currency,
+    });
+    return res.data;
+  }
+
+  /// Verify payment after user completes it in browser
+  /// 
+  /// [transactionId] can be "0" or "pending" if not available yet
+  /// Backend will look up by txRef if needed
+  Future<Map<String, dynamic>> verifyPayment({
+    required String txRef,
+    required String planId,
+    String transactionId = '0', // Default to '0' - backend will lookup by txRef
+  }) async {
+    final res = await _dio.post('/payments/verify', data: {
+      'transaction_id': transactionId,
+      'tx_ref': txRef,
+      'plan_id': planId, // Changed from 'plan' to 'plan_id' to match backend
+    });
+    return res.data;
+  }
+
+  /// Get current payment prices (legacy endpoint)
   Future<Map<String, dynamic>> getPaymentPrices() async {
     final res = await _dio.get('/payments/prices');
     return res.data;
@@ -334,21 +366,25 @@ class ApiService {
       if (error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.sendTimeout) {
-        return 'Generation is taking longer than expected. Please try again.';
+        return 'Connection timed out. Please try again.';
       }
       final data = error.response?.data;
       if (data is Map && data['detail'] != null)
         return data['detail'].toString();
       if (data is Map && data['message'] != null)
         return data['message'].toString();
+      if (error.response?.statusCode == 402)
+        return 'Payment required or verification failed.';
       if (error.response?.statusCode == 429)
         return 'Daily limit reached. Upgrade your plan.';
       if (error.response?.statusCode == 403)
         return 'Upgrade your plan to access this feature.';
       if (error.response?.statusCode == 401)
         return 'Session expired. Please log in again.';
+      if (error.response?.statusCode == 503)
+        return 'Payment service temporarily unavailable.';
       if (error.response?.statusCode == 500)
-        return 'AI generation failed. Please try again.';
+        return 'Server error. Please try again.';
       return error.message ?? 'Network error. Please try again.';
     }
     return error.toString();
