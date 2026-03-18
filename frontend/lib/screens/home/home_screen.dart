@@ -141,8 +141,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        border:
-            Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(
+            color: AppColors.primary.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withOpacity(0.08),
@@ -164,13 +164,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color:
-                            AppColors.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(
-                            AppRadius.full),
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius:
+                            BorderRadius.circular(AppRadius.full),
                         border: Border.all(
-                            color: AppColors.primary
-                                .withOpacity(0.3)),
+                            color:
+                                AppColors.primary.withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -188,8 +187,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             (user?.plan.toUpperCase() ?? 'FREE') +
                                 ' PLAN',
                             style: AppTypography.labelSmall
-                                .copyWith(
-                                    color: AppColors.primary),
+                                .copyWith(color: AppColors.primary),
                           ),
                         ],
                       ),
@@ -200,10 +198,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       style: AppTypography.displaySmall,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      AppConfig.tagline,
-                      style: AppTypography.bodySmall,
-                    ),
+                    Text(AppConfig.tagline,
+                        style: AppTypography.bodySmall),
                   ],
                 ),
               ),
@@ -279,15 +275,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Quick Ideas',
-                style: AppTypography.headlineMedium),
+            Text('Quick Ideas', style: AppTypography.headlineMedium),
             GestureDetector(
               onTap: () => context.go('/create'),
-              child: Text(
-                'Custom →',
-                style: AppTypography.labelMedium
-                    .copyWith(color: AppColors.primary),
-              ),
+              child: Text('Custom →',
+                  style: AppTypography.labelMedium
+                      .copyWith(color: AppColors.primary)),
             ),
           ],
         ),
@@ -299,8 +292,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () =>
-                      context.go('/create', extra: e.value['text']),
+                  onTap: () => context.go('/create',
+                      extra: e.value['text']),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
@@ -308,21 +301,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       color: AppColors.surfaceElevated,
                       borderRadius:
                           BorderRadius.circular(AppRadius.md),
-                      border:
-                          Border.all(color: AppColors.border),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       children: [
                         Text(e.value['emoji']!,
-                            style:
-                                const TextStyle(fontSize: 18)),
+                            style: const TextStyle(fontSize: 18)),
                         const SizedBox(width: 8),
                         Text(
                           e.value['text']!,
-                          style: AppTypography.bodySmall
-                              .copyWith(
-                                  color:
-                                      AppColors.textPrimary),
+                          style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textPrimary),
                         ),
                       ],
                     ),
@@ -330,8 +319,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               )
                   .animate(
-                      delay: Duration(
-                          milliseconds: e.key * 60))
+                      delay: Duration(milliseconds: e.key * 60))
                   .fadeIn()
                   .slideX(begin: 0.1);
             }).toList(),
@@ -354,11 +342,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 style: AppTypography.headlineMedium),
             GestureDetector(
               onTap: () => context.go('/projects'),
-              child: Text(
-                'View all →',
-                style: AppTypography.labelMedium
-                    .copyWith(color: AppColors.primary),
-              ),
+              child: Text('View all →',
+                  style: AppTypography.labelMedium
+                      .copyWith(color: AppColors.primary)),
             ),
           ],
         ),
@@ -399,13 +385,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: AppColors.primary, size: 28),
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('No projects yet',
-              style: AppTypography.titleMedium),
+          Text('No projects yet', style: AppTypography.titleMedium),
           const SizedBox(height: 4),
-          Text(
-            'Create your first video plan to get started',
-            style: AppTypography.bodySmall,
-          ),
+          Text('Create your first video plan to get started',
+              style: AppTypography.bodySmall),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: 'Create Your First Plan',
@@ -432,7 +415,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-// ─── Project Tile — ConsumerWidget to access ad service ───────────────────────
+// ─── Project Tile ─────────────────────────────────────────────────────────────
 class _ProjectTile extends ConsumerWidget {
   final ProjectModel project;
   const _ProjectTile({required this.project});
@@ -440,13 +423,24 @@ class _ProjectTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return AppCard(
-      onTap: () async {
-        // Show interstitial ad for free users before opening project
-        final user = ref.read(currentUserProvider);
-        await AdService.instance.showProjectViewInterstitial(user);
-        if (context.mounted) {
-          context.go('/results/${project.id}', extra: project);
+      onTap: () {
+        final user      = ref.read(currentUserProvider);
+        final projectId = project.id;
+        final projectData = project;
+
+        if (user?.isPaid ?? false) {
+          // Paid users — go directly, no ad
+          context.go('/results/$projectId', extra: projectData);
+          return;
         }
+
+        // ── Free users ────────────────────────────────────────────────────
+        // Navigate FIRST so project data is preserved in route state,
+        // then show ad on top — user sees results when ad dismisses
+        context.go('/results/$projectId', extra: projectData);
+
+        // Show ad after navigation — it appears on top of results screen
+        AdService.instance.showProjectViewInterstitial(user);
       },
       child: Row(
         children: [
@@ -513,8 +507,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -540,8 +533,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       width: 8,
       height: 8,
-      decoration:
-          BoxDecoration(color: color, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }
