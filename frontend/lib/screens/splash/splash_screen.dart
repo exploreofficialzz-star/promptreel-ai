@@ -21,17 +21,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _init() async {
-    // Initialize AdMob while splash is showing
-    await AdService.instance.initialize();
+    // Initialize AdMob in background while splash shows
+    AdService.instance.initialize();
 
     // Minimum splash duration
-    await Future.delayed(const Duration(milliseconds: 2800));
+    await Future.delayed(const Duration(milliseconds: 3000));
 
     if (!mounted) return;
 
     // Check auth and navigate
     final isLoggedIn =
         await ref.read(apiServiceProvider).isLoggedIn();
+
     if (!mounted) return;
 
     if (isLoggedIn) {
@@ -44,6 +45,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0F),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -52,143 +54,166 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
+              Color(0xFF0D0D1A),
               Color(0xFF0A0A0F),
-              Color(0xFF12121A),
-              Color(0xFF0A0A0F),
+              Color(0xFF0D0D1A),
             ],
           ),
         ),
         child: SafeArea(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Spacer(flex: 2),
+              const Spacer(flex: 3),
 
-              // ── App Icon ────────────────────────────────────────────────
+              // ── App Icon ──────────────────────────────────────────────────
               Container(
-                width: 120,
-                height: 120,
+                width: 130,
+                height: 130,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          const Color(0xFFFFB830).withOpacity(0.4),
-                      blurRadius: 40,
-                      spreadRadius: 8,
+                      color: const Color(0xFF9B59B6).withOpacity(0.5),
+                      blurRadius: 50,
+                      spreadRadius: 10,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF3498DB).withOpacity(0.3),
+                      blurRadius: 30,
+                      spreadRadius: 5,
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(30),
                   child: Image.asset(
                     'assets/icon/app_icon.png',
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: const Icon(
-                        Icons.movie_filter_rounded,
-                        size: 60,
-                        color: Colors.black,
-                      ),
-                    ),
+                    errorBuilder: (_, __, ___) {
+                      // Fallback if image not found
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF9B59B6),
+                              Color(0xFF3498DB),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Icon(
+                          Icons.movie_filter_rounded,
+                          size: 65,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
                   ),
                 ),
               )
                   .animate()
                   .scale(
-                    begin: const Offset(0.5, 0.5),
-                    duration: 700.ms,
+                    begin: const Offset(0.3, 0.3),
+                    end: const Offset(1.0, 1.0),
+                    duration: 800.ms,
                     curve: Curves.elasticOut,
                   )
-                  .fadeIn(duration: 400.ms),
+                  .fadeIn(duration: 500.ms),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 32),
 
-              // ── App Name ─────────────────────────────────────────────────
+              // ── App Name ──────────────────────────────────────────────────
               ShaderMask(
                 shaderCallback: (bounds) =>
                     AppColors.primaryGradient.createShader(bounds),
                 child: const Text(
                   'PromptReel AI',
                   style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 38,
+                    fontWeight: FontWeight.w900,
                     color: Colors.white,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.5,
                   ),
                 ),
               )
-                  .animate(delay: 300.ms)
-                  .fadeIn(duration: 600.ms)
-                  .slideY(begin: 0.3, end: 0),
+                  .animate(delay: 400.ms)
+                  .fadeIn(duration: 700.ms)
+                  .slideY(begin: 0.4, end: 0,
+                      curve: Curves.easeOutCubic),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
-              // ── Tagline ──────────────────────────────────────────────────
-              Text(
-                'Turn simple ideas into complete\nAI video production plans.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.55),
-                  height: 1.5,
-                  letterSpacing: 0.3,
+              // ── Tagline ───────────────────────────────────────────────────
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  'Turn simple ideas into complete\nAI video production plans.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.white.withOpacity(0.55),
+                    height: 1.6,
+                    letterSpacing: 0.3,
+                  ),
                 ),
               )
-                  .animate(delay: 500.ms)
-                  .fadeIn(duration: 600.ms)
+                  .animate(delay: 600.ms)
+                  .fadeIn(duration: 700.ms)
                   .slideY(begin: 0.3, end: 0),
 
-              const Spacer(flex: 2),
+              const Spacer(flex: 3),
 
-              // ── Loading Bar ──────────────────────────────────────────────
-              SizedBox(
-                width: 40,
-                height: 3,
+              // ── Loading Bar ───────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 80),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
+                    minHeight: 3,
                     backgroundColor:
-                        Colors.white.withOpacity(0.1),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFFFFB830),
+                        Colors.white.withOpacity(0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
                     ),
                   ),
                 ),
-              ).animate(delay: 800.ms).fadeIn(duration: 400.ms),
+              ).animate(delay: 900.ms).fadeIn(duration: 500.ms),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
-              // ── Footer ───────────────────────────────────────────────────
+              // ── Footer ────────────────────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     'Made with ',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.35),
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.3),
+                      letterSpacing: 0.3,
                     ),
                   ),
-                  const Text('❤️',
-                      style: TextStyle(fontSize: 12)),
+                  const Text(
+                    '❤️',
+                    style: TextStyle(fontSize: 13),
+                  ),
                   Text(
                     ' by chAs Tech Group',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.35),
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.3),
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ],
               )
-                  .animate(delay: 900.ms)
-                  .fadeIn(duration: 600.ms),
+                  .animate(delay: 1000.ms)
+                  .fadeIn(duration: 700.ms),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 36),
             ],
           ),
         ),
