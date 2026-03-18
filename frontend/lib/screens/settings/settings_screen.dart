@@ -8,6 +8,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/ads/banner_ad_widget.dart'; // ← Added
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -39,23 +40,31 @@ class SettingsScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.md),
                     _PlanCard(user: user),
                     const SizedBox(height: AppSpacing.md),
+
+                    // ── Large Banner Ad (free users only) ──────────────────
+                    const LargeBannerAd(), // ← Added
+                    const SizedBox(height: AppSpacing.md),
+
                     _SettingsGroup(
                       title: 'Account',
                       items: [
                         _SettingsItem(
                           icon: Icons.person_outline,
                           label: 'Edit Profile',
-                          onTap: () => _showEditProfileSheet(context, ref, user),
+                          onTap: () =>
+                              _showEditProfileSheet(context, ref, user),
                         ),
                         _SettingsItem(
                           icon: Icons.lock_outline,
                           label: 'Change Password',
-                          onTap: () => _showChangePasswordSheet(context, ref),
+                          onTap: () =>
+                              _showChangePasswordSheet(context, ref),
                         ),
                         _SettingsItem(
                           icon: Icons.notifications_outlined,
                           label: 'Notifications',
-                          onTap: () => _showNotificationsSheet(context, ref),
+                          onTap: () =>
+                              _showNotificationsSheet(context, ref),
                         ),
                       ],
                     ),
@@ -67,7 +76,8 @@ class SettingsScreen extends ConsumerWidget {
                           icon: Icons.smart_toy_outlined,
                           label: 'AI Models',
                           trailing: 'GPT-4o · Claude · Grok',
-                          onTap: () => context.go('/settings/ai-models'),
+                          onTap: () =>
+                              context.go('/settings/ai-models'),
                         ),
                         _SettingsItem(
                           icon: Icons.build_outlined,
@@ -77,17 +87,20 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingsItem(
                           icon: Icons.help_outline,
                           label: 'Help & FAQ',
-                          onTap: () => launchUrl(Uri.parse('https://promptreel.ai/help')),
+                          onTap: () => launchUrl(
+                              Uri.parse('https://promptreel.ai/help')),
                         ),
                         _SettingsItem(
                           icon: Icons.privacy_tip_outlined,
                           label: 'Privacy Policy',
-                          onTap: () => launchUrl(Uri.parse('https://promptreel.ai/privacy')),
+                          onTap: () => launchUrl(
+                              Uri.parse('https://promptreel.ai/privacy')),
                         ),
                         _SettingsItem(
                           icon: Icons.description_outlined,
                           label: 'Terms of Service',
-                          onTap: () => launchUrl(Uri.parse('https://promptreel.ai/terms')),
+                          onTap: () => launchUrl(
+                              Uri.parse('https://promptreel.ai/terms')),
                         ),
                       ],
                     ),
@@ -98,16 +111,20 @@ class SettingsScreen extends ConsumerWidget {
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Sign Out'),
-                            content: const Text('Are you sure you want to sign out?'),
+                            content: const Text(
+                                'Are you sure you want to sign out?'),
                             actions: [
                               TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
+                                onPressed: () =>
+                                    Navigator.pop(ctx, false),
                                 child: const Text('Cancel'),
                               ),
                               TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
+                                onPressed: () =>
+                                    Navigator.pop(ctx, true),
                                 child: const Text('Sign Out',
-                                    style: TextStyle(color: AppColors.error)),
+                                    style: TextStyle(
+                                        color: AppColors.error)),
                               ),
                             ],
                           ),
@@ -119,7 +136,8 @@ class SettingsScreen extends ConsumerWidget {
                       },
                       child: Row(
                         children: [
-                          const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
+                          const Icon(Icons.logout_rounded,
+                              color: AppColors.error, size: 20),
                           const SizedBox(width: 12),
                           Text('Sign Out',
                               style: AppTypography.titleMedium
@@ -131,7 +149,8 @@ class SettingsScreen extends ConsumerWidget {
                     Center(
                       child: Column(
                         children: [
-                          Text('PromptReel AI v1.0.0', style: AppTypography.bodySmall),
+                          Text('PromptReel AI v1.0.0',
+                              style: AppTypography.bodySmall),
                           const SizedBox(height: 4),
                           Text('Made with ❤️ by chAs Tech Group',
                               style: AppTypography.bodySmall),
@@ -149,9 +168,10 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   // ── Edit Profile Sheet ─────────────────────────────────────────────────────
-  void _showEditProfileSheet(BuildContext context, WidgetRef ref, dynamic user) {
+  void _showEditProfileSheet(
+      BuildContext context, WidgetRef ref, dynamic user) {
     final nameCtrl = TextEditingController(text: user?.name ?? '');
-    final formKey = GlobalKey<FormState>();
+    final formKey  = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -183,7 +203,8 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 20),
               Text('Edit Profile', style: AppTypography.headlineMedium),
               const SizedBox(height: 4),
-              Text('Update your display name', style: AppTypography.bodySmall),
+              Text('Update your display name',
+                  style: AppTypography.bodySmall),
               const SizedBox(height: 24),
               TextFormField(
                 controller: nameCtrl,
@@ -200,7 +221,6 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 8),
-              // Email shown as read-only — cannot be changed
               TextFormField(
                 initialValue: user?.email ?? '',
                 readOnly: true,
@@ -227,7 +247,8 @@ class SettingsScreen extends ConsumerWidget {
                     }
                   } catch (e) {
                     if (ctx.mounted) {
-                      _showSnack(context, ApiService.extractError(e), isError: true);
+                      _showSnack(context, ApiService.extractError(e),
+                          isError: true);
                     }
                   }
                 },
@@ -242,9 +263,9 @@ class SettingsScreen extends ConsumerWidget {
   // ── Change Password Sheet ──────────────────────────────────────────────────
   void _showChangePasswordSheet(BuildContext context, WidgetRef ref) {
     final currentCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
+    final newCtrl     = TextEditingController();
     final confirmCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+    final formKey     = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -256,7 +277,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
           bool showCurrent = false;
-          bool showNew = false;
+          bool showNew     = false;
 
           return Padding(
             padding: EdgeInsets.only(
@@ -279,9 +300,11 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text('Change Password', style: AppTypography.headlineMedium),
+                  Text('Change Password',
+                      style: AppTypography.headlineMedium),
                   const SizedBox(height: 4),
-                  Text('Enter your current password then set a new one',
+                  Text(
+                      'Enter your current password then set a new one',
                       style: AppTypography.bodySmall),
                   const SizedBox(height: 24),
                   TextFormField(
@@ -295,11 +318,13 @@ class SettingsScreen extends ConsumerWidget {
                         icon: Icon(showCurrent
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined),
-                        onPressed: () => setState(() => showCurrent = !showCurrent),
+                        onPressed: () => setState(
+                            () => showCurrent = !showCurrent),
                       ),
                     ),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Enter your current password' : null,
+                    validator: (v) => v == null || v.isEmpty
+                        ? 'Enter your current password'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -308,12 +333,14 @@ class SettingsScreen extends ConsumerWidget {
                     style: AppTypography.bodyLarge,
                     decoration: InputDecoration(
                       labelText: 'New Password',
-                      prefixIcon: const Icon(Icons.lock_reset_outlined),
+                      prefixIcon:
+                          const Icon(Icons.lock_reset_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(showNew
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined),
-                        onPressed: () => setState(() => showNew = !showNew),
+                        onPressed: () =>
+                            setState(() => showNew = !showNew),
                       ),
                     ),
                     validator: (v) {
@@ -332,10 +359,9 @@ class SettingsScreen extends ConsumerWidget {
                       labelText: 'Confirm New Password',
                       prefixIcon: Icon(Icons.check_circle_outline),
                     ),
-                    validator: (v) {
-                      if (v != newCtrl.text) return 'Passwords do not match';
-                      return null;
-                    },
+                    validator: (v) => v != newCtrl.text
+                        ? 'Passwords do not match'
+                        : null,
                   ),
                   const SizedBox(height: 24),
                   _SubmitButton(
@@ -343,17 +369,21 @@ class SettingsScreen extends ConsumerWidget {
                     onPressed: () async {
                       if (!formKey.currentState!.validate()) return;
                       try {
-                        await ref.read(apiServiceProvider).updateProfile(
-                          currentPassword: currentCtrl.text,
-                          newPassword: newCtrl.text,
-                        );
+                        await ref
+                            .read(apiServiceProvider)
+                            .updateProfile(
+                              currentPassword: currentCtrl.text,
+                              newPassword: newCtrl.text,
+                            );
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
-                          _showSnack(context, '✅ Password updated successfully!');
+                          _showSnack(context,
+                              '✅ Password updated successfully!');
                         }
                       } catch (e) {
                         if (ctx.mounted) {
-                          _showSnack(context, ApiService.extractError(e),
+                          _showSnack(
+                              context, ApiService.extractError(e),
                               isError: true);
                         }
                       }
@@ -381,30 +411,33 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showSnack(BuildContext context, String msg, {bool isError = false}) {
+  void _showSnack(BuildContext context, String msg,
+      {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: isError ? AppColors.error : AppColors.success,
+        backgroundColor:
+            isError ? AppColors.error : AppColors.success,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 }
 
-// ── Notifications Sheet Widget (StatefulWidget for toggles) ──────────────────
+// ── Notifications Sheet ───────────────────────────────────────────────────────
 class _NotificationsSheet extends ConsumerStatefulWidget {
   @override
   ConsumerState<_NotificationsSheet> createState() =>
       _NotificationsSheetState();
 }
 
-class _NotificationsSheetState extends ConsumerState<_NotificationsSheet> {
+class _NotificationsSheetState
+    extends ConsumerState<_NotificationsSheet> {
   bool _generationComplete = true;
-  bool _dailyReminder = false;
-  bool _productUpdates = true;
-  bool _promotions = false;
-  bool _isSaving = false;
+  bool _dailyReminder      = false;
+  bool _productUpdates     = true;
+  bool _promotions         = false;
+  bool _isSaving           = false;
 
   @override
   void initState() {
@@ -414,30 +447,30 @@ class _NotificationsSheetState extends ConsumerState<_NotificationsSheet> {
 
   Future<void> _loadPrefs() async {
     try {
-      final prefs =
-          await ref.read(apiServiceProvider).getNotificationPreferences();
+      final prefs = await ref
+          .read(apiServiceProvider)
+          .getNotificationPreferences();
       if (mounted) {
         setState(() {
-          _generationComplete =
-              prefs['generation_complete'] ?? true;
-          _dailyReminder = prefs['daily_reminder'] ?? false;
-          _productUpdates = prefs['product_updates'] ?? true;
-          _promotions = prefs['promotions'] ?? false;
+          _generationComplete = prefs['generation_complete'] ?? true;
+          _dailyReminder      = prefs['daily_reminder'] ?? false;
+          _productUpdates     = prefs['product_updates'] ?? true;
+          _promotions         = prefs['promotions'] ?? false;
         });
       }
-    } catch (_) {
-      // Use defaults if endpoint not yet available
-    }
+    } catch (_) {}
   }
 
   Future<void> _save() async {
     setState(() => _isSaving = true);
     try {
-      await ref.read(apiServiceProvider).updateNotificationPreferences({
+      await ref
+          .read(apiServiceProvider)
+          .updateNotificationPreferences({
         'generation_complete': _generationComplete,
-        'daily_reminder': _dailyReminder,
-        'product_updates': _productUpdates,
-        'promotions': _promotions,
+        'daily_reminder':      _dailyReminder,
+        'product_updates':     _productUpdates,
+        'promotions':          _promotions,
       });
       if (mounted) {
         Navigator.pop(context);
@@ -485,7 +518,8 @@ class _NotificationsSheetState extends ConsumerState<_NotificationsSheet> {
             ),
           ),
           const SizedBox(height: 20),
-          Text('Notifications', style: AppTypography.headlineMedium),
+          Text('Notifications',
+              style: AppTypography.headlineMedium),
           const SizedBox(height: 4),
           Text('Choose what you want to be notified about',
               style: AppTypography.bodySmall),
@@ -494,19 +528,22 @@ class _NotificationsSheetState extends ConsumerState<_NotificationsSheet> {
             label: 'Generation Complete',
             subtitle: 'When your video plan is ready',
             value: _generationComplete,
-            onChanged: (v) => setState(() => _generationComplete = v),
+            onChanged: (v) =>
+                setState(() => _generationComplete = v),
           ),
           _NotifToggle(
             label: 'Daily Reminder',
             subtitle: 'Remind me to create a video plan today',
             value: _dailyReminder,
-            onChanged: (v) => setState(() => _dailyReminder = v),
+            onChanged: (v) =>
+                setState(() => _dailyReminder = v),
           ),
           _NotifToggle(
             label: 'Product Updates',
             subtitle: 'New features and improvements',
             value: _productUpdates,
-            onChanged: (v) => setState(() => _productUpdates = v),
+            onChanged: (v) =>
+                setState(() => _productUpdates = v),
           ),
           _NotifToggle(
             label: 'Promotions',
@@ -564,12 +601,13 @@ class _NotifToggle extends StatelessWidget {
   }
 }
 
-// ── Reusable submit button with loading state ─────────────────────────────────
+// ── Submit Button ─────────────────────────────────────────────────────────────
 class _SubmitButton extends StatefulWidget {
   final String label;
   final Future<void> Function()? onPressed;
 
-  const _SubmitButton({required this.label, required this.onPressed});
+  const _SubmitButton(
+      {required this.label, required this.onPressed});
 
   @override
   State<_SubmitButton> createState() => _SubmitButtonState();
@@ -619,7 +657,8 @@ class _ProfileCard extends StatelessWidget {
             child: Center(
               child: Text(
                 (user?.name ?? 'U').substring(0, 1).toUpperCase(),
-                style: AppTypography.displaySmall.copyWith(color: Colors.black),
+                style: AppTypography.displaySmall
+                    .copyWith(color: Colors.black),
               ),
             ),
           ),
@@ -628,8 +667,10 @@ class _ProfileCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user?.name ?? 'Loading...', style: AppTypography.titleLarge),
-                Text(user?.email ?? '', style: AppTypography.bodySmall),
+                Text(user?.name ?? 'Loading...',
+                    style: AppTypography.titleLarge),
+                Text(user?.email ?? '',
+                    style: AppTypography.bodySmall),
                 const SizedBox(height: 4),
                 Text(
                   '${user?.totalPlansGenerated ?? 0} plans generated',
@@ -657,8 +698,10 @@ class _PlanCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         gradient: isPaid
-            ? const LinearGradient(
-                colors: [Color(0xFF1A2A1A), Color(0xFF0A1A0A)])
+            ? const LinearGradient(colors: [
+                Color(0xFF1A2A1A),
+                Color(0xFF0A1A0A)
+              ])
             : AppColors.cardGradient,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
@@ -677,7 +720,9 @@ class _PlanCard extends StatelessWidget {
                     ? '⭐ ${user?.plan?.toUpperCase() ?? ''} PLAN'
                     : '🔮 FREE PLAN',
                 style: AppTypography.labelMedium.copyWith(
-                  color: isPaid ? AppColors.success : AppColors.primary,
+                  color: isPaid
+                      ? AppColors.success
+                      : AppColors.primary,
                 ),
               ),
               const Spacer(),
@@ -717,7 +762,6 @@ class _PlanCard extends StatelessWidget {
 class _SettingsGroup extends StatelessWidget {
   final String title;
   final List<_SettingsItem> items;
-
   const _SettingsGroup({required this.title, required this.items});
 
   @override
@@ -737,7 +781,8 @@ class _SettingsGroup extends StatelessWidget {
                 children: [
                   e.value,
                   if (e.key < items.length - 1)
-                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    const Divider(
+                        height: 1, indent: 16, endIndent: 16),
                 ],
               );
             }).toList(),
@@ -767,13 +812,16 @@ class _SettingsItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: AppColors.textSecondary),
+            Icon(icon,
+                size: 18, color: AppColors.textSecondary),
             const SizedBox(width: 12),
             Expanded(
-                child: Text(label, style: AppTypography.titleMedium)),
+                child: Text(label,
+                    style: AppTypography.titleMedium)),
             if (trailing != null)
               Text(trailing!,
                   style: AppTypography.bodySmall
