@@ -20,9 +20,9 @@ class AppConfig {
   // ── Flutterwave ───────────────────────────────────────────────────────────
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
-    defaultValue: 'FLWPUBK_TEST-xxxxxxxxxxxxxxxxxxxx-X', // Replace with your actual Flutterwave Public Key
+    defaultValue: 'FLWPUBK-d13a22da091412b50785e44d7b7d2245-X', // Replace with your actual Flutterwave Public Key
   );
-  static const bool   flutterwaveTestMode = true; // Set to false for production
+  static const bool   flutterwaveTestMode = false; // Set to false for production
   static const double creatorPriceUsd     = 15.00;
   static const double studioPriceUsd      = 35.00;
 
