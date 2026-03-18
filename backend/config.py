@@ -42,24 +42,25 @@ class Settings(BaseSettings):
     MISTRAL_MODEL_CREATOR: str = "mistral-large-latest"
 
     # Free tier
-    GEMINI_MODEL_FREE:       str = "gemini-2.0-flash"
-    DEEPSEEK_MODEL_FREE:     str = "deepseek-chat"
-    GROQ_MODEL_FREE:         str = "llama-3.3-70b-versatile"
-    GROQ_MODEL_FREE_FAST:    str = "llama-3.1-8b-instant"
-    GROQ_MODEL_FREE_MIX:     str = "mixtral-8x7b-32768"
-    GROQ_MODEL_FREE_GEMMA:   str = "gemma2-9b-it"
-    TOGETHER_MODEL_FREE:     str = "Qwen/Qwen2.5-72B-Instruct-Turbo"
-    OPENROUTER_MODEL_FREE:   str = "mistralai/mistral-7b-instruct:free"
-    OPENROUTER_MODEL_FREE2:  str = "meta-llama/llama-3.1-8b-instruct:free"
-    OPENROUTER_MODEL_FREE3:  str = "google/gemma-2-9b-it:free"
+    GEMINI_MODEL_FREE:      str = "gemini-2.0-flash"
+    DEEPSEEK_MODEL_FREE:    str = "deepseek-chat"
+    GROQ_MODEL_FREE:        str = "llama-3.3-70b-versatile"
+    GROQ_MODEL_FREE_FAST:   str = "llama-3.1-8b-instant"
+    GROQ_MODEL_FREE_MIX:    str = "mixtral-8x7b-32768"
+    GROQ_MODEL_FREE_GEMMA:  str = "gemma2-9b-it"
+    TOGETHER_MODEL_FREE:    str = "Qwen/Qwen2.5-72B-Instruct-Turbo"
+    OPENROUTER_MODEL_FREE:  str = "mistralai/mistral-7b-instruct:free"
+    OPENROUTER_MODEL_FREE2: str = "meta-llama/llama-3.1-8b-instruct:free"
+    OPENROUTER_MODEL_FREE3: str = "google/gemma-2-9b-it:free"
 
     # ── Email (Resend) ────────────────────────────────────────────────────────
     RESEND_API_KEY: Optional[str] = None
-    EMAIL_FROM:     str = "PromptReel AI <noreply@promptreel.ai>"
+    EMAIL_FROM:     str = "onboarding@resend.dev"  # ← no domain needed
 
     # ── Flutterwave ───────────────────────────────────────────────────────────
     FLUTTERWAVE_SECRET_KEY:   Optional[str] = None
     FLUTTERWAVE_PUBLIC_KEY:   Optional[str] = None
+    FLUTTERWAVE_ENCRYPT_KEY:  Optional[str] = None  # ← Added
     FLUTTERWAVE_WEBHOOK_HASH: Optional[str] = None
 
     # ── Plan Prices USD ───────────────────────────────────────────────────────
@@ -67,8 +68,8 @@ class Settings(BaseSettings):
     STUDIO_PRICE_USD:  float = 35.00
 
     # ── Rate Limits ───────────────────────────────────────────────────────────
-    FREE_DAILY_LIMIT:   int = 3
-    FREE_MAX_DURATION:  int = 5
+    FREE_DAILY_LIMIT:  int = 3
+    FREE_MAX_DURATION: int = 5
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = [
