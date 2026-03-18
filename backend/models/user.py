@@ -6,44 +6,58 @@ import enum
 
 
 class PlanType(str, enum.Enum):
-    FREE = "free"
+    FREE    = "free"
     CREATOR = "creator"
-    STUDIO = "studio"
+    STUDIO  = "studio"
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
+    id            = Column(Integer, primary_key=True, index=True)
+    email         = Column(String(255), unique=True, nullable=False, index=True)
+    name          = Column(String(255), nullable=False)
     password_hash = Column(String(255), nullable=False)
-    plan = Column(SAEnum(PlanType, native_enum=False), default=PlanType.FREE, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_verified = Column(Boolean, default=False, nullable=False)
+    plan          = Column(SAEnum(PlanType, native_enum=False),
+                           default=PlanType.FREE, nullable=False)
+    is_active     = Column(Boolean, default=True, nullable=False)
+    is_verified   = Column(Boolean, default=False, nullable=False)
 
-    # Rate limiting
-    plans_generated_today = Column(Integer, default=0, nullable=False)
-    last_generation_date = Column(Date, nullable=True)
-    total_plans_generated = Column(Integer, default=0, nullable=False)
+    # ── Email verification ────────────────────────────────────────────────────
+    verification_code         = Column(String(6),  nullable=True)
+    verification_code_expires = Column(DateTime(timezone=True), nullable=True)
 
-    # Subscription
-    subscription_id = Column(String(255), nullable=True)
+    # ── Password reset ────────────────────────────────────────────────────────
+    reset_code         = Column(String(6),  nullable=True)
+    reset_code_expires = Column(DateTime(timezone=True), nullable=True)
+
+    # ── Push notifications (FCM) ──────────────────────────────────────────────
+    fcm_token = Column(String(500), nullable=True)
+
+    # ── Rate limiting ─────────────────────────────────────────────────────────
+    plans_generated_today  = Column(Integer, default=0, nullable=False)
+    last_generation_date   = Column(Date, nullable=True)
+    total_plans_generated  = Column(Integer, default=0, nullable=False)
+
+    # ── Subscription ──────────────────────────────────────────────────────────
+    subscription_id         = Column(String(255), nullable=True)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Notification preferences
-    notif_generation_complete = Column(Boolean, default=True, nullable=False)
+    # ── Notification preferences ──────────────────────────────────────────────
+    notif_generation_complete = Column(Boolean, default=True,  nullable=False)
     notif_daily_reminder      = Column(Boolean, default=False, nullable=False)
-    notif_product_updates     = Column(Boolean, default=True, nullable=False)
+    notif_product_updates     = Column(Boolean, default=True,  nullable=False)
     notif_promotions          = Column(Boolean, default=False, nullable=False)
 
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # ── Timestamps ────────────────────────────────────────────────────────────
+    created_at    = Column(DateTime(timezone=True),
+                           server_default=func.now(), nullable=False)
+    updated_at    = Column(DateTime(timezone=True), onupdate=func.now())
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Relationships
-    projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
+    # ── Relationships ─────────────────────────────────────────────────────────
+    projects = relationship("Project", back_populates="user",
+                            cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User {self.email} [{self.plan}]>"
@@ -54,14 +68,10 @@ class User(Base):
 
     @property
     def daily_limit(self) -> int:
-        if self.is_paid:
-            return -1  # Unlimited
-        return 3
+        return -1 if self.is_paid else 3
 
     @property
     def max_duration_minutes(self) -> int:
-        if self.plan == PlanType.STUDIO:
+        if self.plan in [PlanType.STUDIO, PlanType.CREATOR]:
             return 20
-        elif self.plan == PlanType.CREATOR:
-            return 20
-        return 5  # Free
+        return 5
