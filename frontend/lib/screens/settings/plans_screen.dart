@@ -116,15 +116,14 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef =
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
-      // ── Use WebView checkout instead of SDK ──────────────────────────────
       final result = await Navigator.of(context).push<Map<String, String>>(
         MaterialPageRoute(
           fullscreenDialog: true,
           builder: (_) => _FlutterwaveWebView(
-            email:   user.email,
-            name:    user.name,
-            amount:  (plan['amount_usd'] as double).toStringAsFixed(2),
-            txRef:   txRef,
+            email:    user.email,
+            name:     user.name,
+            amount:   (plan['amount_usd'] as double).toStringAsFixed(2),
+            txRef:    txRef,
             planName: plan['name'] as String,
           ),
         ),
@@ -149,10 +148,13 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         );
       } else if (status == 'cancelled') {
         _showInfo('Payment cancelled.');
-      } else {
+      } else if (status == 'timeout') {
         _showError(
-          'Payment was not completed.\nPlease try again.',
+          'Connection timed out.\n'
+          'Please check your internet and try again.',
         );
+      } else {
+        _showError('Payment was not completed.\nPlease try again.');
       }
     } catch (e) {
       if (mounted) {
@@ -204,7 +206,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     }
   }
 
-  // ── Success Dialog ─────────────────────────────────────────────────────────
+  // ── Success Dialog ────────────────────────────────────────────────────────
   void _showSuccess(String planName) {
     showDialog(
       context: context,
@@ -260,8 +262,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             color: Colors.white, size: 18),
         const SizedBox(width: 8),
         Expanded(
-            child: Text(message,
-                style: const TextStyle(fontSize: 13))),
+            child:
+                Text(message, style: const TextStyle(fontSize: 13))),
       ]),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
@@ -322,17 +324,20 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         final isLoading = _isProcessing &&
                             _processingPlan == plan['id'];
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
+                          padding:
+                              const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
                             plan:       plan,
                             isCurrent:  isCurrent,
                             isLoading:  isLoading,
                             isDisabled: _isProcessing && !isLoading,
                             onSelect:   () => _handleSelect(plan),
-                          ).animate(
-                            delay: Duration(
-                                milliseconds: e.key * 120),
-                          ).fadeIn().slideY(begin: 0.15),
+                          )
+                              .animate(
+                                  delay: Duration(
+                                      milliseconds: e.key * 120))
+                              .fadeIn()
+                              .slideY(begin: 0.15),
                         );
                       }),
                       _buildPaymentInfo(),
@@ -392,7 +397,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.sm),
                 ),
                 child: const Text('🌍',
                     style: TextStyle(fontSize: 20)),
@@ -513,12 +519,23 @@ class _FlutterwaveWebView extends StatefulWidget {
 
 class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
   late final WebViewController _controller;
-  bool _isLoading = true;
+  bool _isLoading  = true;
+  bool _hasError   = false;
+  bool _timedOut   = false;
 
   @override
   void initState() {
     super.initState();
     _initWebView();
+    // ── Timeout — if still loading after 20s show error ─────────────────────
+    Future.delayed(const Duration(seconds: 20), () {
+      if (mounted && _isLoading && !_hasError) {
+        setState(() {
+          _isLoading = false;
+          _timedOut  = true;
+        });
+      }
+    });
   }
 
   void _initWebView() {
@@ -528,8 +545,7 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       ..addJavaScriptChannel(
         'PaymentResult',
         onMessageReceived: (msg) {
-          // Receive result from JS
-          final parts = msg.message.split('|');
+          final parts         = msg.message.split('|');
           final status        = parts.isNotEmpty ? parts[0] : '';
           final transactionId = parts.length > 1 ? parts[1] : '0';
           if (mounted) {
@@ -548,9 +564,16 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
           onPageFinished: (_) {
             if (mounted) setState(() => _isLoading = false);
           },
+          onWebResourceError: (error) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _hasError  = true;
+              });
+            }
+          },
           onNavigationRequest: (req) {
             final url = req.url;
-            // Catch redirect callbacks
             if (url.contains('promptreel.ai/payment/callback')) {
               final uri    = Uri.parse(url);
               final status = uri.queryParameters['status'] ?? '';
@@ -570,6 +593,15 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       ..loadHtmlString(_buildHtml());
   }
 
+  void _retry() {
+    setState(() {
+      _isLoading = true;
+      _hasError  = false;
+      _timedOut  = false;
+    });
+    _controller.loadHtmlString(_buildHtml());
+  }
+
   String _buildHtml() {
     final key      = AppConfig.flutterwavePublicKey;
     final amount   = widget.amount;
@@ -583,9 +615,9 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>PromptReel Payment</title>
-  <script src="https://checkout.flutterwave.com/v3.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -614,11 +646,7 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       font-weight: 800;
       margin-bottom: 4px;
     }
-    .tagline {
-      color: #666;
-      font-size: 13px;
-      margin-bottom: 28px;
-    }
+    .tagline { color: #666; font-size: 13px; margin-bottom: 28px; }
     .price-box {
       background: #1A1A2E;
       border: 1px solid #2A2A3A;
@@ -626,12 +654,7 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       padding: 20px;
       margin-bottom: 28px;
     }
-    .price {
-      color: white;
-      font-size: 42px;
-      font-weight: 900;
-      line-height: 1;
-    }
+    .price { color: white; font-size: 42px; font-weight: 900; line-height: 1; }
     .price span { font-size: 18px; font-weight: 400; color: #888; }
     .plan-badge {
       display: inline-block;
@@ -657,11 +680,9 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       border-radius: 50px;
       cursor: pointer;
       margin-bottom: 16px;
+      transition: opacity 0.2s;
     }
-    .pay-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+    .pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .secure {
       color: #444;
       font-size: 12px;
@@ -670,14 +691,21 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       justify-content: center;
       gap: 6px;
     }
-    .loader {
-      display: none;
-      width: 20px; height: 20px;
+    .status-msg {
+      color: #888;
+      font-size: 13px;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
       border: 2px solid rgba(0,0,0,0.3);
       border-top-color: #000;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
-      margin: 0 auto;
+      vertical-align: middle;
+      margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -697,68 +725,109 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       Pay Securely — \$$amount
     </button>
 
-    <div class="secure">
-      🔒 Secured by Flutterwave
-    </div>
+    <div class="secure">🔒 Secured by Flutterwave</div>
+    <div class="status-msg" id="statusMsg"></div>
   </div>
 
   <script>
-    // Auto-trigger on load
-    window.addEventListener('load', function() {
-      setTimeout(makePayment, 500);
-    });
+    var scriptLoaded = false;
+    var retryCount   = 0;
+
+    function loadScript(callback) {
+      var s = document.createElement('script');
+      s.src = 'https://checkout.flutterwave.com/v3.js';
+      s.onload = function() {
+        scriptLoaded = true;
+        if (callback) callback();
+      };
+      s.onerror = function() {
+        document.getElementById('statusMsg').innerHTML =
+          '⚠️ Could not load payment. Check internet connection.';
+        document.getElementById('payBtn').disabled  = false;
+        document.getElementById('payBtn').innerHTML =
+          'Retry Payment';
+      };
+      document.head.appendChild(s);
+    }
 
     function makePayment() {
-      const btn = document.getElementById('payBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<div class="loader" style="display:inline-block"></div>';
+      var btn = document.getElementById('payBtn');
+      var msg = document.getElementById('statusMsg');
 
-      FlutterwaveCheckout({
-        public_key: "$key",
-        tx_ref: "$txRef",
-        amount: $amount,
-        currency: "USD",
-        payment_options: "card,banktransfer,ussd,mobilemoney",
-        redirect_url: "https://promptreel.ai/payment/callback",
-        meta: {
-          source: "promptreel_mobile_app",
-          plan: "$planName",
-          consumer_id: "$txRef"
-        },
-        customer: {
-          email: "$email",
-          phone_number: "0000000000",
-          name: "$name"
-        },
-        customizations: {
-          title: "PromptReel AI",
-          description: "$planName Plan — Monthly Subscription",
-          logo: "https://promptreel.ai/logo.png"
-        },
-        callback: function(data) {
-          const status = data.status || 'unknown';
-          const txId   = data.transaction_id || '0';
+      btn.disabled    = true;
+      btn.innerHTML   =
+        '<span class="spinner"></span>Opening payment...';
+      msg.textContent = 'Connecting to Flutterwave...';
 
-          // Send result back to Flutter via JS channel
-          if (window.PaymentResult) {
-            window.PaymentResult.postMessage(status + '|' + txId);
-          } else {
-            // Fallback — redirect
-            window.location.href =
-              'https://promptreel.ai/payment/callback?status=' +
-              status + '&transaction_id=' + txId;
-          }
-        },
-        onclose: function() {
-          if (window.PaymentResult) {
-            window.PaymentResult.postMessage('cancelled|0');
-          } else {
-            window.location.href =
-              'https://promptreel.ai/payment/callback?status=cancelled';
-          }
-        }
-      });
+      if (!scriptLoaded) {
+        loadScript(function() { initCheckout(btn, msg); });
+      } else {
+        initCheckout(btn, msg);
+      }
     }
+
+    function initCheckout(btn, msg) {
+      try {
+        msg.textContent = 'Payment window opening...';
+        FlutterwaveCheckout({
+          public_key:     "$key",
+          tx_ref:         "$txRef",
+          amount:         $amount,
+          currency:       "USD",
+          payment_options:"card,banktransfer,ussd,mobilemoney",
+          redirect_url:   "https://promptreel.ai/payment/callback",
+          meta: {
+            source:      "promptreel_mobile_app",
+            plan:        "$planName",
+            consumer_id: "$txRef"
+          },
+          customer: {
+            email:        "$email",
+            phone_number: "0000000000",
+            name:         "$name"
+          },
+          customizations: {
+            title:       "PromptReel AI",
+            description: "$planName Plan — Monthly Subscription",
+            logo:        "https://promptreel.ai/logo.png"
+          },
+          callback: function(data) {
+            var status = data.status        || 'unknown';
+            var txId   = data.transaction_id || '0';
+            msg.textContent = 'Processing payment...';
+            if (window.PaymentResult) {
+              window.PaymentResult.postMessage(status + '|' + txId);
+            } else {
+              window.location.href =
+                'https://promptreel.ai/payment/callback?status='
+                + status + '&transaction_id=' + txId;
+            }
+          },
+          onclose: function() {
+            btn.disabled    = false;
+            btn.innerHTML   = 'Pay Securely — \$$amount';
+            msg.textContent = 'Payment window closed.';
+            if (window.PaymentResult) {
+              window.PaymentResult.postMessage('cancelled|0');
+            } else {
+              window.location.href =
+                'https://promptreel.ai/payment/callback?status=cancelled';
+            }
+          }
+        });
+      } catch(e) {
+        btn.disabled    = false;
+        btn.innerHTML   = 'Retry Payment';
+        msg.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    // Auto-trigger on load
+    window.addEventListener('load', function() {
+      loadScript(function() {
+        setTimeout(function() { makePayment(); }, 600);
+      });
+    });
   </script>
 </body>
 </html>
@@ -786,17 +855,21 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
         centerTitle: true,
         actions: [
           Container(
-            margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            margin: const EdgeInsets.only(
+                right: 16, top: 10, bottom: 10),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.green.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              border:
+                  Border.all(color: Colors.green.withOpacity(0.3)),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.lock_outline, size: 11, color: Colors.green),
+                Icon(Icons.lock_outline,
+                    size: 11, color: Colors.green),
                 SizedBox(width: 4),
                 Text('Secure',
                     style: TextStyle(
@@ -810,8 +883,12 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
+          // ── WebView ───────────────────────────────────────────────────
+          if (!_timedOut && !_hasError)
+            WebViewWidget(controller: _controller),
+
+          // ── Loading Overlay ───────────────────────────────────────────
+          if (_isLoading && !_timedOut && !_hasError)
             Container(
               color: const Color(0xFF0A0A0F),
               child: Center(
@@ -819,10 +896,11 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 56,
-                      height: 56,
+                      width: 64,
+                      height: 64,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFB830).withOpacity(0.15),
+                        color: const Color(0xFFFFB830)
+                            .withOpacity(0.15),
                         shape: BoxShape.circle,
                       ),
                       child: const Center(
@@ -832,12 +910,97 @@ class _FlutterwaveWebViewState extends State<_FlutterwaveWebView> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     const Text(
                       'Loading secure payment...',
                       style: TextStyle(
+                          color: Colors.grey, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Connecting to Flutterwave',
+                      style: TextStyle(
+                          color: Color(0xFF444455), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // ── Timeout / Error Screen ─────────────────────────────────────
+          if (_timedOut || _hasError)
+            Container(
+              color: const Color(0xFF0A0A0F),
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                          Icons.wifi_off_rounded,
+                          color: Colors.red,
+                          size: 36),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Connection Issue',
+                      style: TextStyle(
+                          color: Color(0xFFFFB830),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _timedOut
+                          ? 'Payment page took too long to load.\nPlease check your internet connection.'
+                          : 'Failed to load payment page.\nPlease check your internet connection.',
+                      style: const TextStyle(
                           color: Colors.grey,
-                          fontSize: 14),
+                          fontSize: 14,
+                          height: 1.6),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 32),
+                    // Retry button
+                    GestureDetector(
+                      onTap: _retry,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFFFFB830),
+                              Color(0xFFFF8C00)
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: const Text(
+                          'Try Again',
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Cancel button
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(null),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                            color: Colors.grey, fontSize: 14),
+                      ),
                     ),
                   ],
                 ),
@@ -917,25 +1080,30 @@ class _PlanCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(plan['name'] as String,
-                            style: AppTypography.headlineMedium),
+                            style:
+                                AppTypography.headlineMedium),
                         if (isCurrent)
                           Container(
-                            margin: const EdgeInsets.only(top: 4),
+                            margin:
+                                const EdgeInsets.only(top: 4),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color:
-                                  AppColors.success.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(
-                                  AppRadius.full),
+                              color: AppColors.success
+                                  .withOpacity(0.15),
+                              borderRadius:
+                                  BorderRadius.circular(
+                                      AppRadius.full),
                             ),
                             child: Text('Your current plan',
                                 style: AppTypography.labelSmall
                                     .copyWith(
-                                        color: AppColors.success)),
+                                        color:
+                                            AppColors.success)),
                           ),
                       ],
                     ),
@@ -949,7 +1117,8 @@ class _PlanCard extends StatelessWidget {
                           style: AppTypography.displaySmall
                               .copyWith(color: color),
                         ),
-                        TextSpan(text: plan['period'] as String),
+                        TextSpan(
+                            text: plan['period'] as String),
                       ],
                     ),
                   ),
@@ -964,11 +1133,14 @@ class _PlanCard extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: color.withOpacity(0.2)),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                        color: color.withOpacity(0.2)),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Text(plan['ai_badge'] as String,
                           style: AppTypography.labelMedium
@@ -990,7 +1162,8 @@ class _PlanCard extends StatelessWidget {
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.check_circle_rounded,
                             size: 16, color: color),
@@ -999,8 +1172,8 @@ class _PlanCard extends StatelessWidget {
                             child: Text(f as String,
                                 style: AppTypography.bodySmall
                                     .copyWith(
-                                        color:
-                                            AppColors.textPrimary))),
+                                        color: AppColors
+                                            .textPrimary))),
                       ],
                     ),
                   )),
@@ -1008,14 +1181,18 @@ class _PlanCard extends StatelessWidget {
               // ── Missing ───────────────────────────────────────────────
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
+                      padding:
+                          const EdgeInsets.only(bottom: 6),
                       child: Row(children: [
-                        const Icon(Icons.remove_circle_outline,
-                            size: 16, color: AppColors.textMuted),
+                        const Icon(
+                            Icons.remove_circle_outline,
+                            size: 16,
+                            color: AppColors.textMuted),
                         const SizedBox(width: 8),
                         Expanded(
                             child: Text(f as String,
-                                style: AppTypography.bodySmall)),
+                                style:
+                                    AppTypography.bodySmall)),
                       ]),
                     )),
 
@@ -1027,8 +1204,9 @@ class _PlanCard extends StatelessWidget {
                   label: isLoading
                       ? 'Processing…'
                       : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
-                  onPressed:
-                      (isDisabled || isLoading) ? null : onSelect,
+                  onPressed: (isDisabled || isLoading)
+                      ? null
+                      : onSelect,
                   isLoading: isLoading,
                   fullWidth: true,
                   variant: isPopular
@@ -1038,23 +1216,28 @@ class _PlanCard extends StatelessWidget {
               else if (isCurrent)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                     border: Border.all(
-                        color: AppColors.success.withOpacity(0.3)),
+                        color: AppColors.success
+                            .withOpacity(0.3)),
                   ),
                   child: Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.check_rounded,
-                            size: 16, color: AppColors.success),
+                            size: 16,
+                            color: AppColors.success),
                         const SizedBox(width: 6),
                         Text('Active Plan',
                             style: AppTypography.labelLarge
-                                .copyWith(color: AppColors.success)),
+                                .copyWith(
+                                    color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -1062,15 +1245,18 @@ class _PlanCard extends StatelessWidget {
               else
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHighlight,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text('Current Plan',
                         style: AppTypography.labelLarge
-                            .copyWith(color: AppColors.textMuted)),
+                            .copyWith(
+                                color: AppColors.textMuted)),
                   ),
                 ),
             ],
@@ -1089,12 +1275,14 @@ class _PlanCard extends StatelessWidget {
                     horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
                 child: Text('⭐ MOST POPULAR',
                     style: AppTypography.labelSmall.copyWith(
-                        color: Colors.black, letterSpacing: 1.0)),
+                        color: Colors.black,
+                        letterSpacing: 1.0)),
               ),
             ),
           ),
