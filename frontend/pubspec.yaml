@@ -46,11 +46,8 @@ dependencies:
   # ── Icons ─────────────────────────────────────────────────────────────────
   iconsax_flutter: ^1.0.1
 
-  # ── Monetization ─────────────────────────────────────────────────────────
+  # ── Monetization ──────────────────────────────────────────────────────────
   google_mobile_ads: ^5.3.1
-
-  # ── Payment (WebView checkout — more reliable than SDK) ───────────────────
-  webview_flutter: ^4.4.2
 
   cupertino_icons: ^1.0.8
 
