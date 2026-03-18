@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AppConfig {
   AppConfig._();
 
@@ -9,22 +11,59 @@ class AppConfig {
   static const String version      = '1.0.0';
 
   // ── API ───────────────────────────────────────────────────────────────────
+  // ⚠️ IMPORTANT: Set API_BASE_URL in your build environment
+  // Development: http://localhost:8000
+  // Production: https://your-domain.com
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://promptreel-ai.onrender.com',
+    // No default for production safety - will throw if not set
+    defaultValue: kDebugMode ? 'http://localhost:8000' : '',
   );
+  
   static const String apiPrefix       = '/api';
   static const int    connectTimeoutMs = 30000;
   static const int    receiveTimeoutMs = 300000; // 5 minutes for generation
 
+  // Validate baseUrl is set
+  static String get apiBaseUrl {
+    if (baseUrl.isEmpty) {
+      throw Exception(
+        'API_BASE_URL not set! Configure it in your environment:\n'
+        '• Development: --dart-define=API_BASE_URL=http://localhost:8000\n'
+        '• Production: --dart-define=API_BASE_URL=https://your-api.com'
+      );
+    }
+    return baseUrl;
+  }
+
   // ── Flutterwave ───────────────────────────────────────────────────────────
+  // ⚠️ SECURITY: Public key is NOT secret, but should still be from environment
+  // This key can be exposed in frontend - it's safe
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
-    defaultValue: 'FLWPUBK-d13a22da091412b50785e44d7b7d2245-X', // Replace with your actual Flutterwave Public Key
+    defaultValue: '', // No hardcoded key for security
   );
-  static const bool   flutterwaveTestMode = false; // Set to false for production
-  static const double creatorPriceUsd     = 15.00;
-  static const double studioPriceUsd      = 35.00;
+  
+  // Validate Flutterwave key is set
+  static String get flwPublicKey {
+    if (flutterwavePublicKey.isEmpty) {
+      throw Exception(
+        'FLW_PUBLIC_KEY not set! Get it from your Flutterwave Dashboard:\n'
+        'Settings → API Keys → Public Key\n'
+        'Add to build: --dart-define=FLW_PUBLIC_KEY=FLWPUBK-...'
+      );
+    }
+    return flutterwavePublicKey;
+  }
+
+  static const bool flutterwaveTestMode = bool.fromEnvironment(
+    'FLW_TEST_MODE',
+    defaultValue: true, // Default to test mode for safety
+  );
+
+  // Plan prices - matches backend exactly
+  static const double creatorPriceUsd = 15.00;
+  static const double studioPriceUsd  = 35.00;
 
   // ── Storage Keys ──────────────────────────────────────────────────────────
   static const String tokenKey        = 'access_token';
@@ -33,18 +72,17 @@ class AppConfig {
   static const String onboardingKey   = 'onboarding_complete';
   static const String themeKey        = 'app_theme';
 
-  // ── AdMob — Android LIVE IDs ──────────────────────────────────────────────
+  // ── AdMob ───────────────────────────────────────────────────────────────────
+  // Android LIVE IDs
   static const String admobAppIdAndroid          = 'ca-app-pub-2492078126313994~1571011892';
   static const String bannerAdUnitAndroid        = 'ca-app-pub-2492078126313994/7847678030';
   static const String interstitialAdUnitAndroid  = 'ca-app-pub-2492078126313994/5357246065';
   static const String rewardedAdUnitAndroid      = 'ca-app-pub-2492078126313994/5879990244';
   static const String nativeAdUnitAndroid        = 'ca-app-pub-2492078126313994/7137231592';
-
-  // ── NEW: Extra ad units — create in AdMob dashboard and replace XXXXXXXXXX ─
   static const String interstitial2AdUnitAndroid = 'ca-app-pub-2492078126313994/9852369740';
   static const String banner2AdUnitAndroid       = 'ca-app-pub-2492078126313994/1638971257';
 
-  // ── AdMob — iOS (replace when submitting to App Store) ────────────────────
+  // iOS (Test IDs - replace before App Store)
   static const String admobAppIdIos              = 'ca-app-pub-3940256099942544~1458002511';
   static const String bannerAdUnitIos            = 'ca-app-pub-3940256099942544/2934735716';
   static const String interstitialAdUnitIos      = 'ca-app-pub-3940256099942544/4411468910';
@@ -53,7 +91,7 @@ class AppConfig {
   static const String interstitial2AdUnitIos     = 'ca-app-pub-3940256099942544/4411468910';
   static const String banner2AdUnitIos           = 'ca-app-pub-3940256099942544/2934735716';
 
-  // ── AI Model Tiers (for display) ──────────────────────────────────────────
+  // ── AI Model Tiers ─────────────────────────────────────────────────────────
   static const Map<String, Map<String, dynamic>> planAiModels = {
     'free': {
       'primary': 'Gemini 2.0 Flash',
@@ -147,4 +185,19 @@ class AppConfig {
     {'name': 'Haiper',  'clip': 4,  'desc': '4s clips • Motion focus'},
     {'name': 'Other',   'clip': 5,  'desc': 'Custom generator'},
   ];
+
+  // ── Debug Helpers ─────────────────────────────────────────────────────────
+  /// Print current configuration (safe values only)
+  static void printConfig() {
+    if (kDebugMode) {
+      print('=== AppConfig ===');
+      print('API Base URL: ${baseUrl.isEmpty ? "NOT SET" : baseUrl}');
+      print('API Prefix: $apiPrefix');
+      print('Flutterwave Key: ${flutterwavePublicKey.isEmpty ? "NOT SET" : "SET (${flutterwavePublicKey.substring(0, 10)}...)"}');
+      print('Test Mode: $flutterwaveTestMode');
+      print('Creator Price: \$$creatorPriceUsd');
+      print('Studio Price: \$$studioPriceUsd');
+      print('=================');
+    }
+  }
 }
