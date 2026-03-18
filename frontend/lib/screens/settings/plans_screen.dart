@@ -18,7 +18,7 @@ class PlansScreen extends ConsumerStatefulWidget {
 }
 
 class _PlansScreenState extends ConsumerState<PlansScreen> {
-  bool _isProcessing = false;
+  bool _isProcessing  = false;
   String? _processingPlan;
 
   static const _plans = [
@@ -29,7 +29,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'period': 'forever',
       'amount_usd': 0.0,
       'color': 0xFF66667A,
-      'ai_primary': 'Gemini 1.5 Flash',
+      'ai_primary': 'Gemini 2.0 Flash',
       'ai_chain': 'Gemini Flash · Groq Llama 3.3 · DeepSeek-V3 · Qwen 2.5 · OpenRouter',
       'ai_badge': '⚡ Fast Free Models',
       'features': [
@@ -39,7 +39,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         'All AI generators supported',
         'Basic export (individual files)',
       ],
-      'missing': ['10 & 20 min videos', 'ZIP package export', 'No ads', 'Batch planner'],
+      'missing': [
+        '10 & 20 min videos',
+        'ZIP package export',
+        'No ads',
+        'Batch planner',
+      ],
     },
     {
       'id': 'creator',
@@ -99,7 +104,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     }
 
     setState(() {
-      _isProcessing = true;
+      _isProcessing   = true;
       _processingPlan = planId;
     });
 
@@ -107,54 +112,78 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final txRef =
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
-      // ── Fix: removed context: context — not a valid parameter
-      // in flutterwave_standard v1.1.0
       final flutterwave = Flutterwave(
-        publicKey: AppConfig.flutterwavePublicKey,
-        currency: 'USD',
-        amount: (plan['amount_usd'] as double).toStringAsFixed(2),
+        publicKey:      AppConfig.flutterwavePublicKey,
+        currency:       'USD',
+        amount:         (plan['amount_usd'] as double).toStringAsFixed(2),
         customer: Customer(
-          name: user.name,
-          phoneNumber: '',
-          email: user.email,
+          name:        user.name,
+          phoneNumber: '0000000000',  // ← required by Flutterwave, cannot be empty
+          email:       user.email,
         ),
-        paymentOptions: 'card, banktransfer, ussd',
+        paymentOptions: 'card',  // ← simpler — card only avoids auth issues
         customization: Customization(
-          title: 'PromptReel AI',
-          description: '${plan['name']} Plan — Monthly',
-          logo: 'https://promptreel.ai/logo.png',
+          title:       'PromptReel AI',
+          description: '${plan['name']} Plan — Monthly Subscription',
+          logo:        'https://promptreel.ai/logo.png',
         ),
-        txRef: txRef,
-        isTestMode: AppConfig.flutterwaveTestMode,
-        redirectUrl: 'promptreel://payment',
+        txRef:          txRef,
+        isTestMode:     AppConfig.flutterwaveTestMode,
+        redirectUrl:    'https://promptreel.ai/payment/callback', // ← valid HTTPS URL
       );
 
-      final ChargeResponse response = await flutterwave.charge(context);
+      final ChargeResponse response =
+          await flutterwave.charge(context);
+
       if (!mounted) return;
 
-      final responseStatus = response.status?.toLowerCase() ?? '';
+      final status = (response.status ?? '').toLowerCase().trim();
 
-      if (responseStatus == 'successful' &&
-          response.transactionId != null) {
-        await _verifyAndUpgrade(
-          transactionId: response.transactionId!,
-          txRef: txRef,
-          planId: planId,
-          planName: plan['name'] as String,
-        );
-      } else if (responseStatus == 'cancelled' ||
-          responseStatus == 'cancel') {
+      if (status == 'successful' || status == 'completed') {
+        if (response.transactionId != null) {
+          await _verifyAndUpgrade(
+            transactionId: response.transactionId!,
+            txRef:         txRef,
+            planId:        planId,
+            planName:      plan['name'] as String,
+          );
+        } else {
+          // No transaction ID — verify by txRef
+          await _verifyAndUpgrade(
+            transactionId: '0',
+            txRef:         txRef,
+            planId:        planId,
+            planName:      plan['name'] as String,
+          );
+        }
+      } else if (status == 'cancelled' ||
+                 status == 'cancel' ||
+                 status == 'user_cancelled') {
         _showInfo('Payment cancelled.');
+      } else if (status.isEmpty || status == 'null') {
+        _showInfo('Payment window closed.');
       } else {
         _showError(
-            'Payment was not completed. Status: ${response.status ?? "unknown"}');
+          'Payment was not completed. Status: $status\n'
+          'Please try again or use a different card.',
+        );
       }
     } catch (e) {
-      if (mounted) _showError('Payment error: ${e.toString()}');
+      if (mounted) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('cancel') || errStr.contains('closed')) {
+          _showInfo('Payment cancelled.');
+        } else {
+          _showError(
+            'Payment error. Please try again.\n'
+            'If issue persists, contact support.',
+          );
+        }
+      }
     } finally {
       if (mounted) {
         setState(() {
-          _isProcessing = false;
+          _isProcessing   = false;
           _processingPlan = null;
         });
       }
@@ -177,8 +206,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final api = ref.read(apiServiceProvider);
       await api.verifyPayment(
         transactionId: transactionId,
-        txRef: txRef,
-        plan: planId,
+        txRef:         txRef,
+        plan:          planId,
       );
       await ref.read(authProvider.notifier).refreshUser();
 
@@ -191,7 +220,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         Navigator.of(context).pop();
         _showError(
           'Payment received but verification failed.\n'
-          'Contact support with reference:\n$txRef',
+          'Contact support with reference: $txRef',
         );
       }
     }
@@ -258,6 +287,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 6),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md)),
+      margin: const EdgeInsets.all(16),
     ));
   }
 
@@ -267,6 +299,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       content: Text(message),
       backgroundColor: AppColors.surfaceElevated,
       behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md)),
+      margin: const EdgeInsets.all(16),
     ));
   }
 
@@ -307,15 +342,18 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         final isLoading = _isProcessing &&
                             _processingPlan == plan['id'];
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
+                          padding:
+                              const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
-                            plan: plan,
-                            isCurrent: isCurrent,
-                            isLoading: isLoading,
-                            isDisabled: _isProcessing && !isLoading,
-                            onSelect: () => _handleSelect(plan),
+                            plan:       plan,
+                            isCurrent:  isCurrent,
+                            isLoading:  isLoading,
+                            isDisabled:
+                                _isProcessing && !isLoading,
+                            onSelect:   () => _handleSelect(plan),
                           ).animate(
-                            delay: Duration(milliseconds: e.key * 120),
+                            delay: Duration(
+                                milliseconds: e.key * 120),
                           ).fadeIn().slideY(begin: 0.15),
                         );
                       }),
@@ -376,9 +414,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.sm),
                 ),
-                child: const Text('🌍', style: TextStyle(fontSize: 20)),
+                child: const Text('🌍',
+                    style: TextStyle(fontSize: 20)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -464,7 +504,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         style: AppTypography.labelLarge
                             .copyWith(color: AppColors.primary)),
                     const SizedBox(height: 4),
-                    Text(faq.$2, style: AppTypography.bodySmall),
+                    Text(faq.$2,
+                        style: AppTypography.bodySmall),
                   ],
                 ),
               )),
@@ -492,11 +533,11 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(plan['color'] as int);
+    final color    = Color(plan['color'] as int);
     final isPopular = plan['popular'] == true;
-    final isFree = plan['id'] == 'free';
+    final isFree   = plan['id'] == 'free';
     final features = plan['features'] as List<dynamic>;
-    final missing = plan['missing'] as List<dynamic>;
+    final missing  = plan['missing'] as List<dynamic>;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -505,7 +546,10 @@ class _PlanCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: isPopular
                 ? LinearGradient(
-                    colors: [color.withOpacity(0.08), AppColors.surface],
+                    colors: [
+                      color.withOpacity(0.08),
+                      AppColors.surface
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
@@ -520,37 +564,49 @@ class _PlanCard extends StatelessWidget {
               width: isPopular || isCurrent ? 1.5 : 1,
             ),
             boxShadow: isPopular
-                ? [BoxShadow(
-                    color: color.withOpacity(0.12),
-                    blurRadius: 30,
-                    spreadRadius: -5)]
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(0.12),
+                      blurRadius: 30,
+                      spreadRadius: -5,
+                    )
+                  ]
                 : null,
           ),
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Header Row ────────────────────────────────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(plan['name'] as String,
-                            style: AppTypography.headlineMedium),
+                            style:
+                                AppTypography.headlineMedium),
                         if (isCurrent)
                           Container(
-                            margin: const EdgeInsets.only(top: 4),
+                            margin:
+                                const EdgeInsets.only(top: 4),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.success.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(AppRadius.full),
+                              color: AppColors.success
+                                  .withOpacity(0.15),
+                              borderRadius:
+                                  BorderRadius.circular(
+                                      AppRadius.full),
                             ),
                             child: Text('Your current plan',
                                 style: AppTypography.labelSmall
-                                    .copyWith(color: AppColors.success)),
+                                    .copyWith(
+                                        color:
+                                            AppColors.success)),
                           ),
                       ],
                     ),
@@ -564,12 +620,15 @@ class _PlanCard extends StatelessWidget {
                           style: AppTypography.displaySmall
                               .copyWith(color: color),
                         ),
-                        TextSpan(text: plan['period'] as String),
+                        TextSpan(
+                            text: plan['period'] as String),
                       ],
                     ),
                   ),
                 ],
               ),
+
+              // ── AI Badge ──────────────────────────────────────────────
               if (plan['ai_badge'] != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
@@ -577,8 +636,10 @@ class _PlanCard extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: color.withOpacity(0.2)),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.sm),
+                    border:
+                        Border.all(color: color.withOpacity(0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -594,43 +655,59 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ),
               ],
+
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),
+
+              // ── Features ──────────────────────────────────────────────
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.check_circle_rounded,
                             size: 16, color: color),
                         const SizedBox(width: 8),
                         Expanded(
                             child: Text(f as String,
-                                style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textPrimary))),
+                                style: AppTypography.bodySmall
+                                    .copyWith(
+                                        color: AppColors
+                                            .textPrimary))),
                       ],
                     ),
                   )),
+
+              // ── Missing Features ──────────────────────────────────────
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
+                      padding:
+                          const EdgeInsets.only(bottom: 6),
                       child: Row(children: [
-                        const Icon(Icons.remove_circle_outline,
-                            size: 16, color: AppColors.textMuted),
+                        const Icon(
+                            Icons.remove_circle_outline,
+                            size: 16,
+                            color: AppColors.textMuted),
                         const SizedBox(width: 8),
                         Expanded(
                             child: Text(f as String,
-                                style: AppTypography.bodySmall)),
+                                style:
+                                    AppTypography.bodySmall)),
                       ]),
                     )),
+
               const SizedBox(height: AppSpacing.md),
+
+              // ── CTA Button ────────────────────────────────────────────
               if (!isFree && !isCurrent)
                 AppButton(
                   label: isLoading
                       ? 'Processing…'
                       : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
-                  onPressed: (isDisabled || isLoading) ? null : onSelect,
+                  onPressed:
+                      (isDisabled || isLoading) ? null : onSelect,
                   isLoading: isLoading,
                   fullWidth: true,
                   variant: isPopular
@@ -640,23 +717,28 @@ class _PlanCard extends StatelessWidget {
               else if (isCurrent)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                     border: Border.all(
-                        color: AppColors.success.withOpacity(0.3)),
+                        color:
+                            AppColors.success.withOpacity(0.3)),
                   ),
                   child: Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.check_rounded,
-                            size: 16, color: AppColors.success),
+                            size: 16,
+                            color: AppColors.success),
                         const SizedBox(width: 6),
                         Text('Active Plan',
                             style: AppTypography.labelLarge
-                                .copyWith(color: AppColors.success)),
+                                .copyWith(
+                                    color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -664,20 +746,25 @@ class _PlanCard extends StatelessWidget {
               else
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHighlight,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text('Current Plan',
                         style: AppTypography.labelLarge
-                            .copyWith(color: AppColors.textMuted)),
+                            .copyWith(
+                                color: AppColors.textMuted)),
                   ),
                 ),
             ],
           ),
         ),
+
+        // ── Popular Badge ─────────────────────────────────────────────
         if (isPopular)
           Positioned(
             top: -12,
@@ -689,12 +776,14 @@ class _PlanCard extends StatelessWidget {
                     horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
                 child: Text('⭐ MOST POPULAR',
                     style: AppTypography.labelSmall.copyWith(
-                        color: Colors.black, letterSpacing: 1.0)),
+                        color: Colors.black,
+                        letterSpacing: 1.0)),
               ),
             ),
           ),
@@ -731,7 +820,8 @@ class _VerifyingDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Verifying Payment…', style: AppTypography.titleLarge),
+            Text('Verifying Payment…',
+                style: AppTypography.titleLarge),
             const SizedBox(height: 6),
             Text(
               'Please wait while we confirm your payment with Flutterwave.',
