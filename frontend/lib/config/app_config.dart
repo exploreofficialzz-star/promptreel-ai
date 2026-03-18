@@ -23,14 +23,11 @@ class AppConfig {
   // Dashboard → https://dashboard.flutterwave.com/settings/apis
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
-    defaultValue: 'FLWPUBK-361fd657794dc9b4413eee510c6d68d4-X',
+    defaultValue: 'FLWPUBK_TEST-xxxxxxxxxxxxxxxxxxxx-X', // Replace with your actual Flutterwave Public Key
   );
 
   // Live mode — set to true only during local testing
-  static const bool flutterwaveTestMode = bool.fromEnvironment(
-    'FLW_TEST_MODE',
-    defaultValue: false,
-  );
+  static const bool flutterwaveTestMode = true; // Set to false for production
 
   // Plan prices in USD — must match backend CREATOR_PRICE_USD / STUDIO_PRICE_USD
   static const double creatorPriceUsd = 15.00;  // $15/month

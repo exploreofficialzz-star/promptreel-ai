@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     # ── Flutterwave ───────────────────────────────────────────────────────────
     FLUTTERWAVE_SECRET_KEY: Optional[str] = None    # sk.env_...
+    FLUTTERWAVE_WEBHOOK_SECRET: Optional[str] = None # For webhook HMAC verification
     FLUTTERWAVE_PUBLIC_KEY: Optional[str] = None    # FLWPUBK_...
 
     # Plan prices in USD cents (Flutterwave accepts decimals, we store as float)

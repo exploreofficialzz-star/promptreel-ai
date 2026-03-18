@@ -168,13 +168,23 @@ async def flutterwave_webhook(
     This endpoint logs the event. Extend it to handle subscription renewals,
     chargebacks, etc. as your business grows.
     """
-    if not settings.FLUTTERWAVE_SECRET_KEY:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Not configured.")
+    if not settings.FLUTTERWAVE_WEBHOOK_SECRET:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Webhook secret not configured.")
 
-    # Validate webhook signature
-    expected_hash = settings.FLUTTERWAVE_SECRET_KEY
-    if verif_hash != expected_hash:
-        logger.warning("Webhook received with invalid verif-hash — rejected.")
+    # Validate webhook signature using HMAC SHA512
+    if not verif_hash:
+        logger.warning("Webhook received without verif-hash header — rejected.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Missing verif-hash header.")
+
+    request_body = await request.body()
+    computed_hash = hmac.new(
+        settings.FLUTTERWAVE_WEBHOOK_SECRET.encode("utf-8"),
+        msg=request_body,
+        digestmod=hashlib.sha512,
+    ).hexdigest()
+
+    if not hmac.compare_digest(computed_hash, verif_hash):
+        logger.warning("Webhook received with invalid verif-hash signature — rejected.")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid webhook signature.")
 
     try:
@@ -188,6 +198,12 @@ async def flutterwave_webhook(
 
     logger.info(f"📡 Flutterwave webhook: event={event}, status={tx_status}, tx_ref={tx_ref}")
 
-    # TODO: handle recurring billing / subscription renewal here when needed
+    # TODO: Implement logic for handling webhook events (e.g., subscription updates, chargebacks)
+    # For example, if event == 'charge.completed' and tx_status == 'successful':
+    #   - Retrieve tx_ref from payload.get("data", {}).get("tx_ref")
+    #   - Query your database for the user associated with this tx_ref
+    #   - Update user's plan or subscription status
+    #   - Handle cases like 'charge.failed', 'subscription.cancelled', etc.
+    #   - Ensure idempotency to prevent duplicate processing of events.
 
     return {"status": "ok"}
