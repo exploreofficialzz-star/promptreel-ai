@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/projects_provider.dart';
+import '../../services/ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/app_button.dart';
@@ -31,7 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider);
+    final user          = ref.watch(currentUserProvider);
     final projectsState = ref.watch(projectsProvider);
 
     return Scaffold(
@@ -39,7 +40,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Stack(
           children: [
             Container(
-              decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+              decoration: const BoxDecoration(
+                  gradient: AppColors.backgroundGradient),
               child: CustomScrollView(
                 slivers: [
                   _buildAppBar(user),
@@ -64,7 +66,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
             ),
-            // Floating affiliate banner — rotates every 6s, dismissible
             const FloatingAffiliateBanner(),
           ],
         ),
@@ -72,6 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  // ── App Bar ───────────────────────────────────────────────────────────────
   SliverAppBar _buildAppBar(user) {
     return SliverAppBar(
       floating: true,
@@ -85,14 +87,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.movie_filter_rounded, size: 18, color: Colors.black),
+            child: const Icon(Icons.movie_filter_rounded,
+                size: 18, color: Colors.black),
           ),
           const SizedBox(width: 10),
           ShaderMask(
-            shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
+            shaderCallback: (b) =>
+                AppColors.primaryGradient.createShader(b),
             child: Text(
               AppConfig.appName,
-              style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+              style: AppTypography.headlineMedium
+                  .copyWith(color: Colors.white),
             ),
           ),
         ],
@@ -106,9 +111,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               style: TextButton.styleFrom(
                 backgroundColor: AppColors.primary.withOpacity(0.15),
                 foregroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 6),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                 ),
               ),
               child: const Text('Upgrade ✦'),
@@ -123,6 +130,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  // ── Hero ──────────────────────────────────────────────────────────────────
   Widget _buildHero(user) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -133,7 +141,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border:
+            Border.all(color: AppColors.primary.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withOpacity(0.08),
@@ -152,11 +161,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.full),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                        color:
+                            AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(
+                            AppRadius.full),
+                        border: Border.all(
+                            color: AppColors.primary
+                                .withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -171,8 +185,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            user?.plan.toUpperCase() ?? 'FREE' + ' PLAN',
-                            style: AppTypography.labelSmall.copyWith(color: AppColors.primary),
+                            (user?.plan.toUpperCase() ?? 'FREE') +
+                                ' PLAN',
+                            style: AppTypography.labelSmall
+                                .copyWith(
+                                    color: AppColors.primary),
                           ),
                         ],
                       ),
@@ -205,6 +222,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ).animate().fadeIn().slideY(begin: -0.1);
   }
 
+  // ── Stats Row ─────────────────────────────────────────────────────────────
   Widget _buildStatsRow(projectsState) {
     final stats = projectsState.stats;
     return Row(
@@ -213,7 +231,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: StatCard(
             label: 'Total Plans',
             value: '${stats['total_projects'] ?? 0}',
-            icon: const Icon(Icons.movie_outlined, size: 16, color: AppColors.primary),
+            icon: const Icon(Icons.movie_outlined,
+                size: 16, color: AppColors.primary),
             accentColor: AppColors.primary,
           ),
         ),
@@ -222,7 +241,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: StatCard(
             label: 'Today',
             value: '${stats['today_count'] ?? 0}',
-            icon: const Icon(Icons.today_outlined, size: 16, color: AppColors.secondary),
+            icon: const Icon(Icons.today_outlined,
+                size: 16, color: AppColors.secondary),
             accentColor: AppColors.secondary,
           ),
         ),
@@ -233,7 +253,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             value: stats['daily_limit'] == -1
                 ? '∞'
                 : '${(stats['daily_limit'] ?? 3) - (stats['today_count'] ?? 0)}',
-            icon: const Icon(Icons.bolt_outlined, size: 16, color: AppColors.warning),
+            icon: const Icon(Icons.bolt_outlined,
+                size: 16, color: AppColors.warning),
             accentColor: AppColors.warning,
           ),
         ),
@@ -241,6 +262,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1);
   }
 
+  // ── Quick Create ──────────────────────────────────────────────────────────
   Widget _buildQuickCreate() {
     final quickIdeas = [
       {'emoji': '🐍', 'text': 'Top 10 Deadliest Snakes'},
@@ -257,10 +279,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Quick Ideas', style: AppTypography.headlineMedium),
+            Text('Quick Ideas',
+                style: AppTypography.headlineMedium),
             GestureDetector(
               onTap: () => context.go('/create'),
-              child: Text('Custom →', style: AppTypography.labelMedium.copyWith(color: AppColors.primary)),
+              child: Text(
+                'Custom →',
+                style: AppTypography.labelMedium
+                    .copyWith(color: AppColors.primary),
+              ),
             ),
           ],
         ),
@@ -272,26 +299,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () {
-                    context.go('/create', extra: e.value['text']);
-                  },
+                  onTap: () =>
+                      context.go('/create', extra: e.value['text']),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceElevated,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: AppColors.border),
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.md),
+                      border:
+                          Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       children: [
-                        Text(e.value['emoji']!, style: const TextStyle(fontSize: 18)),
+                        Text(e.value['emoji']!,
+                            style:
+                                const TextStyle(fontSize: 18)),
                         const SizedBox(width: 8),
-                        Text(e.value['text']!, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+                        Text(
+                          e.value['text']!,
+                          style: AppTypography.bodySmall
+                              .copyWith(
+                                  color:
+                                      AppColors.textPrimary),
+                        ),
                       ],
                     ),
                   ),
                 ),
-              ).animate(delay: Duration(milliseconds: e.key * 60)).fadeIn().slideX(begin: 0.1);
+              )
+                  .animate(
+                      delay: Duration(
+                          milliseconds: e.key * 60))
+                  .fadeIn()
+                  .slideX(begin: 0.1);
             }).toList(),
           ),
         ),
@@ -299,6 +341,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  // ── Recent Projects ───────────────────────────────────────────────────────
   Widget _buildRecentProjects(projectsState) {
     final projects = projectsState.projects.take(5).toList();
     return Column(
@@ -307,10 +350,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Recent Projects', style: AppTypography.headlineMedium),
+            Text('Recent Projects',
+                style: AppTypography.headlineMedium),
             GestureDetector(
               onTap: () => context.go('/projects'),
-              child: Text('View all →', style: AppTypography.labelMedium.copyWith(color: AppColors.primary)),
+              child: Text(
+                'View all →',
+                style: AppTypography.labelMedium
+                    .copyWith(color: AppColors.primary),
+              ),
             ),
           ],
         ),
@@ -320,10 +368,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         else if (projects.isEmpty)
           _buildEmptyProjects()
         else
-          ...projects.asMap().entries.map((e) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _ProjectTile(project: e.value),
-              ).animate(delay: Duration(milliseconds: e.key * 80)).fadeIn().slideY(begin: 0.1)),
+          ...projects.asMap().entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _ProjectTile(project: e.value),
+                )
+                    .animate(
+                        delay: Duration(
+                            milliseconds: e.key * 80))
+                    .fadeIn()
+                    .slideY(begin: 0.1),
+              ),
       ],
     );
   }
@@ -340,12 +395,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: AppColors.primary.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.movie_creation_outlined, color: AppColors.primary, size: 28),
+            child: const Icon(Icons.movie_creation_outlined,
+                color: AppColors.primary, size: 28),
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('No projects yet', style: AppTypography.titleMedium),
+          Text('No projects yet',
+              style: AppTypography.titleMedium),
           const SizedBox(height: 4),
-          Text('Create your first video plan to get started', style: AppTypography.bodySmall),
+          Text(
+            'Create your first video plan to get started',
+            style: AppTypography.bodySmall,
+          ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: 'Create Your First Plan',
@@ -372,14 +432,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class _ProjectTile extends StatelessWidget {
+// ─── Project Tile — ConsumerWidget to access ad service ───────────────────────
+class _ProjectTile extends ConsumerWidget {
   final ProjectModel project;
   const _ProjectTile({required this.project});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AppCard(
-      onTap: () => context.go('/results/${project.id}'),
+      onTap: () async {
+        // Show interstitial ad for free users before opening project
+        final user = ref.read(currentUserProvider);
+        await AdService.instance.showProjectViewInterstitial(user);
+        if (context.mounted) {
+          context.go('/results/${project.id}', extra: project);
+        }
+      },
       child: Row(
         children: [
           Container(
@@ -429,14 +497,15 @@ class _ProjectTile extends StatelessWidget {
 
   String _getPlatformEmoji(String platform) {
     switch (platform) {
-      case 'YouTube': return '▶️';
-      case 'TikTok': return '🎵';
+      case 'YouTube':   return '▶️';
+      case 'TikTok':    return '🎵';
       case 'Instagram': return '📸';
-      default: return '📱';
+      default:          return '📱';
     }
   }
 }
 
+// ─── Chip ─────────────────────────────────────────────────────────────────────
 class _Chip extends StatelessWidget {
   final String text;
   const _Chip(this.text);
@@ -444,7 +513,8 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -454,6 +524,7 @@ class _Chip extends StatelessWidget {
   }
 }
 
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 class _StatusBadge extends StatelessWidget {
   final String status;
   const _StatusBadge(this.status);
@@ -463,17 +534,19 @@ class _StatusBadge extends StatelessWidget {
     Color color;
     switch (status) {
       case 'completed': color = AppColors.success; break;
-      case 'failed': color = AppColors.error; break;
-      default: color = AppColors.warning;
+      case 'failed':    color = AppColors.error;   break;
+      default:          color = AppColors.warning;
     }
     return Container(
       width: 8,
       height: 8,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      decoration:
+          BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }
 
+// ─── Shimmer Card ─────────────────────────────────────────────────────────────
 class _ShimmerCard extends StatelessWidget {
   const _ShimmerCard();
 
