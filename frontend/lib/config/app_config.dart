@@ -41,8 +41,8 @@ class AppConfig {
   static const String nativeAdUnitAndroid        = 'ca-app-pub-2492078126313994/7137231592';
 
   // ── NEW: Extra ad units — create in AdMob dashboard and replace XXXXXXXXXX ─
-  static const String interstitial2AdUnitAndroid = 'ca-app-pub-2492078126313994/XXXXXXXXXX';
-  static const String banner2AdUnitAndroid       = 'ca-app-pub-2492078126313994/XXXXXXXXXX';
+  static const String interstitial2AdUnitAndroid = 'ca-app-pub-2492078126313994/9852369740';
+  static const String banner2AdUnitAndroid       = 'ca-app-pub-2492078126313994/1638971257';
 
   // ── AdMob — iOS (replace when submitting to App Store) ────────────────────
   static const String admobAppIdIos              = 'ca-app-pub-3940256099942544~1458002511';
