@@ -23,7 +23,8 @@ from routers.auth import get_current_user
 router = APIRouter(prefix="/payments", tags=["Payments"])
 logger = logging.getLogger(__name__)
 
-FLW_VERIFY_URL = "https://api.flutterwave.com/v3/transactions/{}/verify"
+FLW_BASE_URL   = "https://api.flutterwave.com/v3"
+FLW_VERIFY_URL = f"{FLW_BASE_URL}/transactions/{{}}/verify"
 
 PLAN_PRICES_USD = {
     "creator": 15.00,
@@ -45,7 +46,54 @@ def _expected_usd(plan: str) -> float:
     return PLAN_PRICES_USD.get(plan, 0.0)
 
 
+def _flw_headers() -> dict:
+    return {
+        "Authorization": f"Bearer {settings.FLUTTERWAVE_SECRET_KEY}",
+        "Content-Type":  "application/json",
+    }
+
+
+async def _lookup_tx_by_ref(tx_ref: str) -> str:
+    """
+    Look up a Flutterwave transaction ID using tx_ref.
+    Used when the app sends transaction_id='0' (Chrome browser flow).
+    """
+    logger.info(f"Looking up transaction by tx_ref: {tx_ref}")
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(
+            f"{FLW_BASE_URL}/transactions",
+            params={"tx_ref": tx_ref},
+            headers=_flw_headers(),
+        )
+
+    if resp.status_code != 200:
+        logger.error(
+            f"FLW tx_ref lookup failed: "
+            f"status={resp.status_code} body={resp.text}"
+        )
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            "Could not find your payment. "
+            "Please wait a moment and try again.",
+        )
+
+    body = resp.json()
+    data = body.get("data", [])
+
+    if not data:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "Payment not found. "
+            "If you just paid, please wait 30 seconds and try again.",
+        )
+
+    tx_id = str(data[0].get("id", "0"))
+    logger.info(f"Found transaction by tx_ref: tx_id={tx_id}")
+    return tx_id
+
+
 async def _verify_with_flutterwave(transaction_id: str) -> dict:
+    """Call Flutterwave verify endpoint and return transaction data."""
     if not settings.FLUTTERWAVE_SECRET_KEY:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -54,13 +102,7 @@ async def _verify_with_flutterwave(transaction_id: str) -> dict:
 
     url = FLW_VERIFY_URL.format(transaction_id)
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            url,
-            headers={
-                "Authorization": f"Bearer {settings.FLUTTERWAVE_SECRET_KEY}",
-                "Content-Type":  "application/json",
-            },
-        )
+        resp = await client.get(url, headers=_flw_headers())
 
     logger.info(f"FLW verify response: status={resp.status_code}")
 
@@ -99,10 +141,9 @@ async def checkout_page(
 ):
     """
     Serve Flutterwave checkout as a real HTTPS page.
-    This fixes the WebView popup issue — Flutterwave modal requires
-    a real URL context, not about:srcdoc (loadHtmlString).
+    The app opens this in Chrome browser via url_launcher.
+    Chrome has no popup restrictions — Flutterwave modal works perfectly.
     """
-    # Sanitize inputs to prevent JS injection
     safe_name     = name.replace("'", "\\'").replace('"', '\\"')
     safe_email    = email.replace("'", "").replace('"', '')
     safe_tx_ref   = tx_ref.replace("'", "").replace('"', '')
@@ -117,7 +158,7 @@ async def checkout_page(
   <meta charset="UTF-8">
   <meta name="viewport"
         content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>PromptReel Payment</title>
+  <title>PromptReel AI — Checkout</title>
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <style>
     *{{margin:0;padding:0;box-sizing:border-box;
@@ -186,29 +227,13 @@ async def checkout_page(
 </div>
 
 <script>
-  function setStatus(t) {{
-    document.getElementById('st').textContent = t;
-  }}
-
-  function send(msg) {{
-    if (window.PaymentResult) {{
-      window.PaymentResult.postMessage(msg);
-    }} else {{
-      var p   = msg.split('|');
-      var st  = p[0] || 'unknown';
-      var tid = p[1] || '0';
-      window.location.href =
-        'https://promptreel.ai/payment/callback'
-        + '?status=' + encodeURIComponent(st)
-        + '&transaction_id=' + encodeURIComponent(tid);
-    }}
-  }}
+  function st(t) {{ document.getElementById('st').textContent = t; }}
 
   function pay() {{
     var btn = document.getElementById('btn');
-    btn.disabled    = true;
-    btn.innerHTML   = '<span class="spin"></span>Opening payment...';
-    setStatus('Connecting to Flutterwave...');
+    btn.disabled  = true;
+    btn.innerHTML = '<span class="spin"></span>Opening payment...';
+    st('Connecting to Flutterwave...');
 
     try {{
       FlutterwaveCheckout({{
@@ -234,27 +259,26 @@ async def checkout_page(
           logo:        'https://promptreel.ai/logo.png'
         }},
         callback: function(data) {{
-          var st  = data.status           || 'unknown';
-          var tid = data.transaction_id   || '0';
-          setStatus('Payment ' + st + '...');
-          send(st + '|' + tid);
+          var s   = data.status         || 'unknown';
+          var tid = data.transaction_id || '0';
+          st('Payment ' + s + '! You can return to the app.');
+          btn.disabled    = false;
+          btn.textContent = '✅ Payment ' + s + ' — Return to app';
         }},
         onclose: function() {{
           btn.disabled    = false;
           btn.textContent = 'Pay Securely — ${safe_amount}';
-          setStatus('Payment window closed.');
-          send('cancelled|0');
+          st('Window closed. Tap button to try again.');
         }}
       }});
-      setStatus('Payment window opening...');
+      st('Payment window opening...');
     }} catch (e) {{
       btn.disabled    = false;
       btn.textContent = 'Retry Payment';
-      setStatus('Error: ' + e.message);
+      st('Error: ' + e.message);
     }}
   }}
 
-  // Auto-trigger on load
   window.addEventListener('load', function() {{
     setTimeout(pay, 600);
   }});
@@ -266,7 +290,6 @@ async def checkout_page(
         content=html,
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
-            "X-Frame-Options": "SAMEORIGIN",
         },
     )
 
@@ -284,6 +307,11 @@ async def verify_payment(
             "Invalid plan. Must be 'creator' or 'studio'.",
         )
 
+    # ── If transaction_id is '0' look up by tx_ref (Chrome browser flow) ─────
+    if req.transaction_id == '0':
+        req.transaction_id = await _lookup_tx_by_ref(req.tx_ref)
+
+    # ── Fetch & verify transaction ────────────────────────────────────────────
     tx = await _verify_with_flutterwave(req.transaction_id)
 
     logger.info(
@@ -311,7 +339,7 @@ async def verify_payment(
             "Transaction reference mismatch. Contact support.",
         )
 
-    # ── Validate amount (multi-currency) ─────────────────────────────────────
+    # ── Validate amount (multi-currency aware) ────────────────────────────────
     currency       = tx.get("currency", "USD")
     amount_charged = float(tx.get("amount", 0))
     amount_settled = float(tx.get("amount_settled") or 0)
