@@ -28,7 +28,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     )..addListener(() {
         if (mounted) setState(() => _progress = _progressController.value);
       });
-
     _init();
   }
 
@@ -39,28 +38,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _init() async {
-    // ── On Web → go straight to landing page ─────────────────────────────
+    // ── Web → check auth then go to right page ────────────────────────────
     if (kIsWeb) {
-      context.go('/landing');
+      final isLoggedIn =
+          await ref.read(apiServiceProvider).isLoggedIn();
+      if (!mounted) return;
+      if (isLoggedIn) {
+        context.go('/home');
+      } else {
+        context.go('/login');
+      }
       return;
     }
 
-    // ── On Mobile → show full splash ──────────────────────────────────────
-    // Initialize AdMob in background
+    // ── Mobile → show full splash ─────────────────────────────────────────
     AdService.instance.initialize();
-
-    // Animate progress bar
     _progressController.forward();
-
-    // Minimum splash duration
     await Future.delayed(const Duration(milliseconds: 3000));
-
     if (!mounted) return;
 
-    // Check auth and navigate
     final isLoggedIn =
         await ref.read(apiServiceProvider).isLoggedIn();
-
     if (!mounted) return;
 
     if (isLoggedIn) {
@@ -72,20 +70,38 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // On web this shows briefly before redirect — keep it minimal
+    // ── Web: show minimal loader while checking auth ──────────────────────
     if (kIsWeb) {
       return const Scaffold(
         backgroundColor: Color(0xFF0A0A0F),
         body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFFFFB830),
-            strokeWidth: 2,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('🎬', style: TextStyle(fontSize: 48)),
+              SizedBox(height: 16),
+              Text(
+                'PromptReel AI',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFFFB830),
+                ),
+              ),
+              SizedBox(height: 32),
+              SizedBox(
+                width: 32, height: 32,
+                child: CircularProgressIndicator(
+                  color: Color(0xFFFFB830), strokeWidth: 2.5,
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    // ── Full Mobile Splash ─────────────────────────────────────────────────
+    // ── Mobile: full splash screen ────────────────────────────────────────
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       body: Container(
@@ -105,7 +121,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // ── Background glow ─────────────────────────────────────────
+              // Background glow
               Positioned(
                 top: -100, left: 0, right: 0,
                 child: Center(
@@ -124,12 +140,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 ),
               ),
 
-              // ── Main content ────────────────────────────────────────────
               Column(
                 children: [
                   const Spacer(flex: 3),
 
-                  // ── App Icon ─────────────────────────────────────────────
+                  // ── App Icon ───────────────────────────────────────────
                   Container(
                     width: 130, height: 130,
                     decoration: BoxDecoration(
@@ -137,13 +152,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.primary.withOpacity(0.4),
-                          blurRadius: 50,
-                          spreadRadius: 10,
+                          blurRadius: 50, spreadRadius: 10,
                         ),
                         BoxShadow(
                           color: const Color(0xFF3498DB).withOpacity(0.2),
-                          blurRadius: 30,
-                          spreadRadius: 5,
+                          blurRadius: 30, spreadRadius: 5,
                         ),
                       ],
                     ),
@@ -168,7 +181,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       .animate()
                       .scale(
                         begin: const Offset(0.3, 0.3),
-                        end: const Offset(1.0, 1.0),
+                        end:   const Offset(1.0, 1.0),
                         duration: 800.ms,
                         curve: Curves.elasticOut,
                       )
@@ -176,7 +189,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 32),
 
-                  // ── App Name ──────────────────────────────────────────────
+                  // ── App Name ───────────────────────────────────────────
                   ShaderMask(
                     shaderCallback: (b) =>
                         AppColors.primaryGradient.createShader(b),
@@ -197,7 +210,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 12),
 
-                  // ── Tagline ───────────────────────────────────────────────
+                  // ── Tagline ────────────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
@@ -217,7 +230,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 24),
 
-                  // ── Version badge ─────────────────────────────────────────
+                  // ── Version badge ──────────────────────────────────────
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 5),
@@ -235,13 +248,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         letterSpacing: 0.5,
                       ),
                     ),
-                  )
-                      .animate(delay: 700.ms)
-                      .fadeIn(duration: 500.ms),
+                  ).animate(delay: 700.ms).fadeIn(duration: 500.ms),
 
                   const Spacer(flex: 3),
 
-                  // ── Animated progress bar ─────────────────────────────────
+                  // ── Progress bar ───────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 60),
                     child: Column(
@@ -254,8 +265,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             backgroundColor:
                                 Colors.white.withOpacity(0.08),
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.primary,
-                            ),
+                                AppColors.primary),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -279,32 +289,26 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 32),
 
-                  // ── Footer ────────────────────────────────────────────────
+                  // ── Footer ─────────────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'Made with ',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.3),
-                          letterSpacing: 0.3,
-                        ),
-                      ),
+                      Text('Made with ',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.3),
+                            letterSpacing: 0.3,
+                          )),
                       const Text('❤️',
                           style: TextStyle(fontSize: 13)),
-                      Text(
-                        ' by chAs Tech Group',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.3),
-                          letterSpacing: 0.3,
-                        ),
-                      ),
+                      Text(' by chAs Tech Group',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.3),
+                            letterSpacing: 0.3,
+                          )),
                     ],
-                  )
-                      .animate(delay: 1000.ms)
-                      .fadeIn(duration: 700.ms),
+                  ).animate(delay: 1000.ms).fadeIn(duration: 700.ms),
 
                   const SizedBox(height: 36),
                 ],
