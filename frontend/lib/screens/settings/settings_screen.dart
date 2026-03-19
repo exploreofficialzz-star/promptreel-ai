@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,7 +9,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
-import '../../widgets/ads/banner_ad_widget.dart'; // ← Added
+import '../../widgets/ads/banner_ad_widget.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -41,8 +42,8 @@ class SettingsScreen extends ConsumerWidget {
                     _PlanCard(user: user),
                     const SizedBox(height: AppSpacing.md),
 
-                    // ── Large Banner Ad (free users only) ──────────────────
-                    const LargeBannerAd(), // ← Added
+                    // ── Large Banner Ad (mobile free users only) ───────────
+                    const LargeBannerAd(),
                     const SizedBox(height: AppSpacing.md),
 
                     _SettingsGroup(
@@ -90,17 +91,22 @@ class SettingsScreen extends ConsumerWidget {
                           onTap: () => launchUrl(
                               Uri.parse('https://promptreel.ai/help')),
                         ),
+                        // ── FIX: Privacy & Terms use in-app routes on web ──
                         _SettingsItem(
                           icon: Icons.privacy_tip_outlined,
                           label: 'Privacy Policy',
-                          onTap: () => launchUrl(
-                              Uri.parse('https://promptreel.ai/privacy')),
+                          onTap: () => kIsWeb
+                              ? context.go('/privacy')
+                              : launchUrl(Uri.parse(
+                                  'https://promptreel.ai/privacy')),
                         ),
                         _SettingsItem(
                           icon: Icons.description_outlined,
                           label: 'Terms of Service',
-                          onTap: () => launchUrl(
-                              Uri.parse('https://promptreel.ai/terms')),
+                          onTap: () => kIsWeb
+                              ? context.go('/terms')
+                              : launchUrl(Uri.parse(
+                                  'https://promptreel.ai/terms')),
                         ),
                       ],
                     ),
@@ -130,8 +136,11 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         );
                         if (confirm == true) {
-                          await ref.read(authProvider.notifier).logout();
-                          if (context.mounted) context.go('/login');
+                          await ref
+                              .read(authProvider.notifier)
+                              .logout();
+                          if (context.mounted)
+                            context.go('/login');
                         }
                       },
                       child: Row(
@@ -167,7 +176,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Edit Profile Sheet ─────────────────────────────────────────────────────
   void _showEditProfileSheet(
       BuildContext context, WidgetRef ref, dynamic user) {
     final nameCtrl = TextEditingController(text: user?.name ?? '');
@@ -201,7 +209,8 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Edit Profile', style: AppTypography.headlineMedium),
+              Text('Edit Profile',
+                  style: AppTypography.headlineMedium),
               const SizedBox(height: 4),
               Text('Update your display name',
                   style: AppTypography.bodySmall),
@@ -237,17 +246,22 @@ class SettingsScreen extends ConsumerWidget {
                 onPressed: () async {
                   if (!formKey.currentState!.validate()) return;
                   try {
-                    await ref.read(apiServiceProvider).updateProfile(
-                      name: nameCtrl.text.trim(),
-                    );
-                    await ref.read(authProvider.notifier).refreshUser();
+                    await ref
+                        .read(apiServiceProvider)
+                        .updateProfile(
+                          name: nameCtrl.text.trim(),
+                        );
+                    await ref
+                        .read(authProvider.notifier)
+                        .refreshUser();
                     if (ctx.mounted) {
                       Navigator.pop(ctx);
                       _showSnack(context, '✅ Profile updated!');
                     }
                   } catch (e) {
                     if (ctx.mounted) {
-                      _showSnack(context, ApiService.extractError(e),
+                      _showSnack(
+                          context, ApiService.extractError(e),
                           isError: true);
                     }
                   }
@@ -260,8 +274,8 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Change Password Sheet ──────────────────────────────────────────────────
-  void _showChangePasswordSheet(BuildContext context, WidgetRef ref) {
+  void _showChangePasswordSheet(
+      BuildContext context, WidgetRef ref) {
     final currentCtrl = TextEditingController();
     final newCtrl     = TextEditingController();
     final confirmCtrl = TextEditingController();
@@ -313,7 +327,8 @@ class SettingsScreen extends ConsumerWidget {
                     style: AppTypography.bodyLarge,
                     decoration: InputDecoration(
                       labelText: 'Current Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      prefixIcon:
+                          const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(showCurrent
                             ? Icons.visibility_off_outlined
@@ -357,7 +372,8 @@ class SettingsScreen extends ConsumerWidget {
                     style: AppTypography.bodyLarge,
                     decoration: const InputDecoration(
                       labelText: 'Confirm New Password',
-                      prefixIcon: Icon(Icons.check_circle_outline),
+                      prefixIcon:
+                          Icon(Icons.check_circle_outline),
                     ),
                     validator: (v) => v != newCtrl.text
                         ? 'Passwords do not match'
@@ -367,7 +383,8 @@ class SettingsScreen extends ConsumerWidget {
                   _SubmitButton(
                     label: 'Update Password',
                     onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
+                      if (!formKey.currentState!.validate())
+                        return;
                       try {
                         await ref
                             .read(apiServiceProvider)
@@ -382,8 +399,8 @@ class SettingsScreen extends ConsumerWidget {
                         }
                       } catch (e) {
                         if (ctx.mounted) {
-                          _showSnack(
-                              context, ApiService.extractError(e),
+                          _showSnack(context,
+                              ApiService.extractError(e),
                               isError: true);
                         }
                       }
@@ -398,8 +415,8 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Notifications Sheet ────────────────────────────────────────────────────
-  void _showNotificationsSheet(BuildContext context, WidgetRef ref) {
+  void _showNotificationsSheet(
+      BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -452,10 +469,11 @@ class _NotificationsSheetState
           .getNotificationPreferences();
       if (mounted) {
         setState(() {
-          _generationComplete = prefs['generation_complete'] ?? true;
-          _dailyReminder      = prefs['daily_reminder'] ?? false;
-          _productUpdates     = prefs['product_updates'] ?? true;
-          _promotions         = prefs['promotions'] ?? false;
+          _generationComplete =
+              prefs['generation_complete'] ?? true;
+          _dailyReminder  = prefs['daily_reminder'] ?? false;
+          _productUpdates = prefs['product_updates'] ?? true;
+          _promotions     = prefs['promotions'] ?? false;
         });
       }
     } catch (_) {}
@@ -549,7 +567,8 @@ class _NotificationsSheetState
             label: 'Promotions',
             subtitle: 'Special offers and discounts',
             value: _promotions,
-            onChanged: (v) => setState(() => _promotions = v),
+            onChanged: (v) =>
+                setState(() => _promotions = v),
           ),
           const SizedBox(height: 24),
           _SubmitButton(
@@ -639,7 +658,7 @@ class _SubmitButtonState extends State<_SubmitButton> {
 
 // ── Profile Card ──────────────────────────────────────────────────────────────
 class _ProfileCard extends StatelessWidget {
-  final user;
+  final dynamic user;
   const _ProfileCard({required this.user});
 
   @override
@@ -648,9 +667,8 @@ class _ProfileCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
+            width: 56, height: 56,
+            decoration: const BoxDecoration(
               gradient: AppColors.primaryGradient,
               shape: BoxShape.circle,
             ),
@@ -688,7 +706,7 @@ class _ProfileCard extends StatelessWidget {
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 class _PlanCard extends StatelessWidget {
-  final user;
+  final dynamic user;
   const _PlanCard({required this.user});
 
   @override
@@ -700,7 +718,7 @@ class _PlanCard extends StatelessWidget {
         gradient: isPaid
             ? const LinearGradient(colors: [
                 Color(0xFF1A2A1A),
-                Color(0xFF0A1A0A)
+                Color(0xFF0A1A0A),
               ])
             : AppColors.cardGradient,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -816,8 +834,7 @@ class _SettingsItem extends StatelessWidget {
             horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon,
-                size: 18, color: AppColors.textSecondary),
+            Icon(icon, size: 18, color: AppColors.textSecondary),
             const SizedBox(width: 12),
             Expanded(
                 child: Text(label,
