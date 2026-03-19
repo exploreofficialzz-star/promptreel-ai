@@ -22,11 +22,17 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  // ── FIX: Prevent multiple initializations causing refresh loop ────────────
+  bool _initialized = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // ── FIX: On web, fetch user data now since we skipped it on startup ──
+      if (_initialized) return;
+      _initialized = true;
+
+      // On web, fetch user data now since startup skipped it
       if (kIsWeb) {
         ref.read(authProvider.notifier).refreshUser();
       }
@@ -86,8 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       title: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 32, height: 32,
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(8),
@@ -173,15 +178,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         borderRadius:
                             BorderRadius.circular(AppRadius.full),
                         border: Border.all(
-                            color:
-                                AppColors.primary.withOpacity(0.3)),
+                            color: AppColors.primary.withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 6,
-                            height: 6,
+                            width: 6, height: 6,
                             decoration: const BoxDecoration(
                               color: AppColors.primary,
                               shape: BoxShape.circle,
@@ -380,8 +383,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const SizedBox(height: AppSpacing.md),
           Container(
-            width: 60,
-            height: 60,
+            width: 60, height: 60,
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.1),
               shape: BoxShape.circle,
@@ -438,10 +440,9 @@ class _ProjectTile extends ConsumerWidget {
           return;
         }
 
-        // Free users — navigate first then show ad on top
         context.go('/results/$projectId', extra: projectData);
 
-        // ── FIX: Skip interstitial on web — AdMob not supported ───────────
+        // Skip interstitial on web — AdMob not supported
         if (!kIsWeb) {
           AdService.instance.showProjectViewInterstitial(user);
         }
@@ -449,8 +450,7 @@ class _ProjectTile extends ConsumerWidget {
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 44, height: 44,
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -535,8 +535,7 @@ class _StatusBadge extends StatelessWidget {
       default:          color = AppColors.warning;
     }
     return Container(
-      width: 8,
-      height: 8,
+      width: 8, height: 8,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
