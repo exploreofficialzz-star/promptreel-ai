@@ -26,14 +26,16 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Validate HTML
         run: |
           echo "Checking website files..."
           ls -la website/
-          test -f website/index.html   || (echo "❌ Missing index.html"   && exit 1)
+          test -f website/index.html    || (echo "❌ Missing index.html"    && exit 1)
           test -f website/manifest.json || (echo "❌ Missing manifest.json" && exit 1)
-          test -f website/robots.txt   || (echo "❌ Missing robots.txt"   && exit 1)
+          test -f website/robots.txt    || (echo "❌ Missing robots.txt"    && exit 1)
           echo "✅ All required website files present"
 
       - name: Upload Pages artifact
