@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromptReel AI — Turn Ideas into Video Production Plans</title>
+
+  <!-- ── SEO ──────────────────────────────────────────────────────────── -->
+  <meta name="description" content="PromptReel AI turns your idea into a complete, ready-to-execute AI video production plan — script, shot list, voiceover, image prompts & more." />
+  <meta name="keywords" content="AI video planner, video script generator, AI content creator, PromptReel, video production AI, content planning" />
+  <meta name="author" content="chAs Tech Group" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://chastechgroup.github.io/promptreel-ai/" />
+
+  <!-- ── Open Graph ────────────────────────────────────────────────────── -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://chastechgroup.github.io/promptreel-ai/" />
+  <meta property="og:title" content="PromptReel AI — Turn Ideas into Video Plans" />
+  <meta property="og:description" content="AI-powered video production planning. Script. Shot list. Voiceover. Image prompts. Everything in seconds." />
+  <meta property="og:image" content="assets/images/og-image.png" />
+
+  <!-- ── Twitter Card ──────────────────────────────────────────────────── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="PromptReel AI — Turn Ideas into Video Plans" />
+  <meta name="twitter:description" content="AI-powered video production planning for creators." />
+  <meta name="twitter:image" content="assets/images/og-image.png" />
+
+  <!-- ── Favicon ───────────────────────────────────────────────────────── -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16.png" />
+  <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- ── Fonts ─────────────────────────────────────────────────────────── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ── Styles ────────────────────────────────────────────────────────── -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <!-- ── Security Headers via meta (CSP backup) ───────────────────────── -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+
+  <!-- ── Schema.org structured data ───────────────────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "PromptReel AI",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Android, iOS",
+    "description": "AI-powered video production planning app. Turn simple ideas into complete video packages.",
+    "author": { "@type": "Organization", "name": "chAs Tech Group" },
+    "offers": [
+      { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
+      { "@type": "Offer", "price": "15", "priceCurrency": "USD", "name": "Creator" },
+      { "@type": "Offer", "price": "35", "priceCurrency": "USD", "name": "Studio" }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       NAV
+  ══════════════════════════════════════════════════════════════════════ -->
+  <nav class="nav" id="navbar">
+    <div class="nav__inner container">
+      <a href="#" class="nav__logo">
+        <span class="logo-icon">🎬</span>
+        <span class="logo-text">PromptReel <span class="logo-ai">AI</span></span>
+      </a>
+
+      <ul class="nav__links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#models">AI Models</a></li>
+      </ul>
+
+      <div class="nav__actions">
+        <a href="https://promptreel-ai.onrender.com/docs" class="btn btn--ghost btn--sm" target="_blank" rel="noopener">API Docs</a>
+        <a href="#download" class="btn btn--primary btn--sm">Download App</a>
+      </div>
+
+      <button class="nav__hamburger" id="hamburger" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+    <div class="nav__mobile" id="mobileMenu">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#models">AI Models</a>
+      <a href="#download" class="btn btn--primary">Download App</a>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       HERO
+  ══════════════════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero__glow hero__glow--1"></div>
+    <div class="hero__glow hero__glow--2"></div>
+    <div class="hero__glow hero__glow--3"></div>
+
+    <div class="container hero__inner">
+      <div class="hero__badge animate-in">
+        <span class="badge-dot"></span>
+        Powered by 9+ frontier AI models
+      </div>
+
+      <h1 class="hero__title animate-in delay-1">
+        Turn <span class="gradient-text">Any Idea</span> Into a
+        <br>Complete Video Plan
+      </h1>
+
+      <p class="hero__subtitle animate-in delay-2">
+        PromptReel AI generates your full video production package in seconds —
+        <strong>script, shot list, voiceover, image prompts, music cues</strong> and more.
+        Built for creators who move fast.
+      </p>
+
+      <div class="hero__cta animate-in delay-3">
+        <a href="#download" class="btn btn--primary btn--lg pulse">
+          📱 Download Free
+        </a>
+        <a href="#how-it-works" class="btn btn--outline btn--lg">
+          ▶ See How It Works
+        </a>
+      </div>
+
+      <div class="hero__stats animate-in delay-4">
+        <div class="stat">
+          <span class="stat__number">9+</span>
+          <span class="stat__label">AI Models</span>
+        </div>
+        <div class="stat__divider"></div>
+        <div class="stat">
+          <span class="stat__number">10</span>
+          <span class="stat__label">Content Types</span>
+        </div>
+        <div class="stat__divider"></div>
+        <div class="stat">
+          <span class="stat__number">6</span>
+          <span class="stat__label">Platforms</span>
+        </div>
+        <div class="stat__divider"></div>
+        <div class="stat">
+          <span class="stat__number">12</span>
+          <span class="stat__label">Export Files</span>
+        </div>
+      </div>
+
+      <!-- Phone mockup -->
+      <div class="hero__mockup animate-in delay-5">
+        <div class="phone">
+          <div class="phone__screen">
+            <div class="app-bar">
+              <span>🎬 PromptReel AI</span>
+              <span class="app-bar__badge creator">Creator</span>
+            </div>
+            <div class="app-content">
+              <div class="app-input">
+                <span class="input-icon">💡</span>
+                <span class="input-text">A short horror story set in a lighthouse...</span>
+                <div class="cursor-blink"></div>
+              </div>
+              <div class="app-options">
+                <span class="chip chip--active">🎬 Horror</span>
+                <span class="chip">YouTube</span>
+                <span class="chip">5 min</span>
+              </div>
+              <button class="app-generate">✨ Generate Plan</button>
+              <div class="app-output">
+                <div class="output-row"><span class="output-icon">📝</span><span>Script Generated</span><span class="output-check">✓</span></div>
+                <div class="output-row"><span class="output-icon">🎞</span><span>Shot List Ready</span><span class="output-check">✓</span></div>
+                <div class="output-row"><span class="output-icon">🎙</span><span>Voiceover Script</span><span class="output-check">✓</span></div>
+                <div class="output-row loading"><span class="output-icon">🖼</span><span>Image Prompts</span><span class="output-spinner">⟳</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="phone__notch"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       FEATURES
+  ══════════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section__header">
+        <span class="section__tag">Features</span>
+        <h2 class="section__title">Everything You Need to<br><span class="gradient-text">Ship Faster</span></h2>
+        <p class="section__subtitle">One prompt. One tap. A complete production-ready package your whole team can work from.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card feature-card--wide">
+          <div class="feature-card__icon">📝</div>
+          <h3>Full Script Generation</h3>
+          <p>Scene-by-scene scripts with dialogue, narration, and hooks — matched to your content type and platform algorithm.</p>
+          <div class="feature-tag">Included in all plans</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">🎞</div>
+          <h3>Shot-by-Shot Breakdown</h3>
+          <p>Every scene gets a camera angle, lighting note, and timing recommendation.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">🎙</div>
+          <h3>Voiceover Scripts</h3>
+          <p>Timestamped narration scripts optimised for natural speech pacing and emphasis.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">🖼</div>
+          <h3>Image Prompts</h3>
+          <p>Ready-to-paste prompts for Midjourney, DALL-E, Leonardo AI, and Stable Diffusion.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">🎵</div>
+          <h3>Music & Sound Cues</h3>
+          <p>Mood-matched soundscape suggestions with timing for each scene beat.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon">📦</div>
+          <h3>12-File ZIP Export</h3>
+          <p>Download everything as a structured ZIP: SRT, TXT, PDF, JSON — every format you need.</p>
+        </div>
+
+        <div class="feature-card feature-card--wide">
+          <div class="feature-card__icon">🤖</div>
+          <h3>9+ AI Model Fallback Chain</h3>
+          <p>Your plan is always generated — even when one provider is down. GPT-4o → Claude → Gemini → Groq → and more, cascading automatically by tier.</p>
+          <div class="model-chips">
+            <span class="chip chip--gold">GPT-4o</span>
+            <span class="chip chip--purple">Claude 3.5</span>
+            <span class="chip chip--blue">Gemini Pro</span>
+            <span class="chip">Grok-2</span>
+            <span class="chip">Mistral</span>
+            <span class="chip">DeepSeek</span>
+            <span class="chip">Groq</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       HOW IT WORKS
+  ══════════════════════════════════════════════════════════════════════ -->
+  <section class="section section--dark" id="how-it-works">
+    <div class="container">
+      <div class="section__header">
+        <span class="section__tag">How It Works</span>
+        <h2 class="section__title">From Idea to Production Plan<br><span class="gradient-text">in Under 60 Seconds</span></h2>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step__number">01</div>
+          <div class="step__content">
+            <h3>Describe Your Video</h3>
+            <p>Type your idea — one sentence or a paragraph. The AI understands context, tone, and intent automatically.</p>
+          </div>
+        </div>
+        <div class="step__connector"></div>
+        <div class="step">
+          <div class="step__number">02</div>
+          <div class="step__content">
+            <h3>Choose Your Settings</h3>
+            <p>Select content type (educational, horror, comedy…), target platform, duration, and your preferred AI video generator.</p>
+          </div>
+        </div>
+        <div class="step__connector"></div>
+        <div class="step">
+          <div class="step__number">03</div>
+          <div class="step__content">
+            <h3>Generate Your Plan</h3>
+            <p>Watch as the AI builds your complete production package — script, shot list, voiceover, image prompts, music cues, and colour palette.</p>
+          </div>
+        </div>
+        <div class="step__connector"></div>
+        <div class="step">
+          <div class="step__number">04</div>
+          <div class="step__content">
+            <h3>Export & Create</h3>
+            <p>Download your 12-file ZIP package, copy individual prompts, or share with your team. Start creating immediately.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       PRICING
+  ══════════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="pricing">
+    <div class="container">
+      <div class="section__header">
+        <span class="section__tag">Pricing</span>
+        <h2 class="section__title">Simple, <span class="gradient-text">Honest Pricing</span></h2>
+        <p class="section__subtitle">No hidden fees. Cancel anytime. All plans include access to the full app.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <!-- Free -->
+        <div class="pricing-card">
+          <div class="pricing-card__plan">Free</div>
+          <div class="pricing-card__price">
+            <span class="price__amount">$0</span>
+            <span class="price__period">/month</span>
+          </div>
+          <ul class="pricing-card__features">
+            <li>✅ 3 video plans per day</li>
+            <li>✅ Up to 5-minute videos</li>
+            <li>✅ All 10 content types</li>
+            <li>✅ Basic export (TXT)</li>
+            <li>✅ Gemini 2.0 Flash AI</li>
+            <li class="disabled">❌ No ads removal</li>
+            <li class="disabled">❌ No ZIP export</li>
+          </ul>
+          <a href="#download" class="btn btn--outline btn--full">Get Started Free</a>
+        </div>
+
+        <!-- Creator (Popular) -->
+        <div class="pricing-card pricing-card--popular">
+          <div class="pricing-card__badge">Most Popular</div>
+          <div class="pricing-card__plan">Creator</div>
+          <div class="pricing-card__price">
+            <span class="price__amount">$15</span>
+            <span class="price__period">/month</span>
+          </div>
+          <ul class="pricing-card__features">
+            <li>✅ <strong>Unlimited</strong> video plans</li>
+            <li>✅ Up to 20-minute videos</li>
+            <li>✅ <strong>No ads</strong></li>
+            <li>✅ Full 12-file ZIP export</li>
+            <li>✅ GPT-4o-mini · Grok-2 · Gemini Pro</li>
+            <li>✅ Batch planner</li>
+            <li>✅ Priority processing</li>
+          </ul>
+          <a href="#download" class="btn btn--primary btn--full">Start Creator Plan</a>
+        </div>
+
+        <!-- Studio -->
+        <div class="pricing-card">
+          <div class="pricing-card__plan">Studio</div>
+          <div class="pricing-card__price">
+            <span class="price__amount">$35</span>
+            <span class="price__period">/month</span>
+          </div>
+          <ul class="pricing-card__features">
+            <li>✅ Everything in Creator</li>
+            <li>✅ GPT-4o · Claude 3.5 Sonnet</li>
+            <li>✅ Team collaboration</li>
+            <li>✅ API access</li>
+            <li>✅ Custom branding</li>
+            <li>✅ Dedicated support</li>
+            <li>✅ Early access to new features</li>
+          </ul>
+          <a href="#download" class="btn btn--outline btn--full">Start Studio Plan</a>
+        </div>
+      </div>
+
+      <p class="pricing-note">All payments processed securely via Flutterwave. USD only.</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       AI MODELS
+  ══════════════════════════════════════════════════════════════════════ -->
+  <section class="section section--dark" id="models">
+    <div class="container">
+      <div class="section__header">
+        <span class="section__tag">AI Engine</span>
+        <h2 class="section__title">Best-in-Class Models,<br><span class="gradient-text">Automatically Chained</span></h2>
+        <p class="section__subtitle">PromptReel AI routes your request through the best available model for your plan — with automatic fallback if any provider is down.</p>
+      </div>
+
+      <div class="models-grid">
+        <div class="tier-card">
+          <div class="tier-card__label tier-card__label--free">Free Tier</div>
+          <div class="tier-models">
+            <div class="model-item"><span class="model-dot model-dot--green"></span>Gemini 2.0 Flash</div>
+            <div class="model-item"><span class="model-dot"></span>Groq Llama 3.3 70B</div>
+            <div class="model-item"><span class="model-dot"></span>Groq Llama 3.1 8B</div>
+            <div class="model-item"><span class="model-dot"></span>DeepSeek-V3</div>
+            <div class="model-item"><span class="model-dot"></span>Together Qwen 2.5</div>
+            <div class="model-item"><span class="model-dot"></span>OpenRouter Free</div>
+          </div>
+        </div>
+
+        <div class="tier-card">
+          <div class="tier-card__label tier-card__label--creator">Creator Tier</div>
+          <div class="tier-models">
+            <div class="model-item"><span class="model-dot model-dot--blue"></span>GPT-4o-mini (primary)</div>
+            <div class="model-item"><span class="model-dot"></span>Grok-2</div>
+            <div class="model-item"><span class="model-dot"></span>Gemini 1.5 Pro</div>
+            <div class="model-item"><span class="model-dot"></span>Mistral Large</div>
+            <div class="model-item"><span class="model-dot"></span>DeepSeek-V3</div>
+          </div>
+        </div>
+
+        <div class="tier-card">
+          <div class="tier-card__label tier-card__label--studio">Studio Tier</div>
+          <div class="tier-models">
+            <div class="model-item"><span class="model-dot model-dot--gold"></span>GPT-4o (primary)</div>
+            <div class="model-item"><span class="model-dot model-dot--purple"></span>Claude 3.5 Sonnet</div>
+            <div class="model-item"><span class="model-dot"></span>Grok-2</div>
+            <div class="model-item"><span class="model-dot"></span>Gemini 1.5 Pro</div>
+            <div class="model-item"><span class="model-dot"></span>Mistral Large</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       DOWNLOAD CTA
+  ══════════════════════════════════════════════════════════════════════ -->
+  <section class="section cta-section" id="download">
+    <div class="container">
+      <div class="cta-card">
+        <div class="cta-card__glow"></div>
+        <h2>Ready to Create?</h2>
+        <p>Download PromptReel AI and turn your first idea into a video plan — free, in seconds.</p>
+
+        <div class="download-buttons">
+          <a href="https://github.com/chastechgroup/promptreel-ai/releases/latest" class="download-btn" target="_blank" rel="noopener">
+            <div class="download-btn__icon">📱</div>
+            <div class="download-btn__text">
+              <small>Download for</small>
+              <strong>Android APK</strong>
+            </div>
+          </a>
+
+          <a href="#" class="download-btn download-btn--disabled" title="iOS — Coming Soon">
+            <div class="download-btn__icon">🍎</div>
+            <div class="download-btn__text">
+              <small>Coming Soon</small>
+              <strong>iOS / App Store</strong>
+            </div>
+          </a>
+        </div>
+
+        <p class="cta-note">Backend API open for developers →
+          <a href="https://promptreel-ai.onrender.com/docs" target="_blank" rel="noopener">View Docs</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       FOOTER
+  ══════════════════════════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand">
+        <span class="logo-icon">🎬</span>
+        <span class="logo-text">PromptReel <span class="logo-ai">AI</span></span>
+        <p>Turn simple ideas into complete AI video production plans.</p>
+        <small>Made with ❤️ by <a href="#" target="_blank" rel="noopener">chAs Tech Group</a></small>
+      </div>
+
+      <div class="footer__links">
+        <div class="footer__col">
+          <h4>Product</h4>
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#models">AI Models</a>
+          <a href="#download">Download</a>
+        </div>
+        <div class="footer__col">
+          <h4>Developers</h4>
+          <a href="https://promptreel-ai.onrender.com/docs" target="_blank" rel="noopener">API Docs</a>
+          <a href="https://github.com/chastechgroup/promptreel-ai" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://promptreel-ai.onrender.com/health" target="_blank" rel="noopener">API Status</a>
+        </div>
+        <div class="footer__col">
+          <h4>Legal</h4>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <div class="container">
+        <p>© 2025 chAs Tech Group. All rights reserved. PromptReel AI is not affiliated with any AI provider mentioned.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

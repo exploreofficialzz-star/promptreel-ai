@@ -2,9 +2,12 @@ services:
   - type: web
     name: promptreel-ai-backend
     runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 300
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 300 --proxy-headers --forwarded-allow-ips "*"
     timeoutSeconds: 300
+    plan: free
+
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -14,29 +17,40 @@ services:
         sync: false
       - key: SECRET_KEY
         generateValue: true
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: GROK_API_KEY
         sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
       - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
         sync: false
       - key: TOGETHER_API_KEY
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
-      - key: MISTRAL_API_KEY
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: noreply@promptreel.ai
+      - key: FLUTTERWAVE_PUBLIC_KEY
         sync: false
       - key: FLUTTERWAVE_SECRET_KEY
         sync: false
-      - key: FLUTTERWAVE_PUBLIC_KEY
+      - key: FLUTTERWAVE_ENCRYPT_KEY
         sync: false
       - key: FLUTTERWAVE_WEBHOOK_HASH
         sync: false
+      - key: CORS_ORIGINS
+        value: '["https://app.promptreel.ai","https://promptreel.ai","https://chastechgroup.github.io"]'
+      - key: FRONTEND_URL
+        value: https://app.promptreel.ai
+
     healthCheckPath: /health
     autoDeploy: true

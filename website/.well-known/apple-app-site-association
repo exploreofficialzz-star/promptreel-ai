@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "YOURTEAMID.com.chastechgroup.promptreel",
+        "paths": [
+          "/payment/callback*",
+          "/home*",
+          "/create*",
+          "/projects*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "YOURTEAMID.com.chastechgroup.promptreel"
+    ]
+  }
+}

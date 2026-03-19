@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -7,6 +7,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from database import get_db
 from models.user import User, PlanType
@@ -18,6 +20,9 @@ from services.email_service import (
     code_expires_at,
 )
 import logging
+
+# ── Per-router rate limiter (stricter than global) ────────────────────────────
+_limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
@@ -191,7 +196,8 @@ async def get_current_user(
 # ─── Register ─────────────────────────────────────────────────────────────────
 @router.post("/register", response_model=TokenResponse,
              status_code=status.HTTP_201_CREATED)
-async def register(data: RegisterRequest,
+@_limiter.limit("10/minute")  # Brute-force protection
+async def register(request: Request, data: RegisterRequest,
                    db: AsyncSession = Depends(get_db)):
     existing = await db.execute(
         select(User).where(User.email == data.email.lower())
@@ -237,7 +243,8 @@ async def register(data: RegisterRequest,
 
 # ─── Login ────────────────────────────────────────────────────────────────────
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest,
+@_limiter.limit("10/minute")  # Brute-force protection
+async def login(request: Request, data: LoginRequest,
                 db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(User.email == data.email.lower())
@@ -421,7 +428,8 @@ async def resend_verification(data: ResendCodeRequest,
 
 # ─── Forgot Password ──────────────────────────────────────────────────────────
 @router.post("/forgot-password")
-async def forgot_password(data: ForgotPasswordRequest,
+@_limiter.limit("5/minute")  # Prevent email flooding
+async def forgot_password(request: Request, data: ForgotPasswordRequest,
                           db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(User.email == data.email.lower())
@@ -445,7 +453,8 @@ async def forgot_password(data: ForgotPasswordRequest,
 
 # ─── Reset Password ───────────────────────────────────────────────────────────
 @router.post("/reset-password")
-async def reset_password(data: ResetPasswordRequest,
+@_limiter.limit("5/minute")
+async def reset_password(request: Request, data: ResetPasswordRequest,
                          db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(User.email == data.email.lower())
@@ -478,3 +487,66 @@ async def save_fcm_token(
     current_user.fcm_token = data.fcm_token
     await db.flush()
     return {"message": "FCM token saved"}
+
+
+
+
+
+# ─── Get subscription status ─────────────────────────────────────────────────
+@router.get("/subscription")
+async def get_subscription(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns current plan, expiry date, and whether subscription is active."""
+    # Auto-downgrade if expired
+    if current_user.downgrade_if_expired():
+        await db.flush()
+
+    from datetime import datetime, timezone
+    return {
+        "plan":       current_user.plan.value,
+        "is_paid":    current_user.is_paid,
+        "expires_at": current_user.subscription_expires_at.isoformat()
+                      if current_user.subscription_expires_at else None,
+        "is_expired": (
+            current_user.subscription_expires_at is not None
+            and datetime.now(timezone.utc) >= current_user.subscription_expires_at
+        ),
+    }
+
+
+# ─── Account Hard Delete (GDPR) ───────────────────────────────────────────────
+class DeleteAccountRequest(BaseModel):
+    password: str  # Require password confirmation before deleting
+
+
+@router.delete("/me", status_code=204, tags=["Auth"])
+async def delete_account(
+    data: DeleteAccountRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Permanently delete the authenticated user's account and all associated data.
+    Requires the user to confirm their current password.
+    This action is irreversible.
+    """
+    # Verify password before deletion
+    if not verify_password(data.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Incorrect password. Account deletion cancelled.",
+        )
+
+    logger.warning(
+        f"Account hard-delete requested for user {current_user.id} ({current_user.email})"
+    )
+
+    # SQLAlchemy cascade="all, delete-orphan" on User.projects handles
+    # deleting all associated Project rows automatically.
+    await db.delete(current_user)
+    await db.flush()
+
+    logger.info(f"Account {current_user.id} permanently deleted.")
+    return  # 204 No Content

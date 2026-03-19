@@ -1,6 +1,6 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // MethodChannel for ATT
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,69 +15,59 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _progressController;
-  double _progress = 0.0;
-
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _progressController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..addListener(() {
-        if (mounted) setState(() => _progress = _progressController.value);
-      });
-
-    // Navigate after first frame — avoids GoRouter not ready issue
-    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
-  }
-
-  @override
-  void dispose() {
-    _progressController.dispose();
-    super.dispose();
+    _init();
   }
 
   Future<void> _init() async {
-    if (!mounted) return;
+    // ── AdMob (mobile only — no-op on web via kIsWeb guard in AdService) ──
+    AdService.instance.initialize();
 
-    // ── Web → go straight to login immediately ────────────────────────────
-    if (kIsWeb) {
-      context.go('/login');
-      return;
+    // ── iOS ATT prompt (iOS only, mobile only) ─────────────────────────────
+    if (!kIsWeb) {
+      await _requestATT();
     }
 
-    // ── Mobile → full splash then check auth ──────────────────────────────
-    AdService.instance.initialize();
-    _progressController.forward();
+    // Minimum splash duration so the animation completes
     await Future.delayed(const Duration(milliseconds: 3000));
+
     if (!mounted) return;
 
+    // Check auth and navigate
+    final isLoggedIn = await ref.read(apiServiceProvider).isLoggedIn();
+
+    if (!mounted) return;
+
+    if (isLoggedIn) {
+      context.go('/home');
+    } else {
+      context.go('/login');
+    }
+  }
+
+  /// Request iOS App Tracking Transparency authorization.
+  /// Only called on mobile (guarded by !kIsWeb above).
+  Future<void> _requestATT() async {
     try {
-      final isLoggedIn = await ref
-          .read(apiServiceProvider)
-          .isLoggedIn()
-          .timeout(const Duration(seconds: 8));
-      if (!mounted) return;
-      context.go(isLoggedIn ? '/home' : '/login');
+      // Use the plugin's method channel directly so we avoid importing dart:io.
+      // The app_tracking_transparency plugin handles the iOS-only check internally.
+      const channel = MethodChannel('app_tracking_transparency');
+      final status = await channel.invokeMethod<int>('getTrackingAuthorizationStatus');
+      // 0 = notDetermined — show the prompt
+      if (status == 0) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        await channel.invokeMethod<void>('requestTrackingAuthorization');
+      }
     } catch (_) {
-      if (mounted) context.go('/login');
+      // ATT not available (Android, simulator without entitlement) — safe to skip
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Web shows blank dark screen — JS already redirected to /#/login
-    if (kIsWeb) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0A0A0F),
-        body: SizedBox.shrink(),
-      );
-    }
-
-    // ── Mobile full splash ────────────────────────────────────────────────
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       body: Container(
@@ -95,159 +85,159 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           ),
         ),
         child: SafeArea(
-          child: Stack(
+          child: Column(
             children: [
-              Positioned(
-                top: -100, left: 0, right: 0,
-                child: Center(
-                  child: Container(
-                    width: 400, height: 400,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(colors: [
-                        AppColors.primary.withOpacity(0.08),
-                        Colors.transparent,
-                      ]),
+              const Spacer(flex: 3),
+
+              // ── App Icon ──────────────────────────────────────────────────
+              Container(
+                width: 130,
+                height: 130,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF9B59B6).withOpacity(0.5),
+                      blurRadius: 50,
+                      spreadRadius: 10,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF3498DB).withOpacity(0.3),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) {
+                      // Fallback if image not found
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF9B59B6),
+                              Color(0xFF3498DB),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const Icon(
+                          Icons.movie_filter_rounded,
+                          size: 65,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              )
+                  .animate()
+                  .scale(
+                    begin: const Offset(0.3, 0.3),
+                    end: const Offset(1.0, 1.0),
+                    duration: 800.ms,
+                    curve: Curves.elasticOut,
+                  )
+                  .fadeIn(duration: 500.ms),
+
+              const SizedBox(height: 32),
+
+              // ── App Name ──────────────────────────────────────────────────
+              ShaderMask(
+                shaderCallback: (bounds) =>
+                    AppColors.primaryGradient.createShader(bounds),
+                child: const Text(
+                  'PromptReel AI',
+                  style: TextStyle(
+                    fontSize: 38,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              )
+                  .animate(delay: 400.ms)
+                  .fadeIn(duration: 700.ms)
+                  .slideY(begin: 0.4, end: 0,
+                      curve: Curves.easeOutCubic),
+
+              const SizedBox(height: 12),
+
+              // ── Tagline ───────────────────────────────────────────────────
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  'Turn simple ideas into complete\nAI video production plans.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.white.withOpacity(0.55),
+                    height: 1.6,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              )
+                  .animate(delay: 600.ms)
+                  .fadeIn(duration: 700.ms)
+                  .slideY(begin: 0.3, end: 0),
+
+              const Spacer(flex: 3),
+
+              // ── Loading Bar ───────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 80),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    backgroundColor:
+                        Colors.white.withOpacity(0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
                     ),
                   ),
                 ),
-              ),
-              Column(
+              ).animate(delay: 900.ms).fadeIn(duration: 500.ms),
+
+              const SizedBox(height: 28),
+
+              // ── Footer ────────────────────────────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Spacer(flex: 3),
-                  Container(
-                    width: 130, height: 130,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.4),
-                          blurRadius: 50, spreadRadius: 10,
-                        ),
-                      ],
+                  Text(
+                    'Made with ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.3),
+                      letterSpacing: 0.3,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: Image.asset(
-                        'assets/icon/app_icon.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          decoration: BoxDecoration(
-                            gradient: AppColors.primaryGradient,
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: const Icon(Icons.movie_filter_rounded,
-                              size: 65, color: Colors.white),
-                        ),
-                      ),
+                  ),
+                  const Text(
+                    '❤️',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  Text(
+                    ' by chAs Tech Group',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.3),
+                      letterSpacing: 0.3,
                     ),
-                  )
-                      .animate()
-                      .scale(
-                          begin: const Offset(0.3, 0.3),
-                          end: const Offset(1.0, 1.0),
-                          duration: 800.ms,
-                          curve: Curves.elasticOut)
-                      .fadeIn(duration: 500.ms),
-                  const SizedBox(height: 32),
-                  ShaderMask(
-                    shaderCallback: (b) =>
-                        AppColors.primaryGradient.createShader(b),
-                    child: const Text('PromptReel AI',
-                        style: TextStyle(
-                          fontSize: 38, fontWeight: FontWeight.w900,
-                          color: Colors.white, letterSpacing: 1.5,
-                        )),
-                  )
-                      .animate(delay: 400.ms)
-                      .fadeIn(duration: 700.ms)
-                      .slideY(begin: 0.4, end: 0,
-                          curve: Curves.easeOutCubic),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      'Turn simple ideas into complete\nAI video production plans.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withOpacity(0.55),
-                        height: 1.6, letterSpacing: 0.3,
-                      ),
-                    ),
-                  )
-                      .animate(delay: 600.ms)
-                      .fadeIn(duration: 700.ms)
-                      .slideY(begin: 0.3, end: 0),
-                  const SizedBox(height: 24),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(50),
-                      border: Border.all(
-                          color: AppColors.primary.withOpacity(0.2)),
-                    ),
-                    child: Text(
-                      'v1.0.0 · Powered by 9 AI Providers',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.primary.withOpacity(0.8),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ).animate(delay: 700.ms).fadeIn(duration: 500.ms),
-                  const Spacer(flex: 3),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 60),
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: _progress,
-                            minHeight: 3,
-                            backgroundColor:
-                                Colors.white.withOpacity(0.08),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.primary),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _progress < 0.4
-                              ? 'Initializing...'
-                              : _progress < 0.7
-                                  ? 'Loading AI models...'
-                                  : _progress < 0.95
-                                      ? 'Almost ready...'
-                                      : 'Welcome! 🎬',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.3),
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ).animate(delay: 900.ms).fadeIn(duration: 500.ms),
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Made with ',
-                          style: TextStyle(fontSize: 13,
-                              color: Colors.white.withOpacity(0.3))),
-                      const Text('❤️', style: TextStyle(fontSize: 13)),
-                      Text(' by chAs Tech Group',
-                          style: TextStyle(fontSize: 13,
-                              color: Colors.white.withOpacity(0.3))),
-                    ],
-                  ).animate(delay: 1000.ms).fadeIn(duration: 700.ms),
-                  const SizedBox(height: 36),
+                  ),
                 ],
-              ),
+              )
+                  .animate(delay: 1000.ms)
+                  .fadeIn(duration: 700.ms),
+
+              const SizedBox(height: 36),
             ],
           ),
         ),

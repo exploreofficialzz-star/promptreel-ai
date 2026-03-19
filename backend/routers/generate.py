@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 from datetime import date
@@ -13,6 +15,7 @@ from routers.auth import get_current_user
 from services.ai_service import generate_video_plan, calculate_scenes, get_clip_duration
 from config import settings
 
+_limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/generate", tags=["Generation"])
 logger = logging.getLogger(__name__)
 
@@ -86,7 +89,11 @@ class GenerateRequest(BaseModel):
 
 
 async def check_limits(user: User, req: GenerateRequest, db: AsyncSession):
-    """Enforce plan limits."""
+    """Enforce plan limits. Auto-downgrades expired subscriptions."""
+    # Check and apply subscription expiry before enforcing limits
+    if user.downgrade_if_expired():
+        await db.flush()
+
     if user.is_paid:
         return
 
@@ -111,7 +118,8 @@ async def check_limits(user: User, req: GenerateRequest, db: AsyncSession):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def generate(
+@_limiter.limit("30/minute")  # AI generation is expensive
+async def generate(request: Request, 
     req: GenerateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -1,16 +1,20 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
-import '../../widgets/ads/banner_ad_widget.dart';
+import '../../widgets/ads/banner_ad_widget.dart'; // ← Added
 
+Future<String> _getAppVersion() async {
+  final info = await PackageInfo.fromPlatform();
+  return 'v${info.version}+${info.buildNumber}';
+}
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -42,8 +46,8 @@ class SettingsScreen extends ConsumerWidget {
                     _PlanCard(user: user),
                     const SizedBox(height: AppSpacing.md),
 
-                    // ── Large Banner Ad (mobile free users only) ───────────
-                    const LargeBannerAd(),
+                    // ── Large Banner Ad (free users only) ──────────────────
+                    const LargeBannerAd(), // ← Added
                     const SizedBox(height: AppSpacing.md),
 
                     _SettingsGroup(
@@ -91,22 +95,17 @@ class SettingsScreen extends ConsumerWidget {
                           onTap: () => launchUrl(
                               Uri.parse('https://promptreel.ai/help')),
                         ),
-                        // ── FIX: Privacy & Terms use in-app routes on web ──
                         _SettingsItem(
                           icon: Icons.privacy_tip_outlined,
                           label: 'Privacy Policy',
-                          onTap: () => kIsWeb
-                              ? context.go('/privacy')
-                              : launchUrl(Uri.parse(
-                                  'https://promptreel.ai/privacy')),
+                          onTap: () => launchUrl(
+                              Uri.parse('https://promptreel.ai/privacy')),
                         ),
                         _SettingsItem(
                           icon: Icons.description_outlined,
                           label: 'Terms of Service',
-                          onTap: () => kIsWeb
-                              ? context.go('/terms')
-                              : launchUrl(Uri.parse(
-                                  'https://promptreel.ai/terms')),
+                          onTap: () => launchUrl(
+                              Uri.parse('https://promptreel.ai/terms')),
                         ),
                       ],
                     ),
@@ -136,11 +135,8 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         );
                         if (confirm == true) {
-                          await ref
-                              .read(authProvider.notifier)
-                              .logout();
-                          if (context.mounted)
-                            context.go('/login');
+                          await ref.read(authProvider.notifier).logout();
+                          if (context.mounted) context.go('/login');
                         }
                       },
                       child: Row(
@@ -154,16 +150,37 @@ class SettingsScreen extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Delete Account ──────────────────────────────────────
+                    GestureDetector(
+                      onTap: () => _confirmDeleteAccount(context, ref),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.delete_forever_rounded,
+                              color: AppColors.error, size: 20),
+                          const SizedBox(width: 12),
+                          Text('Delete Account',
+                              style: AppTypography.titleMedium
+                                  .copyWith(color: AppColors.error)),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.xl),
                     Center(
-                      child: Column(
-                        children: [
-                          Text('PromptReel AI v1.0.0',
-                              style: AppTypography.bodySmall),
-                          const SizedBox(height: 4),
-                          Text('Made with ❤️ by chAs Tech Group',
-                              style: AppTypography.bodySmall),
-                        ],
+                      child: FutureBuilder<String>(
+                        future: _getAppVersion(),
+                        builder: (context, snap) => Column(
+                          children: [
+                            Text(
+                              'PromptReel AI ${snap.data ?? 'v1.1.0'}',
+                              style: AppTypography.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Made with ❤️ by chAs Tech Group',
+                                style: AppTypography.bodySmall),
+                          ],
+                        ),
                       ),
                     ),
                   ]),
@@ -176,6 +193,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  // ── Edit Profile Sheet ─────────────────────────────────────────────────────
   void _showEditProfileSheet(
       BuildContext context, WidgetRef ref, dynamic user) {
     final nameCtrl = TextEditingController(text: user?.name ?? '');
@@ -209,8 +227,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Edit Profile',
-                  style: AppTypography.headlineMedium),
+              Text('Edit Profile', style: AppTypography.headlineMedium),
               const SizedBox(height: 4),
               Text('Update your display name',
                   style: AppTypography.bodySmall),
@@ -246,22 +263,17 @@ class SettingsScreen extends ConsumerWidget {
                 onPressed: () async {
                   if (!formKey.currentState!.validate()) return;
                   try {
-                    await ref
-                        .read(apiServiceProvider)
-                        .updateProfile(
-                          name: nameCtrl.text.trim(),
-                        );
-                    await ref
-                        .read(authProvider.notifier)
-                        .refreshUser();
+                    await ref.read(apiServiceProvider).updateProfile(
+                      name: nameCtrl.text.trim(),
+                    );
+                    await ref.read(authProvider.notifier).refreshUser();
                     if (ctx.mounted) {
                       Navigator.pop(ctx);
                       _showSnack(context, '✅ Profile updated!');
                     }
                   } catch (e) {
                     if (ctx.mounted) {
-                      _showSnack(
-                          context, ApiService.extractError(e),
+                      _showSnack(context, ApiService.extractError(e),
                           isError: true);
                     }
                   }
@@ -274,8 +286,8 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showChangePasswordSheet(
-      BuildContext context, WidgetRef ref) {
+  // ── Change Password Sheet ──────────────────────────────────────────────────
+  void _showChangePasswordSheet(BuildContext context, WidgetRef ref) {
     final currentCtrl = TextEditingController();
     final newCtrl     = TextEditingController();
     final confirmCtrl = TextEditingController();
@@ -327,8 +339,7 @@ class SettingsScreen extends ConsumerWidget {
                     style: AppTypography.bodyLarge,
                     decoration: InputDecoration(
                       labelText: 'Current Password',
-                      prefixIcon:
-                          const Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(showCurrent
                             ? Icons.visibility_off_outlined
@@ -372,8 +383,7 @@ class SettingsScreen extends ConsumerWidget {
                     style: AppTypography.bodyLarge,
                     decoration: const InputDecoration(
                       labelText: 'Confirm New Password',
-                      prefixIcon:
-                          Icon(Icons.check_circle_outline),
+                      prefixIcon: Icon(Icons.check_circle_outline),
                     ),
                     validator: (v) => v != newCtrl.text
                         ? 'Passwords do not match'
@@ -383,8 +393,7 @@ class SettingsScreen extends ConsumerWidget {
                   _SubmitButton(
                     label: 'Update Password',
                     onPressed: () async {
-                      if (!formKey.currentState!.validate())
-                        return;
+                      if (!formKey.currentState!.validate()) return;
                       try {
                         await ref
                             .read(apiServiceProvider)
@@ -399,8 +408,8 @@ class SettingsScreen extends ConsumerWidget {
                         }
                       } catch (e) {
                         if (ctx.mounted) {
-                          _showSnack(context,
-                              ApiService.extractError(e),
+                          _showSnack(
+                              context, ApiService.extractError(e),
                               isError: true);
                         }
                       }
@@ -415,8 +424,8 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showNotificationsSheet(
-      BuildContext context, WidgetRef ref) {
+  // ── Notifications Sheet ────────────────────────────────────────────────────
+  void _showNotificationsSheet(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -441,7 +450,111 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-// ── Notifications Sheet ───────────────────────────────────────────────────────
+// ── Delete Account Confirmation ───────────────────────────────────────────────
+Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+  final passwordController = TextEditingController();
+  bool obscure = true;
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        backgroundColor: const Color(0xFF12121E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [
+          Icon(Icons.warning_amber_rounded, color: Color(0xFFFF4444), size: 22),
+          SizedBox(width: 10),
+          Text('Delete Account',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This will permanently delete your account and all video plans. This cannot be undone.',
+              style: TextStyle(color: Color(0xFF9999C0), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            const Text('Enter your password to confirm:',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: passwordController,
+              obscureText: obscure,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Your password',
+                hintStyle: const TextStyle(color: Color(0xFF5A5A80)),
+                filled: true,
+                fillColor: const Color(0xFF1A1A2E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF2A2A3E)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF2A2A3E)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFFF4444)),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
+                      color: const Color(0xFF5A5A80), size: 18),
+                  onPressed: () => setState(() => obscure = !obscure),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF9999C0))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete Forever'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  if (confirmed != true || !context.mounted) return;
+
+  final password = passwordController.text.trim();
+  if (password.isEmpty) return;
+
+  try {
+    await ref.read(apiServiceProvider).deleteAccount(password: password);
+    await ref.read(authProvider.notifier).logout();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account deleted successfully.')),
+      );
+      context.go('/login');
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ApiService.extractError(e)),
+          backgroundColor: const Color(0xFFFF4444),
+        ),
+      );
+    }
+  }
+}
 class _NotificationsSheet extends ConsumerStatefulWidget {
   @override
   ConsumerState<_NotificationsSheet> createState() =>
@@ -469,11 +582,10 @@ class _NotificationsSheetState
           .getNotificationPreferences();
       if (mounted) {
         setState(() {
-          _generationComplete =
-              prefs['generation_complete'] ?? true;
-          _dailyReminder  = prefs['daily_reminder'] ?? false;
-          _productUpdates = prefs['product_updates'] ?? true;
-          _promotions     = prefs['promotions'] ?? false;
+          _generationComplete = prefs['generation_complete'] ?? true;
+          _dailyReminder      = prefs['daily_reminder'] ?? false;
+          _productUpdates     = prefs['product_updates'] ?? true;
+          _promotions         = prefs['promotions'] ?? false;
         });
       }
     } catch (_) {}
@@ -567,8 +679,7 @@ class _NotificationsSheetState
             label: 'Promotions',
             subtitle: 'Special offers and discounts',
             value: _promotions,
-            onChanged: (v) =>
-                setState(() => _promotions = v),
+            onChanged: (v) => setState(() => _promotions = v),
           ),
           const SizedBox(height: 24),
           _SubmitButton(
@@ -658,7 +769,7 @@ class _SubmitButtonState extends State<_SubmitButton> {
 
 // ── Profile Card ──────────────────────────────────────────────────────────────
 class _ProfileCard extends StatelessWidget {
-  final dynamic user;
+  final user;
   const _ProfileCard({required this.user});
 
   @override
@@ -667,8 +778,9 @@ class _ProfileCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 56, height: 56,
-            decoration: const BoxDecoration(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               shape: BoxShape.circle,
             ),
@@ -706,7 +818,7 @@ class _ProfileCard extends StatelessWidget {
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 class _PlanCard extends StatelessWidget {
-  final dynamic user;
+  final user;
   const _PlanCard({required this.user});
 
   @override
@@ -718,7 +830,7 @@ class _PlanCard extends StatelessWidget {
         gradient: isPaid
             ? const LinearGradient(colors: [
                 Color(0xFF1A2A1A),
-                Color(0xFF0A1A0A),
+                Color(0xFF0A1A0A)
               ])
             : AppColors.cardGradient,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -834,7 +946,8 @@ class _SettingsItem extends StatelessWidget {
             horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: AppColors.textSecondary),
+            Icon(icon,
+                size: 18, color: AppColors.textSecondary),
             const SizedBox(width: 12),
             Expanded(
                 child: Text(label,

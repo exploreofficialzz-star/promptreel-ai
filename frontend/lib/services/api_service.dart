@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_config.dart';
@@ -12,35 +11,45 @@ class ApiService {
   late final Dio _dio;
   late final Dio _generateDio;
 
-  // ── FIX: Web-safe storage — no AndroidOptions on web ─────────────────────
-  final _storage = kIsWeb
-      ? const FlutterSecureStorage()
-      : const FlutterSecureStorage(
-          aOptions: AndroidOptions(
-            encryptedSharedPreferences: true,
-            resetOnError: true,
-          ),
-        );
+  /// Exposed so other services (e.g. results_screen web download) can build URLs.
+  String get baseUrl => AppConfig.baseUrl;
+
+  // flutter_secure_storage supports web via IndexedDB — just add webOptions.
+  final _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock,
+    ),
+    webOptions: WebOptions(
+      dbName: 'promptreel_secure',
+      publicKey: 'promptreel_pk',
+    ),
+  );
 
   ApiService() {
+    // ── Standard Dio (30s timeout) ────────────────────────────────────────
     _dio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
-        'Accept':       'application/json',
+        'Accept': 'application/json',
       },
     ));
 
+    // ── Generation Dio (5 min timeout) ────────────────────────────────────
     _generateDio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 300),
-      sendTimeout:    const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
-        'Accept':       'application/json',
+        'Accept': 'application/json',
       },
     ));
 
@@ -52,21 +61,19 @@ class ApiService {
   InterceptorsWrapper _buildAuthInterceptor(Dio dioInstance) {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
-        try {
-          final token = await _storage.read(key: AppConfig.tokenKey);
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
-          }
-        } catch (_) {}
+        final token = await _storage.read(key: AppConfig.tokenKey);
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
         handler.next(options);
       },
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
           final refreshed = await _tryRefreshToken();
           if (refreshed) {
+            final token = await _storage.read(key: AppConfig.tokenKey);
+            error.requestOptions.headers['Authorization'] = 'Bearer $token';
             try {
-              final token = await _storage.read(key: AppConfig.tokenKey);
-              error.requestOptions.headers['Authorization'] = 'Bearer $token';
               final response = await dioInstance.fetch(error.requestOptions);
               handler.resolve(response);
               return;
@@ -105,9 +112,9 @@ class ApiService {
     required String name,
   }) async {
     final res = await _dio.post('/auth/register', data: {
-      'email':    email,
+      'email': email,
       'password': password,
-      'name':     name,
+      'name': name,
     });
     await _saveTokens(res.data);
     return res.data;
@@ -118,7 +125,7 @@ class ApiService {
     required String password,
   }) async {
     final res = await _dio.post('/auth/login', data: {
-      'email':    email,
+      'email': email,
       'password': password,
     });
     await _saveTokens(res.data);
@@ -126,11 +133,9 @@ class ApiService {
   }
 
   Future<void> logout() async {
-    try {
-      await _storage.delete(key: AppConfig.tokenKey);
-      await _storage.delete(key: AppConfig.refreshTokenKey);
-      await _storage.delete(key: AppConfig.userKey);
-    } catch (_) {}
+    await _storage.delete(key: AppConfig.tokenKey);
+    await _storage.delete(key: AppConfig.refreshTokenKey);
+    await _storage.delete(key: AppConfig.userKey);
   }
 
   Future<UserModel> getMe() async {
@@ -138,6 +143,7 @@ class ApiService {
     return UserModel.fromJson(res.data);
   }
 
+  // ── Profile & Password ─────────────────────────────────────────────────────
   Future<void> updateProfile({
     String? name,
     String? currentPassword,
@@ -150,6 +156,7 @@ class ApiService {
     await _dio.put('/auth/me', data: data);
   }
 
+  // ── Notification Preferences ───────────────────────────────────────────────
   Future<Map<String, dynamic>> getNotificationPreferences() async {
     final res = await _dio.get('/auth/notifications');
     return Map<String, dynamic>.from(res.data);
@@ -160,13 +167,14 @@ class ApiService {
     await _dio.put('/auth/notifications', data: prefs);
   }
 
+  // ── Email Verification ─────────────────────────────────────────────────────
   Future<void> verifyEmail({
     required String email,
     required String code,
   }) async {
     await _dio.post('/auth/verify-email', data: {
       'email': email,
-      'code':  code,
+      'code': code,
     });
   }
 
@@ -175,6 +183,7 @@ class ApiService {
         data: {'email': email});
   }
 
+  // ── Forgot / Reset Password ────────────────────────────────────────────────
   Future<void> forgotPassword({required String email}) async {
     await _dio.post('/auth/forgot-password',
         data: {'email': email});
@@ -192,37 +201,47 @@ class ApiService {
     });
   }
 
+  // ── FCM Token (Push Notifications) ────────────────────────────────────────
+  // The backend /auth/fcm-token endpoint is ready to receive FCM tokens.
+  // To enable push notifications:
+  //   1. Add `firebase_messaging: ^15.0.0` to pubspec.yaml
+  //   2. Add google-services.json (Android) and GoogleService-Info.plist (iOS)
+  //   3. Call saveFcmToken() from SplashScreen after login confirmation
+  // See SECRETS_SETUP.md for setup instructions.
   Future<void> saveFcmToken(String token) async {
     try {
-      await _dio.post('/auth/fcm-token',
-          data: {'fcm_token': token});
-    } catch (_) {}
-  }
-
-  Future<void> _saveTokens(Map<String, dynamic> data) async {
-    try {
-      if (data['access_token'] != null) {
-        await _storage.write(
-            key: AppConfig.tokenKey, value: data['access_token']);
-      }
-      if (data['refresh_token'] != null) {
-        await _storage.write(
-            key: AppConfig.refreshTokenKey,
-            value: data['refresh_token']);
-      }
-    } catch (_) {}
-  }
-
-  Future<bool> isLoggedIn() async {
-    try {
-      final token = await _storage.read(key: AppConfig.tokenKey);
-      return token != null;
+      await _dio.post('/auth/fcm-token', data: {'fcm_token': token});
     } catch (_) {
-      return false;
+      // Non-critical — swallow silently so login flow isn't blocked
     }
   }
 
-  // ── Generation ─────────────────────────────────────────────────────────────
+  /// Permanently deletes the account. Requires password confirmation.
+  /// Clears all local tokens on success.
+  Future<void> deleteAccount({required String password}) async {
+    await _dio.delete('/auth/me', data: {'password': password});
+    await _storage.deleteAll(); // clear tokens locally
+  }
+
+  // ── Tokens ────────────────────────────────────────────────────────────────
+  Future<void> _saveTokens(Map<String, dynamic> data) async {
+    if (data['access_token'] != null) {
+      await _storage.write(
+          key: AppConfig.tokenKey, value: data['access_token']);
+    }
+    if (data['refresh_token'] != null) {
+      await _storage.write(
+          key: AppConfig.refreshTokenKey,
+          value: data['refresh_token']);
+    }
+  }
+
+  Future<bool> isLoggedIn() async {
+    final token = await _storage.read(key: AppConfig.tokenKey);
+    return token != null;
+  }
+
+  // ── Generation (5-min timeout) ─────────────────────────────────────────────
   Future<Map<String, dynamic>> generateVideoplan({
     required String idea,
     required String contentType,
@@ -234,14 +253,14 @@ class ApiService {
     Map<String, String> contentTypeOptions = const {},
   }) async {
     final res = await _generateDio.post('/generate/', data: {
-      'idea':                   idea,
-      'content_type':           contentType,
-      'platform':               platform,
-      'duration_minutes':       durationMinutes,
-      'generator':              generator,
+      'idea':                 idea,
+      'content_type':         contentType,
+      'platform':             platform,
+      'duration_minutes':     durationMinutes,
+      'generator':            generator,
       'generate_image_prompts': generateImagePrompts,
-      'generate_voice_over':    generateVoiceOver,
-      'content_type_options':   contentTypeOptions,
+      'generate_voice_over':  generateVoiceOver,
+      'content_type_options': contentTypeOptions,
     });
     return res.data;
   }
@@ -312,44 +331,22 @@ class ApiService {
     return res.data ?? '';
   }
 
-  // ── Payments ───────────────────────────────────────────────────────────────
+  // ── Plans ──────────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getPlans() async {
-    final res = await _dio.get('/payments/plans');
+    final res = await _dio.get('/plans');
     return res.data;
   }
 
-  Future<Map<String, dynamic>> getPaymentMethods({
-    String currency = 'USD',
-  }) async {
-    final res = await _dio.get('/payments/methods',
-        queryParameters: {'currency': currency});
-    return res.data;
-  }
-
-  Future<Map<String, dynamic>> createCheckout({
-    required String planId,
-    required String email,
-    required String name,
-    required String currency,
-  }) async {
-    final res = await _dio.post('/payments/checkout', data: {
-      'plan_id':  planId,
-      'email':    email,
-      'name':     name,
-      'currency': currency,
-    });
-    return res.data;
-  }
-
+  // ── Payments ───────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> verifyPayment({
+    required String transactionId,
     required String txRef,
-    required String planId,
-    String transactionId = '0',
+    required String plan,
   }) async {
     final res = await _dio.post('/payments/verify', data: {
       'transaction_id': transactionId,
       'tx_ref':         txRef,
-      'plan_id':        planId,
+      'plan':           plan,
     });
     return res.data;
   }
@@ -359,31 +356,27 @@ class ApiService {
     return res.data;
   }
 
-  // ── Error Helper ───────────────────────────────────────────────────────────
+  // ── Error helper ───────────────────────────────────────────────────────────
   static String extractError(dynamic error) {
     if (error is DioException) {
       if (error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.sendTimeout) {
-        return 'Connection timed out. Please try again.';
+        return 'Generation is taking longer than expected. Please try again.';
       }
       final data = error.response?.data;
       if (data is Map && data['detail'] != null)
         return data['detail'].toString();
       if (data is Map && data['message'] != null)
         return data['message'].toString();
-      if (error.response?.statusCode == 402)
-        return 'Payment required or verification failed.';
       if (error.response?.statusCode == 429)
         return 'Daily limit reached. Upgrade your plan.';
       if (error.response?.statusCode == 403)
         return 'Upgrade your plan to access this feature.';
       if (error.response?.statusCode == 401)
         return 'Session expired. Please log in again.';
-      if (error.response?.statusCode == 503)
-        return 'Payment service temporarily unavailable.';
       if (error.response?.statusCode == 500)
-        return 'Server error. Please try again.';
+        return 'AI generation failed. Please try again.';
       return error.message ?? 'Network error. Please try again.';
     }
     return error.toString();

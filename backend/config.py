@@ -1,22 +1,22 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import Optional, List
+from typing import Optional
 
 
 class Settings(BaseSettings):
     # ── App ───────────────────────────────────────────────────────────────────
-    APP_NAME:     str  = "PromptReel AI"
-    APP_VERSION:  str  = "1.1.0"
-    DEBUG:        bool = False
-    ENVIRONMENT:  str  = "production"
+    APP_NAME:    str  = "PromptReel AI"
+    APP_VERSION: str  = "1.1.0"
+    DEBUG:       bool = False
+    ENVIRONMENT: str  = "production"
 
     # ── Database ──────────────────────────────────────────────────────────────
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost/promptreel"
 
     # ── Security ──────────────────────────────────────────────────────────────
-    SECRET_KEY:                  str
+    SECRET_KEY:                  str = "CHANGE-ME-IN-PRODUCTION-USE-STRONG-RANDOM-KEY"
     ALGORITHM:                   str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7   # 7 days
     REFRESH_TOKEN_EXPIRE_DAYS:   int = 30
 
     # ── AI API Keys ───────────────────────────────────────────────────────────
@@ -48,17 +48,17 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL_FREE2: str = "meta-llama/llama-3.1-8b-instruct:free"
     OPENROUTER_MODEL_FREE3: str = "google/gemma-2-9b-it:free"
 
-    # ── Email ─────────────────────────────────────────────────────────────────
+    # ── Email (Resend) ────────────────────────────────────────────────────────
     RESEND_API_KEY: Optional[str] = None
-    EMAIL_FROM:     str = "onboarding@resend.dev"
+    EMAIL_FROM:     str = "noreply@promptreel.ai"
 
     # ── Flutterwave ───────────────────────────────────────────────────────────
-    FLUTTERWAVE_SECRET_KEY:   str
-    FLUTTERWAVE_PUBLIC_KEY:   str
+    FLUTTERWAVE_SECRET_KEY:   Optional[str] = None
+    FLUTTERWAVE_PUBLIC_KEY:   Optional[str] = None
     FLUTTERWAVE_ENCRYPT_KEY:  Optional[str] = None
-    FLUTTERWAVE_WEBHOOK_HASH: str
+    FLUTTERWAVE_WEBHOOK_HASH: Optional[str] = None
 
-    # ── Plan Prices ───────────────────────────────────────────────────────────
+    # ── Plan Prices USD ───────────────────────────────────────────────────────
     CREATOR_PRICE_USD: float = 15.00
     STUDIO_PRICE_USD:  float = 35.00
 
@@ -67,26 +67,35 @@ class Settings(BaseSettings):
     FREE_MAX_DURATION: int = 5
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:8080",
-        # ── Production ──────────────────────────────────────
         "https://promptreel.ai",
         "https://app.promptreel.ai",
-        "https://www.promptreel.ai",
-        # ── Netlify ─────────────────────────────────────────
-        "https://promptreel-ai.netlify.app",
-        "https://promtreel-ai.netlify.app",
-        # ── Render ──────────────────────────────────────────
-        "https://promptreel-ai.onrender.com",
+        "https://chastechgroup.github.io",
     ]
+    FRONTEND_URL: str = "https://app.promptreel.ai"
 
-    FRONTEND_URL: str = "https://promtreel-ai.netlify.app"
+    # ── Pydantic v2 config ────────────────────────────────────────────────────
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
-    class Config:
-        env_file           = ".env"
-        env_file_encoding  = "utf-8"
-        case_sensitive     = False
+    def model_post_init(self, __context) -> None:
+        """Fail fast on unsafe defaults in production."""
+        _unsafe = "CHANGE-ME-IN-PRODUCTION-USE-STRONG-RANDOM-KEY"
+        if self.ENVIRONMENT == "production":
+            if self.SECRET_KEY == _unsafe:
+                raise ValueError(
+                    "SECRET_KEY must be overridden in production. "
+                    "Generate: python -c \"import secrets; print(secrets.token_hex(64))\""
+                )
+            if len(self.SECRET_KEY) < 32:
+                raise ValueError(
+                    "SECRET_KEY must be at least 32 characters in production."
+                )
 
 
 @lru_cache()
@@ -100,4 +109,4 @@ PLAN_TIER = {
     "free":    "free",
     "creator": "creator",
     "studio":  "studio",
-    }
+}

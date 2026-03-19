@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -22,20 +21,10 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  // ── FIX: Prevent multiple initializations causing refresh loop ────────────
-  bool _initialized = false;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_initialized) return;
-      _initialized = true;
-
-      // On web, fetch user data now since startup skipped it
-      if (kIsWeb) {
-        ref.read(authProvider.notifier).refreshUser();
-      }
       ref.read(projectsProvider.notifier).load();
       ref.read(projectsProvider.notifier).loadStats();
     });
@@ -92,7 +81,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       title: Row(
         children: [
           Container(
-            width: 32, height: 32,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(8),
@@ -178,13 +168,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         borderRadius:
                             BorderRadius.circular(AppRadius.full),
                         border: Border.all(
-                            color: AppColors.primary.withOpacity(0.3)),
+                            color:
+                                AppColors.primary.withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 6, height: 6,
+                            width: 6,
+                            height: 6,
                             decoration: const BoxDecoration(
                               color: AppColors.primary,
                               shape: BoxShape.circle,
@@ -383,7 +375,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const SizedBox(height: AppSpacing.md),
           Container(
-            width: 60, height: 60,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.1),
               shape: BoxShape.circle,
@@ -431,26 +424,29 @@ class _ProjectTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return AppCard(
       onTap: () {
-        final user        = ref.read(currentUserProvider);
-        final projectId   = project.id;
+        final user      = ref.read(currentUserProvider);
+        final projectId = project.id;
         final projectData = project;
 
         if (user?.isPaid ?? false) {
+          // Paid users — go directly, no ad
           context.go('/results/$projectId', extra: projectData);
           return;
         }
 
+        // ── Free users ────────────────────────────────────────────────────
+        // Navigate FIRST so project data is preserved in route state,
+        // then show ad on top — user sees results when ad dismisses
         context.go('/results/$projectId', extra: projectData);
 
-        // Skip interstitial on web — AdMob not supported
-        if (!kIsWeb) {
-          AdService.instance.showProjectViewInterstitial(user);
-        }
+        // Show ad after navigation — it appears on top of results screen
+        AdService.instance.showProjectViewInterstitial(user);
       },
       child: Row(
         children: [
           Container(
-            width: 44, height: 44,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -535,7 +531,8 @@ class _StatusBadge extends StatelessWidget {
       default:          color = AppColors.warning;
     }
     return Container(
-      width: 8, height: 8,
+      width: 8,
+      height: 8,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }

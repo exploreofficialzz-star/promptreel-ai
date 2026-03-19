@@ -1,0 +1,151 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PromptReel AI — .gitignore
+# Covers: Python/FastAPI, Flutter (Android + iOS), Web, Secrets
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ══ SECRETS — NEVER COMMIT ═══════════════════════════════════════════════════
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.keystore
+key.properties
+google-services.json
+GoogleService-Info.plist
+secrets/
+*.secret
+
+# ══ PYTHON / BACKEND ══════════════════════════════════════════════════════════
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+htmlcov/
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+*.log
+venv/
+.venv/
+env/
+ENV/
+
+# ══ FLUTTER / DART ════════════════════════════════════════════════════════════
+# General
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+pubspec.lock
+
+# Build outputs
+frontend/build/
+frontend/.dart_tool/
+
+# ── Android ──────────────────────────────────────────────────────────────────
+frontend/android/.gradle/
+frontend/android/captures/
+frontend/android/gradlew
+frontend/android/gradlew.bat
+frontend/android/local.properties
+frontend/android/app/debug/
+frontend/android/app/release/
+frontend/android/app/profile/
+frontend/android/app/*.ap_
+frontend/android/app/src/main/java/
+
+# ── iOS ───────────────────────────────────────────────────────────────────────
+frontend/ios/.symlinks/
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/App.framework
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+frontend/ios/Pods/
+frontend/ios/Runner.xcworkspace/xcuserdata/
+frontend/ios/Runner.xcodeproj/xcuserdata/
+frontend/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/
+frontend/ios/*.xcworkspace
+!frontend/ios/Runner.xcworkspace/contents.xcworkspacedata
+frontend/ios/.symlinks
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+profile
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+frontend/macos/Flutter/GeneratedPluginRegistrant.swift
+frontend/macos/Flutter/ephemeral/
+
+# ── Web ───────────────────────────────────────────────────────────────────────
+lib/generated_plugin_registrant.dart
+
+# ══ NODE / WEB TOOLING ════════════════════════════════════════════════════════
+node_modules/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ══ IDEs / EDITORS ════════════════════════════════════════════════════════════
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ══ CI / CD ARTIFACTS ════════════════════════════════════════════════════════
+promptreel-release.jks
+release-artifacts/
+*.apk
+*.aab
+!frontend/build/app/outputs/
+
+# ══ MISC ══════════════════════════════════════════════════════════════════════
+*.bak
+*.tmp
+*.orig
+.sass-cache/

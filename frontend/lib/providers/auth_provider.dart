@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
@@ -44,35 +43,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final loggedIn = await _api.isLoggedIn();
       if (loggedIn) {
-        if (kIsWeb) {
-          // ── Web: skip getMe() on startup — no CORS error on load ─────────
-          // user data will be fetched when they reach /home
-          state = state.copyWith(
-            isLoggedIn: true,
-            isLoading: false,
-          );
-        } else {
-          // ── Mobile: fetch full user on startup ────────────────────────────
-          try {
-            final user = await _api.getMe();
-            state = state.copyWith(
-              isLoggedIn: true,
-              user: user,
-              isLoading: false,
-            );
-          } catch (_) {
-            // getMe failed but token exists — still mark as logged in
-            state = state.copyWith(
-              isLoggedIn: true,
-              isLoading: false,
-            );
-          }
-        }
+        final user = await _api.getMe();
+        state = state.copyWith(isLoggedIn: true, user: user, isLoading: false);
       } else {
         state = state.copyWith(isLoggedIn: false, isLoading: false);
       }
     } catch (_) {
-      // Any error on startup → not logged in, never crash
       state = state.copyWith(isLoggedIn: false, isLoading: false);
     }
   }
@@ -84,43 +60,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final data = await _api.register(
-          email: email, password: password, name: name);
+      final data = await _api.register(email: email, password: password, name: name);
       final user = UserModel.fromJson(data['user']);
-      state = state.copyWith(
-        isLoggedIn: true,
-        user: user,
-        isLoading: false,
-      );
+      state = state.copyWith(isLoggedIn: true, user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: ApiService.extractError(e),
-      );
+      state = state.copyWith(isLoading: false, error: ApiService.extractError(e));
       return false;
     }
   }
 
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _api.login(email: email, password: password);
       final user = UserModel.fromJson(data['user']);
-      state = state.copyWith(
-        isLoggedIn: true,
-        user: user,
-        isLoading: false,
-      );
+      state = state.copyWith(isLoggedIn: true, user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: ApiService.extractError(e),
-      );
+      state = state.copyWith(isLoading: false, error: ApiService.extractError(e));
       return false;
     }
   }
@@ -133,19 +91,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshUser() async {
     try {
       final user = await _api.getMe();
-      // ── Only update user — never change isLoggedIn on refresh ────────────
       state = state.copyWith(user: user);
-    } catch (_) {
-      // ── FIX: Refresh failed → keep existing state, don't log out ─────────
-      // This prevents web CORS errors from logging out the user
-    }
+    } catch (_) {}
   }
 
   void clearError() => state = state.copyWith(error: null);
 }
 
-final authProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref.read(apiServiceProvider));
 });
 

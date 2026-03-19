@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Enum as SAEnu
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
+from datetime import datetime, timezone
 import enum
 
 
@@ -20,7 +21,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     plan          = Column(SAEnum(PlanType, native_enum=False),
                            default=PlanType.FREE, nullable=False)
-    is_active     = Column(Boolean, default=True, nullable=False)
+    is_active     = Column(Boolean, default=True,  nullable=False)
     is_verified   = Column(Boolean, default=False, nullable=False)
 
     # ── Email verification ────────────────────────────────────────────────────
@@ -35,9 +36,9 @@ class User(Base):
     fcm_token = Column(String(500), nullable=True)
 
     # ── Rate limiting ─────────────────────────────────────────────────────────
-    plans_generated_today  = Column(Integer, default=0, nullable=False)
-    last_generation_date   = Column(Date, nullable=True)
-    total_plans_generated  = Column(Integer, default=0, nullable=False)
+    plans_generated_today = Column(Integer, default=0, nullable=False)
+    last_generation_date  = Column(Date, nullable=True)
+    total_plans_generated = Column(Integer, default=0, nullable=False)
 
     # ── Subscription ──────────────────────────────────────────────────────────
     subscription_id         = Column(String(255), nullable=True)
@@ -64,7 +65,32 @@ class User(Base):
 
     @property
     def is_paid(self) -> bool:
-        return self.plan in [PlanType.CREATOR, PlanType.STUDIO]
+        """
+        Returns True only if the user is on a paid plan AND
+        the subscription has not yet expired.
+        A None expiry means the subscription was set manually / has no end date.
+        """
+        if self.plan not in (PlanType.CREATOR, PlanType.STUDIO):
+            return False
+        if self.subscription_expires_at is None:
+            # No expiry set — treat as valid (admin-granted or legacy row)
+            return True
+        return datetime.now(timezone.utc) < self.subscription_expires_at
+
+    def downgrade_if_expired(self) -> bool:
+        """
+        Downgrades plan to FREE if subscription has expired.
+        Returns True if a downgrade was performed.
+        Call this inside request handlers that check plan status.
+        """
+        if (
+            self.plan in (PlanType.CREATOR, PlanType.STUDIO)
+            and self.subscription_expires_at is not None
+            and datetime.now(timezone.utc) >= self.subscription_expires_at
+        ):
+            self.plan = PlanType.FREE
+            return True
+        return False
 
     @property
     def daily_limit(self) -> int:
@@ -72,6 +98,7 @@ class User(Base):
 
     @property
     def max_duration_minutes(self) -> int:
-        if self.plan in [PlanType.STUDIO, PlanType.CREATOR]:
+        if self.is_paid:
             return 20
         return 5
+
