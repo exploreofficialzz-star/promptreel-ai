@@ -1,8 +1,16 @@
-
 [build]
   base    = "frontend"
-  command = "flutter build web --release"
   publish = "build/web"
+  command = """
+    git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter &&
+    export PATH=$PATH:$HOME/flutter/bin &&
+    flutter config --enable-web &&
+    flutter pub get &&
+    flutter build web --release
+  """
+
+[build.environment]
+  FLUTTER_VERSION = "3.24.0"
 
 [[redirects]]
   from   = "/*"
