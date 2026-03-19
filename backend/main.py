@@ -33,30 +33,45 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="AI Video Production Planning API — Turn ideas into complete video packages",
+    description="AI Video Production Planning API",
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
 
-# ─── Middleware ────────────────────────────────────────────────────────────────
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://localhost:5000",
+        # ── Production ──────────────────────────────────────
+        "https://promptreel.ai",
+        "https://app.promptreel.ai",
+        "https://www.promptreel.ai",
+        # ── Netlify ─────────────────────────────────────────
+        "https://promtreel-ai.netlify.app",
+        "https://promptreel-ai.netlify.app",
+        # ── Render (self) ────────────────────────────────────
+        "https://promptreel-ai.onrender.com",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["X-Process-Time", "X-Powered-By"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
+# ─── Process Time Header ──────────────────────────────────────────────────────
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = f"{process_time:.3f}s"
-    response.headers["X-Powered-By"] = "PromptReel AI by chAs Tech Group"
+    response.headers["X-Powered-By"]   = "PromptReel AI by chAs Tech Group"
     return response
 
 
@@ -71,7 +86,9 @@ async def not_found_handler(request: Request, exc):
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    logger.error(f"Internal error on {request.url.path}: {exc}", exc_info=True)
+    logger.error(
+        f"Internal error on {request.url.path}: {exc}", exc_info=True
+    )
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error. Please try again."},
@@ -79,10 +96,10 @@ async def internal_error_handler(request: Request, exc):
 
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
-app.include_router(auth.router, prefix="/api")
+app.include_router(auth.router,     prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
+app.include_router(export.router,   prefix="/api")
 app.include_router(payments.router, prefix="/api")
 
 
@@ -90,32 +107,30 @@ app.include_router(payments.router, prefix="/api")
 @app.get("/")
 async def root():
     return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "tagline": "Turn simple ideas into complete AI video production plans.",
-        "status": "operational",
+        "app":       settings.APP_NAME,
+        "version":   settings.APP_VERSION,
+        "tagline":   "Turn simple ideas into complete AI video production plans.",
+        "status":    "operational",
         "developer": "chAs Tech Group",
-        "docs": "/docs",
     }
 
 
 @app.get("/health")
 async def health():
     return {
-        "status": "healthy",
-        "app": settings.APP_NAME,
+        "status":  "healthy",
+        "app":     settings.APP_NAME,
         "version": settings.APP_VERSION,
     }
 
 
 @app.get("/api/plans")
 async def get_plans():
-    """Return subscription plan details."""
     return {
         "plans": [
             {
-                "id": "free",
-                "name": "Free",
+                "id":            "free",
+                "name":          "Free",
                 "price_monthly": 0,
                 "features": [
                     "3 video plans per day",
@@ -123,12 +138,16 @@ async def get_plans():
                     "All content types",
                     "Basic export",
                 ],
-                "limits": {"daily_plans": 3, "max_duration_minutes": 5},
+                "limits": {
+                    "daily_plans":         3,
+                    "max_duration_minutes": 5,
+                },
             },
             {
-                "id": "creator",
-                "name": "Creator",
+                "id":            "creator",
+                "name":          "Creator",
                 "price_monthly": 15,
+                "popular":       True,
                 "features": [
                     "Unlimited video plans",
                     "Up to 20-minute videos",
@@ -138,12 +157,14 @@ async def get_plans():
                     "Batch planner",
                     "Priority processing",
                 ],
-                "limits": {"daily_plans": -1, "max_duration_minutes": 20},
-                "popular": True,
+                "limits": {
+                    "daily_plans":         -1,
+                    "max_duration_minutes": 20,
+                },
             },
             {
-                "id": "studio",
-                "name": "Studio",
+                "id":            "studio",
+                "name":          "Studio",
                 "price_monthly": 35,
                 "features": [
                     "Everything in Creator",
@@ -153,7 +174,10 @@ async def get_plans():
                     "Custom branding",
                     "Dedicated support",
                 ],
-                "limits": {"daily_plans": -1, "max_duration_minutes": 20},
+                "limits": {
+                    "daily_plans":         -1,
+                    "max_duration_minutes": 20,
+                },
             },
         ]
     }
@@ -161,7 +185,6 @@ async def get_plans():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
