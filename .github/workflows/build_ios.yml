@@ -31,6 +31,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Fix app_tracking_transparency version
+        working-directory: frontend
+        run: |
+          sed -i '' 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
+
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
@@ -39,7 +44,6 @@ jobs:
         working-directory: frontend/ios
         run: pod install --repo-update
 
-      # ── Signing & Provisioning ──────────────────────────────────────────
       - name: Import signing certificate
         env:
           CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
@@ -67,7 +71,6 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # ── Build ───────────────────────────────────────────────────────────
       - name: Build iOS (no codesign for CI)
         working-directory: frontend
         run: |
@@ -99,7 +102,6 @@ jobs:
           path: ${{ runner.temp }}/export/*.ipa
           retention-days: 30
 
-  # ── TestFlight Upload on Tag ─────────────────────────────────────────────
   testflight:
     name: 📤 Upload to TestFlight
     runs-on: macos-latest
