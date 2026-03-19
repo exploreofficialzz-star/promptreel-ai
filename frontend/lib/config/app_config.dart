@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   AppConfig._();
 
-  // ── App Info ──────────────────────────────────────────────────────────────
+  // ──   App   Info ──────────────────────────────────────────────────────────────
   static const String appName      = 'PromptReel AI';
   static const String tagline      = 'Turn simple ideas into complete AI video production plans.';
   static const String developer    = 'chAs Tech Group';
