@@ -39,19 +39,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _init() async {
-    // ── Web → check auth with 5s timeout then navigate ───────────────────
+    // ── Web → go straight to login (router handles auth redirect) ──────────
     if (kIsWeb) {
-      try {
-        final isLoggedIn = await ref
-            .read(apiServiceProvider)
-            .isLoggedIn()
-            .timeout(const Duration(seconds: 5));
-        if (!mounted) return;
-        context.go(isLoggedIn ? '/home' : '/login');
-      } catch (_) {
-        // Timeout or network error → go to login
-        if (mounted) context.go('/login');
-      }
+      context.go('/login');
       return;
     }
 
