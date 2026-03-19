@@ -20,7 +20,7 @@ dependencies:
   # ── Networking ────────────────────────────────────────────────────────────
   dio: ^5.7.0
   pretty_dio_logger: ^1.3.1
-  connectivity_plus: ^6.1.0          # Monitor network state (Android + iOS)
+  connectivity_plus: ^6.1.0
 
   # ── Local Storage ─────────────────────────────────────────────────────────
   flutter_secure_storage: ^9.2.2
@@ -43,15 +43,13 @@ dependencies:
   path_provider: ^2.1.4
   archive: ^3.6.1
   intl: ^0.19.0
-  package_info_plus: ^8.0.0           # App version + build number at runtime
-  device_info_plus: ^10.1.0           # Device/OS info for analytics & debugging
+  package_info_plus: ^8.0.0
+  device_info_plus: ^10.1.0
 
   # ── Icons ─────────────────────────────────────────────────────────────────
   iconsax_flutter: ^1.0.1
 
   # ── Payments ──────────────────────────────────────────────────────────────
-  # webview_flutter: in-app payment WebView on Android/iOS.
-  # On web, payment_service.dart routes to url_launcher instead (kIsWeb guard).
   webview_flutter: ^4.8.0
 
   # ── Monetization ──────────────────────────────────────────────────────────
@@ -59,7 +57,7 @@ dependencies:
   # app_tracking_transparency: iOS ATT prompt (AdMob personalised ads iOS 14.5+).
   # This package is iOS-only; the kIsWeb guard in main.dart ensures
   # it is never called on web or Android.
-  app_tracking_transparency: ^3.0.1
+  app_tracking_transparency: ^2.0.6+1  # ← FIXED (was ^3.0.1)
 
   cupertino_icons: ^1.0.8
 
@@ -73,7 +71,6 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.1
 
 # ── Launcher Icons ─────────────────────────────────────────────────────────────
-# Run: dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: true
