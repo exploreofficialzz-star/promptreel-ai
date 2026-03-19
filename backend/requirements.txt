@@ -23,5 +23,5 @@ python-dotenv==1.0.1
 aiofiles==24.1.0
 email-validator==2.2.0
 # Testing (also used in CI)
-pytest==8.3.2
+pytest==9.0.2
 pytest-asyncio==0.24.0
