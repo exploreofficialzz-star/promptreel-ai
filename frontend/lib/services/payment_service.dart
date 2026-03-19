@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';  // ← FIXED: proper import at top
 import '../config/app_config.dart';
 
 /// Cross-platform Flutterwave payment service.
@@ -37,16 +38,16 @@ class FlutterwavePaymentService {
     required String amount, required String txRef, required String plan,
   }) async {
     final params = {
-      'public_key':     AppConfig.flutterwavePublicKey,
-      'tx_ref':         txRef,
-      'amount':         amount,
-      'currency':       'USD',
-      'payment_options': 'card',
-      'redirect_url':   'https://promptreel-ai.onrender.com/api/payments/callback',
-      'customer[email]': email,
-      'customer[name]':  name,
-      'customizations[title]':       'PromptReel AI',
-      'customizations[description]': '$plan Plan - Monthly Subscription',
+      'public_key':              AppConfig.flutterwavePublicKey,
+      'tx_ref':                  txRef,
+      'amount':                  amount,
+      'currency':                'USD',
+      'payment_options':         'card',
+      'redirect_url':            'https://promptreel-ai.onrender.com/api/payments/callback',
+      'customer[email]':         email,
+      'customer[name]':          name,
+      'customizations[title]':         'PromptReel AI',
+      'customizations[description]':   '$plan Plan - Monthly Subscription',
       'meta[plan]':   plan,
       'meta[tx_ref]': txRef,
     };
@@ -87,60 +88,60 @@ class FlutterwavePaymentService {
 typedef FlutterwaveWebPayment = FlutterwavePaymentService;
 
 // ─── Mobile WebView Page ──────────────────────────────────────────────────────
-// webview_flutter is resolved at build time for Android/iOS only.
-// The kIsWeb guard in startPayment() ensures this is never called on web.
 class _MobilePaymentPage extends StatefulWidget {
   final String email, name, amount, txRef, plan;
   const _MobilePaymentPage({
     required this.email, required this.name, required this.amount,
     required this.txRef, required this.plan,
   });
+
   @override
   State<_MobilePaymentPage> createState() => _MobilePaymentPageState();
 }
 
 class _MobilePaymentPageState extends State<_MobilePaymentPage> {
-  // ignore: undefined_class — resolved only on mobile
-  dynamic _controller;
+  late final WebViewController _controller;  // ← FIXED: typed, not dynamic
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) _buildWebViewController();
+    _buildWebViewController();
   }
 
   void _buildWebViewController() {
-    // ignore: undefined_class
     _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted) // ignore: undefined_identifier
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
-        NavigationDelegate( // ignore: undefined_class
+        NavigationDelegate(
           onPageStarted: (_) => setState(() => _isLoading = true),
           onPageFinished: (_) => setState(() => _isLoading = false),
-          onNavigationRequest: (req) { // ignore: undefined_class
+          onNavigationRequest: (req) {
             final url = req.url;
             if (url.contains('status=successful') ||
-                (url.contains('payment/callback') && url.contains('transaction_id'))) {
+                (url.contains('payment/callback') &&
+                    url.contains('transaction_id'))) {
               Navigator.of(context).pop('success');
-              return NavigationDecision.prevent; // ignore: undefined_identifier
+              return NavigationDecision.prevent;
             }
-            if (url.contains('status=cancelled') || url.contains('status=failed')) {
+            if (url.contains('status=cancelled') ||
+                url.contains('status=failed')) {
               Navigator.of(context).pop('cancelled');
-              return NavigationDecision.prevent; // ignore: undefined_identifier
+              return NavigationDecision.prevent;
             }
-            return NavigationDecision.navigate; // ignore: undefined_identifier
+            return NavigationDecision.navigate;
           },
         ),
       )
       ..loadHtmlString(_html);
-    setState(() {});
   }
 
   String get _html {
     final k = AppConfig.flutterwavePublicKey;
-    final a = widget.amount; final e = widget.email;
-    final n = widget.name;   final t = widget.txRef;
+    final a = widget.amount;
+    final e = widget.email;
+    final n = widget.name;
+    final t = widget.txRef;
     final p = widget.plan;
     return '''<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -186,35 +187,37 @@ onclose:function(){window.location.href="https://promptreel.ai/payment/callback?
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.green.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.green.withOpacity(0.3)),
+              border:
+                  Border.all(color: Colors.green.withOpacity(0.3)),
             ),
             child: const Row(children: [
               Icon(Icons.lock_outline, size: 12, color: Colors.green),
               SizedBox(width: 4),
-              Text('Secure', style: TextStyle(color: Colors.green, fontSize: 12)),
+              Text('Secure',
+                  style:
+                      TextStyle(color: Colors.green, fontSize: 12)),
             ]),
           ),
         ],
       ),
-      body: _controller == null
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFB830)))
-          : Stack(children: [
-              WebViewWidget(controller: _controller as WebViewController), // ignore: undefined_class
-              if (_isLoading)
-                Container(color: const Color(0xFF0A0A0F),
-                  child: const Center(child: CircularProgressIndicator(color: Color(0xFFFFB830)))),
-            ]),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),  // ← FIXED: typed directly
+          if (_isLoading)
+            Container(
+              color: const Color(0xFF0A0A0F),
+              child: const Center(
+                child: CircularProgressIndicator(
+                    color: Color(0xFFFFB830)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
-
-// These are resolved only on Android/iOS by the build toolchain.
-// The 'export' keyword here is intentional so callers can use the types.
-// ignore_for_file: uri_does_not_exist, undefined_class, undefined_identifier
-export 'package:webview_flutter/webview_flutter.dart'
-    show WebViewController, WebViewWidget, JavaScriptMode,
-         NavigationDelegate, NavigationDecision;
