@@ -1,4 +1,7 @@
-// dart:io is NOT available on Flutter web. We use kIsWeb conditional guards.
+// dart:io is used only on mobile. All call sites are guarded by kIsWeb checks.
+// In Flutter 3.24+, dart:io ships web stubs so the import is safe for web builds.
+import 'dart:io' show File;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,7 +58,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     _tabController = TabController(length: _tabs.length, vsync: this);
     _project = widget.project;
 
-    // Only load from API if we don't already have the project data
     if (_project == null || _project!.result == null) {
       _loadProject();
     }
@@ -66,7 +68,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     setState(() => _isLoading = true);
 
     try {
-      // 1. Try API first
       final p = await ref.read(apiServiceProvider)
           .getProject(widget.projectId);
       if (mounted) {
@@ -80,7 +81,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       // API failed — fall through to cache
     }
 
-    // 2. Try local projects provider cache
     if (mounted) {
       final cached = ref.read(projectsProvider).projects
           .where((p) => p.id == widget.projectId)
@@ -116,7 +116,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       }
 
       if (kIsWeb) {
-        // On web: trigger a browser download via the export API URL
         final exportUrl =
             '${ref.read(apiServiceProvider).baseUrl}/export/${_project!.id}/zip';
         final uri = Uri.parse(exportUrl);
@@ -126,12 +125,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           _showSnack('Could not open download link.', isError: true);
         }
       } else {
-        // On mobile: save to temp dir and share
         final dir = await getTemporaryDirectory();
         final filename =
             'promptreel_${_project!.id}_${_project!.platform.toLowerCase()}.zip';
         final filePath = '${dir.path}/$filename';
-        // Write using dart:io only on mobile
         await _writeBytes(filePath, bytes);
         await Share.shareXFiles(
           [XFile(filePath, mimeType: 'application/zip')],
@@ -159,7 +156,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       final api = ref.read(apiServiceProvider);
 
       if (kIsWeb) {
-        // On web: open direct export API endpoint in browser
         final path = type == 'script'
             ? '/export/${_project!.id}/script'
             : '/export/${_project!.id}/srt';
@@ -207,14 +203,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     }
   }
 
-  /// Writes binary bytes to a file path — mobile only.
   Future<void> _writeBytes(String path, List<int> bytes) async {
-    // Resolved at runtime on mobile only; web is guarded by kIsWeb above.
-    // ignore: avoid_dynamic_calls
     await _FileBridge.writeBytes(path, bytes);
   }
 
-  /// Writes a string to a file path — mobile only.
   Future<void> _writeString(String path, String content) async {
     await _FileBridge.writeString(path, content);
   }
@@ -414,24 +406,20 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     const SizedBox(height: AppSpacing.sm),
                     const Divider(),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('Pro Tips',
-                        style: AppTypography.titleMedium),
+                    Text('Pro Tips', style: AppTypography.titleMedium),
                     const SizedBox(height: 8),
                     ...result.productionNotes!.proTips
                         .map((tip) => Padding(
-                              padding:
-                                  const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.only(bottom: 6),
                               child: Row(
                                 crossAxisAlignment:
                                     CrossAxisAlignment.start,
                                 children: [
                                   const Text('💡 ',
-                                      style:
-                                          TextStyle(fontSize: 12)),
+                                      style: TextStyle(fontSize: 12)),
                                   Expanded(
                                     child: Text(tip,
-                                        style: AppTypography
-                                            .bodySmall
+                                        style: AppTypography.bodySmall
                                             .copyWith(
                                                 color: AppColors
                                                     .textPrimary)),
@@ -456,8 +444,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       child: Column(
         children: [
           PromptCopyCard(
-            label:
-                'FULL SCRIPT — ${_project!.durationMinutes} MINUTES',
+            label: 'FULL SCRIPT — ${_project!.durationMinutes} MINUTES',
             content: result.fullScript,
             maxLines: 20,
           ),
@@ -684,8 +671,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('📦',
-                    style: TextStyle(fontSize: 32)),
+                const Text('📦', style: TextStyle(fontSize: 32)),
                 const SizedBox(height: 8),
                 Text('Complete Package',
                     style: AppTypography.headlineMedium),
@@ -704,8 +690,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('Individual Files',
-              style: AppTypography.titleMedium),
+          Text('Individual Files', style: AppTypography.titleMedium),
           const SizedBox(height: AppSpacing.sm),
 
           // ── Script ────────────────────────────────────────────────────
@@ -786,8 +771,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               badge: 'Recommended',
               category: 'voice',
             ),
-            contextLabel:
-                '🎙️ Need audio for your voice-over script?',
+            contextLabel: '🎙️ Need audio for your voice-over script?',
           ),
           InlineAffiliateCard(
             tool: const AffiliateTool(
@@ -828,8 +812,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         children: [
           SizedBox(
             width: 90,
-            child: Text(platform,
-                style: AppTypography.bodySmall),
+            child: Text(platform, style: AppTypography.bodySmall),
           ),
           Expanded(
             child: Text(title,
@@ -876,8 +859,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               CircularProgressIndicator(color: AppColors.primary),
               SizedBox(height: 16),
               Text('Loading project...',
-                  style:
-                      TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(color: AppColors.textSecondary)),
             ],
           ),
         ),
@@ -894,19 +876,16 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('😕',
-                  style: TextStyle(fontSize: 48)),
+              const Text('😕', style: TextStyle(fontSize: 48)),
               const SizedBox(height: 16),
               const Text('Project not found',
                   style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18)),
+                      color: AppColors.textPrimary, fontSize: 18)),
               const SizedBox(height: 8),
               const Text(
                 'The project may have been deleted\nor failed to load.',
                 style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14),
+                    color: AppColors.textSecondary, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -969,8 +948,7 @@ class _SceneCardState extends State<_SceneCard> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(widget.scene.title,
                             style: AppTypography.titleMedium),
@@ -993,21 +971,20 @@ class _SceneCardState extends State<_SceneCard> {
             ),
             if (_expanded)
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Divider(height: 12),
-                    _sceneDetail('🎥 Visual',
-                        widget.scene.visualDescription),
+                    _sceneDetail(
+                        '🎥 Visual', widget.scene.visualDescription),
                     const SizedBox(height: 8),
-                    _sceneDetail('🎙️ Narration',
-                        widget.scene.narrationText),
+                    _sceneDetail(
+                        '🎙️ Narration', widget.scene.narrationText),
                     if (widget.scene.transition != null) ...[
                       const SizedBox(height: 8),
-                      _sceneDetail('↪️ Transition',
-                          widget.scene.transition!),
+                      _sceneDetail(
+                          '↪️ Transition', widget.scene.transition!),
                     ],
                   ],
                 ),
@@ -1042,8 +1019,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -1054,35 +1030,16 @@ class _Chip extends StatelessWidget {
 }
 
 // ─── Mobile File Bridge ───────────────────────────────────────────────────────
-// Uses dart:io only at runtime on mobile; web is always guarded by kIsWeb.
+// dart:io File is imported at the top of this file with `show File`.
+// All methods below are guarded by kIsWeb so File is never called on web.
 class _FileBridge {
   static Future<void> writeBytes(String path, List<int> bytes) async {
     if (kIsWeb) return;
-    // Dynamic invocation avoids compile-time dart:io dependency on web.
-    await _doWriteBytes(path, bytes);
+    await File(path).writeAsBytes(bytes);
   }
 
   static Future<void> writeString(String path, String content) async {
     if (kIsWeb) return;
-    await _doWriteString(path, content);
+    await File(path).writeAsString(content);
   }
-}
-
-// These functions are only reachable on mobile (kIsWeb guard above).
-// We declare them as top-level so the web compiler never analyses them.
-Future<void> _doWriteBytes(String path, List<int> bytes) async {
-  // ignore: undefined_identifier
-  await _platformFile(path).writeAsBytes(bytes);
-}
-
-Future<void> _doWriteString(String path, String content) async {
-  // ignore: undefined_identifier
-  await _platformFile(path).writeAsString(content);
-}
-
-// Returns a dart:io File — only compiled and used on mobile.
-// ignore: undefined_class
-dynamic _platformFile(String path) {
-  // ignore: undefined_class
-  return File(path); // resolved from dart:io on mobile
 }
