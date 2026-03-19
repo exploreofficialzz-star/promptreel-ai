@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   AppConfig._();
 
-  // ──   App   Info ──────────────────────────────────────────────────────────────
+  // ── App Info ──────────────────────────────────────────────────────────────
   static const String appName      = 'PromptReel AI';
   static const String tagline      = 'Turn simple ideas into complete AI video production plans.';
   static const String developer    = 'chAs Tech Group';
@@ -13,48 +13,26 @@ class AppConfig {
   // ── API ───────────────────────────────────────────────────────────────────
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: kDebugMode ? 'http://localhost:8000' : '',
+    defaultValue: 'https://promptreel-ai.onrender.com', // ← FIXED
   );
-  
-  static const String apiPrefix       = '/api';
+
+  static const String apiPrefix        = '/api';
   static const int    connectTimeoutMs = 30000;
   static const int    receiveTimeoutMs = 300000;
 
-  static String get apiBaseUrl {
-    if (baseUrl.isEmpty) {
-      throw Exception(
-        'API_BASE_URL not set! Configure it in your environment:\n'
-        '• Development: --dart-define=API_BASE_URL=http://localhost:8000\n'
-        '• Production: --dart-define=API_BASE_URL=https://your-api.com'
-      );
-    }
-    return baseUrl;
-  }
+  static String get apiBaseUrl => baseUrl;
 
   // ── Flutterwave ───────────────────────────────────────────────────────────
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
-    defaultValue: '',
+    defaultValue: 'FLWPUBK-361fd657794dc9b4413eee510c6d68d4-X',
   );
-  
-  static String get flwPublicKey {
-    if (flutterwavePublicKey.isEmpty) {
-      throw Exception(
-        'FLW_PUBLIC_KEY not set! Get it from Flutterwave Dashboard:\n'
-        'Settings → API Keys → Public Key'
-      );
-    }
-    return flutterwavePublicKey;
-  }
 
-  // 🔴 FIXED: Default to FALSE for production safety
-  // You must explicitly set FLW_TEST_MODE=true for testing
   static const bool flutterwaveTestMode = bool.fromEnvironment(
     'FLW_TEST_MODE',
-    defaultValue: false, // ✅ FIXED: Default to LIVE mode for production
+    defaultValue: false,
   );
 
-  // Plan prices - matches backend exactly
   static const double creatorPriceUsd = 15.00;
   static const double studioPriceUsd  = 35.00;
 
@@ -65,7 +43,7 @@ class AppConfig {
   static const String onboardingKey   = 'onboarding_complete';
   static const String themeKey        = 'app_theme';
 
-  // ── AdMob ───────────────────────────────────────────────────────────────────
+  // ── AdMob Android ─────────────────────────────────────────────────────────
   static const String admobAppIdAndroid          = 'ca-app-pub-2492078126313994~1571011892';
   static const String bannerAdUnitAndroid        = 'ca-app-pub-2492078126313994/7847678030';
   static const String interstitialAdUnitAndroid  = 'ca-app-pub-2492078126313994/5357246065';
@@ -74,7 +52,7 @@ class AppConfig {
   static const String interstitial2AdUnitAndroid = 'ca-app-pub-2492078126313994/9852369740';
   static const String banner2AdUnitAndroid       = 'ca-app-pub-2492078126313994/1638971257';
 
-  // iOS (Test IDs - replace before App Store)
+  // ── AdMob iOS ─────────────────────────────────────────────────────────────
   static const String admobAppIdIos              = 'ca-app-pub-3940256099942544~1458002511';
   static const String bannerAdUnitIos            = 'ca-app-pub-3940256099942544/2934735716';
   static const String interstitialAdUnitIos      = 'ca-app-pub-3940256099942544/4411468910';
@@ -83,39 +61,30 @@ class AppConfig {
   static const String interstitial2AdUnitIos     = 'ca-app-pub-3940256099942544/4411468910';
   static const String banner2AdUnitIos           = 'ca-app-pub-3940256099942544/2934735716';
 
-  // ── AI Model Tiers ─────────────────────────────────────────────────────────
+  // ── AI Model Tiers ────────────────────────────────────────────────────────
   static const Map<String, Map<String, dynamic>> planAiModels = {
     'free': {
       'primary': 'Gemini 2.0 Flash',
       'chain': [
-        'Gemini 2.0 Flash',
-        'Groq Llama 3.3 70B',
-        'Groq Llama 3.1 8B',
-        'DeepSeek-V3',
-        'Together Qwen 2.5',
-        'OpenRouter Free',
+        'Gemini 2.0 Flash', 'Groq Llama 3.3 70B',
+        'Groq Llama 3.1 8B', 'DeepSeek-V3',
+        'Together Qwen 2.5', 'OpenRouter Free',
       ],
       'description': 'Fast & capable free models',
     },
     'creator': {
       'primary': 'GPT-4o-mini',
       'chain': [
-        'GPT-4o-mini',
-        'Grok-2',
-        'Gemini 1.5 Pro',
-        'Mistral Large',
-        'DeepSeek-V3',
+        'GPT-4o-mini', 'Grok-2',
+        'Gemini 1.5 Pro', 'Mistral Large', 'DeepSeek-V3',
       ],
       'description': 'Pro models for higher quality output',
     },
     'studio': {
       'primary': 'GPT-4o',
       'chain': [
-        'GPT-4o',
-        'Claude 3.5 Sonnet',
-        'Grok-2',
-        'Gemini 1.5 Pro',
-        'Mistral Large',
+        'GPT-4o', 'Claude 3.5 Sonnet',
+        'Grok-2', 'Gemini 1.5 Pro', 'Mistral Large',
       ],
       'description': 'Highest-capability frontier models',
     },
@@ -123,15 +92,15 @@ class AppConfig {
 
   // ── Affiliate Links ───────────────────────────────────────────────────────
   static const Map<String, String> affiliateLinks = {
-    'Runway':          'https://runwayml.com',
-    'Pika':            'https://pika.art',
-    'Kling':           'https://klingai.com',
-    'Luma AI':         'https://lumalabs.ai',
-    'Leonardo AI':     'https://leonardo.ai',
-    'Midjourney':      'https://midjourney.com',
-    'CapCut':          'https://capcut.com',
-    'DaVinci Resolve': 'https://blackmagicdesign.com/products/davinciresolve',
-    'Stable Diffusion':'https://stability.ai',
+    'Runway':           'https://runwayml.com',
+    'Pika':             'https://pika.art',
+    'Kling':            'https://klingai.com',
+    'Luma AI':          'https://lumalabs.ai',
+    'Leonardo AI':      'https://leonardo.ai',
+    'Midjourney':       'https://midjourney.com',
+    'CapCut':           'https://capcut.com',
+    'DaVinci Resolve':  'https://blackmagicdesign.com/products/davinciresolve',
+    'Stable Diffusion': 'https://stability.ai',
   };
 
   // ── Content Types ─────────────────────────────────────────────────────────
@@ -169,25 +138,22 @@ class AppConfig {
 
   // ── Generators ────────────────────────────────────────────────────────────
   static const List<Map<String, dynamic>> generators = [
-    {'name': 'Runway',  'clip': 5,  'desc': '5s clips • Cinematic quality'},
-    {'name': 'Pika',    'clip': 3,  'desc': '3s clips • Fast & fluid'},
-    {'name': 'Kling',   'clip': 10, 'desc': '10s clips • Long scenes'},
-    {'name': 'Sora',    'clip': 15, 'desc': '10-20s clips • Narrative AI'},
-    {'name': 'Luma',    'clip': 5,  'desc': '5s clips • 3D depth'},
-    {'name': 'Haiper',  'clip': 4,  'desc': '4s clips • Motion focus'},
-    {'name': 'Other',   'clip': 5,  'desc': 'Custom generator'},
+    {'name': 'Runway', 'clip': 5,  'desc': '5s clips • Cinematic quality'},
+    {'name': 'Pika',   'clip': 3,  'desc': '3s clips • Fast & fluid'},
+    {'name': 'Kling',  'clip': 10, 'desc': '10s clips • Long scenes'},
+    {'name': 'Sora',   'clip': 15, 'desc': '10-20s clips • Narrative AI'},
+    {'name': 'Luma',   'clip': 5,  'desc': '5s clips • 3D depth'},
+    {'name': 'Haiper', 'clip': 4,  'desc': '4s clips • Motion focus'},
+    {'name': 'Other',  'clip': 5,  'desc': 'Custom generator'},
   ];
 
-  // ── Debug Helpers ─────────────────────────────────────────────────────────
+  // ── Debug ─────────────────────────────────────────────────────────────────
   static void printConfig() {
     if (kDebugMode) {
       print('=== AppConfig ===');
-      print('API Base URL: ${baseUrl.isEmpty ? "NOT SET" : baseUrl}');
-      print('API Prefix: $apiPrefix');
-      print('Flutterwave Key: ${flutterwavePublicKey.isEmpty ? "NOT SET" : "SET"}');
-      print('Test Mode: $flutterwaveTestMode (${flutterwaveTestMode ? "TEST" : "LIVE"})');
-      print('Creator Price: \$$creatorPriceUsd');
-      print('Studio Price: \$$studioPriceUsd');
+      print('API Base URL: $baseUrl');
+      print('FLW Key: ${flutterwavePublicKey.isEmpty ? "NOT SET" : "SET"}');
+      print('Test Mode: $flutterwaveTestMode');
       print('=================');
     }
   }
