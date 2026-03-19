@@ -6,58 +6,81 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Turn ideas into complete AI video production plans.">
-  <meta property="og:title" content="PromptReel AI">
-  <meta property="og:description" content="AI Video Production Platform">
-  <link rel="manifest" href="manifest.json">
   <title>PromptReel AI</title>
   <style>
     body {
-      margin: 0; background: #0A0A0F;
-      display: flex; align-items: center;
-      justify-content: center; min-height: 100vh;
+      margin: 0;
+      background: #0A0A0F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
       font-family: Arial, sans-serif;
     }
     #loading { text-align: center; color: white; }
-    .emoji   { font-size: 56px; margin-bottom: 16px; }
-    .title   {
+    .emoji { font-size: 56px; margin-bottom: 16px; }
+    .title {
       font-size: 24px; font-weight: 900; margin-bottom: 8px;
       background: linear-gradient(135deg, #FFB830, #FF8C00);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
-    .sub { font-size: 13px; color: #555; margin-bottom: 32px; }
-    .bar { width: 200px; height: 3px; background: rgba(255,255,255,.08);
-           border-radius: 3px; overflow: hidden; margin: 0 auto; }
-    .fill { height: 100%;
-            background: linear-gradient(135deg, #FFB830, #FF8C00);
-            animation: ld 1.5s ease-in-out forwards; }
-    @keyframes ld { 0%{width:0%} 100%{width:100%} }
+    .sub { font-size: 13px; color: #555; }
   </style>
 </head>
 <body>
   <div id="loading">
     <div class="emoji">🎬</div>
     <div class="title">PromptReel AI</div>
-    <div class="sub">AI Video Production Platform</div>
-    <div class="bar"><div class="fill"></div></div>
+    <div class="sub">Loading...</div>
   </div>
 
   <script>
-    // ── Force web to always start at login ─────────────────────────────────
-    if (window.location.hash === '' || window.location.hash === '#/') {
-      window.location.replace(window.location.pathname + '#/login');
+    // Always start at login if no valid route
+    var hash = window.location.hash;
+    if (!hash || hash === '#' || hash === '#/') {
+      window.history.replaceState(null, '', '/#/login');
     }
 
-    window.addEventListener('load', function(ev) {
-      var loading = document.getElementById('loading');
-      _flutter.loader.load({
-        onEntrypointLoaded: function(engineInitializer) {
-          engineInitializer.initializeEngine().then(function(appRunner) {
-            if (loading) loading.style.display = 'none';
-            appRunner.runApp();
+    var serviceWorkerVersion = null;
+    var scriptLoaded = false;
+
+    function loadMainDartJs() {
+      if (scriptLoaded) return;
+      scriptLoaded = true;
+      var scriptTag = document.createElement('script');
+      scriptTag.src = 'main.dart.js';
+      scriptTag.type = 'application/javascript';
+      document.body.append(scriptTag);
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion)
+          .then(function(reg) {
+            function waitForActivation(serviceWorker) {
+              serviceWorker.addEventListener('statechange', function() {
+                if (serviceWorker.state == 'activated') {
+                  loadMainDartJs();
+                }
+              });
+            }
+            if (!reg.active && (reg.installing || reg.waiting)) {
+              waitForActivation(reg.installing || reg.waiting);
+            } else if (!reg.active.scriptURL.endsWith(serviceWorkerVersion)) {
+              reg.update();
+              waitForActivation(reg.installing);
+            } else {
+              loadMainDartJs();
+            }
           });
-        }
+        setTimeout(function() {
+          if (!scriptLoaded) loadMainDartJs();
+        }, 4000);
       });
-    });
+    } else {
+      loadMainDartJs();
+    }
   </script>
 </body>
 </html>
