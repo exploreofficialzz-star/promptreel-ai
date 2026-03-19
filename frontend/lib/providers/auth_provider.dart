@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
@@ -43,8 +44,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final loggedIn = await _api.isLoggedIn();
       if (loggedIn) {
-        final user = await _api.getMe();
-        state = state.copyWith(isLoggedIn: true, user: user, isLoading: false);
+        // ── FIX: On web, skip getMe() on startup to avoid CORS error ─────
+        // getMe() will be called after user navigates to /home
+        if (kIsWeb) {
+          state = state.copyWith(
+              isLoggedIn: true, isLoading: false);
+        } else {
+          final user = await _api.getMe();
+          state = state.copyWith(
+              isLoggedIn: true, user: user, isLoading: false);
+        }
       } else {
         state = state.copyWith(isLoggedIn: false, isLoading: false);
       }
@@ -60,25 +69,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final data = await _api.register(email: email, password: password, name: name);
+      final data = await _api.register(
+          email: email, password: password, name: name);
       final user = UserModel.fromJson(data['user']);
-      state = state.copyWith(isLoggedIn: true, user: user, isLoading: false);
+      state = state.copyWith(
+          isLoggedIn: true, user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: ApiService.extractError(e));
+      state = state.copyWith(
+          isLoading: false, error: ApiService.extractError(e));
       return false;
     }
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  Future<bool> login({
+    required String email,
+    required String password,
+  }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final data = await _api.login(email: email, password: password);
+      final data =
+          await _api.login(email: email, password: password);
       final user = UserModel.fromJson(data['user']);
-      state = state.copyWith(isLoggedIn: true, user: user, isLoading: false);
+      state = state.copyWith(
+          isLoggedIn: true, user: user, isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: ApiService.extractError(e));
+      state = state.copyWith(
+          isLoading: false, error: ApiService.extractError(e));
       return false;
     }
   }
@@ -95,10 +113,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
   }
 
+  // ── FIX: clearError method ────────────────────────────────────────────────
   void clearError() => state = state.copyWith(error: null);
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authProvider =
+    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref.read(apiServiceProvider));
 });
 
