@@ -7,33 +7,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Turn ideas into complete AI video production plans.">
   <title>PromptReel AI</title>
-  <script>
-    // Redirect to login BEFORE Flutter loads
-    (function() {
-      var hash = window.location.hash;
-      var allowed = [
-        '#/login', '#/home', '#/create', '#/projects',
-        '#/tools', '#/settings', '#/privacy', '#/terms',
-        '#/results'
-      ];
-      var ok = false;
-      for (var i = 0; i < allowed.length; i++) {
-        if (hash.indexOf(allowed[i]) === 0) { ok = true; break; }
-      }
-      if (!ok) {
-        window.location.replace('/#/login');
-      }
-    })();
-  </script>
-  <link rel="manifest" href="manifest.json">
   <style>
     body {
-      margin: 0; background: #0A0A0F;
-      display: flex; align-items: center;
-      justify-content: center; min-height: 100vh;
+      margin: 0;
+      background: #0A0A0F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
       font-family: Arial, sans-serif;
     }
-    #loading { text-align: center; color: white; }
+    .wrap { text-align: center; color: white; }
     .emoji { font-size: 56px; margin-bottom: 16px; }
     .title {
       font-size: 24px; font-weight: 900; margin-bottom: 8px;
@@ -44,23 +28,31 @@
   </style>
 </head>
 <body>
-  <div id="loading">
+  <div class="wrap">
     <div class="emoji">🎬</div>
     <div class="title">PromptReel AI</div>
     <div class="sub">Loading...</div>
   </div>
+
   <script>
-    window.addEventListener('load', function(ev) {
-      var loading = document.getElementById('loading');
-      _flutter.loader.load({
-        onEntrypointLoaded: function(engineInitializer) {
-          engineInitializer.initializeEngine().then(function(appRunner) {
-            if (loading) loading.style.display = 'none';
-            appRunner.runApp();
-          });
-        }
-      });
-    });
+    var hash = window.location.hash;
+    var validRoutes = ['/login', '/home', '/create', '/results',
+                       '/projects', '/tools', '/settings',
+                       '/privacy', '/terms'];
+    var isValid = false;
+    for (var i = 0; i < validRoutes.length; i++) {
+      if (hash === '#' + validRoutes[i] ||
+          hash.indexOf('#' + validRoutes[i] + '/') === 0 ||
+          hash.indexOf('#' + validRoutes[i] + '?') === 0) {
+        isValid = true;
+        break;
+      }
+    }
+    if (!isValid) {
+      window.history.replaceState(null, '', '/#/login');
+    }
   </script>
+
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
