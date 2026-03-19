@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -38,39 +39,43 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _init() async {
-    // ── Web → check auth then go to right page ────────────────────────────
+    // ── Web → check auth with 5s timeout then navigate ───────────────────
     if (kIsWeb) {
-      final isLoggedIn =
-          await ref.read(apiServiceProvider).isLoggedIn();
-      if (!mounted) return;
-      if (isLoggedIn) {
-        context.go('/home');
-      } else {
-        context.go('/login');
+      try {
+        final isLoggedIn = await ref
+            .read(apiServiceProvider)
+            .isLoggedIn()
+            .timeout(const Duration(seconds: 5));
+        if (!mounted) return;
+        context.go(isLoggedIn ? '/home' : '/login');
+      } catch (_) {
+        // Timeout or network error → go to login
+        if (mounted) context.go('/login');
       }
       return;
     }
 
-    // ── Mobile → show full splash ─────────────────────────────────────────
+    // ── Mobile → show full splash then check auth ─────────────────────────
     AdService.instance.initialize();
     _progressController.forward();
     await Future.delayed(const Duration(milliseconds: 3000));
     if (!mounted) return;
 
-    final isLoggedIn =
-        await ref.read(apiServiceProvider).isLoggedIn();
-    if (!mounted) return;
-
-    if (isLoggedIn) {
-      context.go('/home');
-    } else {
-      context.go('/login');
+    try {
+      final isLoggedIn = await ref
+          .read(apiServiceProvider)
+          .isLoggedIn()
+          .timeout(const Duration(seconds: 8));
+      if (!mounted) return;
+      context.go(isLoggedIn ? '/home' : '/login');
+    } catch (_) {
+      if (mounted) context.go('/login');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ── Web: show minimal loader while checking auth ──────────────────────
+    // ── Web: minimal loader ───────────────────────────────────────────────
     if (kIsWeb) {
       return const Scaffold(
         backgroundColor: Color(0xFF0A0A0F),
@@ -88,11 +93,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   color: Color(0xFFFFB830),
                 ),
               ),
-              SizedBox(height: 32),
+              SizedBox(height: 8),
+              Text(
+                'AI Video Production Platform',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF555566),
+                ),
+              ),
+              SizedBox(height: 40),
               SizedBox(
-                width: 32, height: 32,
+                width: 28, height: 28,
                 child: CircularProgressIndicator(
-                  color: Color(0xFFFFB830), strokeWidth: 2.5,
+                  color: Color(0xFFFFB830), strokeWidth: 2,
                 ),
               ),
             ],
@@ -101,7 +114,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       );
     }
 
-    // ── Mobile: full splash screen ────────────────────────────────────────
+    // ── Mobile: full splash ───────────────────────────────────────────────
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       body: Container(
@@ -144,7 +157,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 children: [
                   const Spacer(flex: 3),
 
-                  // ── App Icon ───────────────────────────────────────────
+                  // ── App Icon ─────────────────────────────────────────
                   Container(
                     width: 130, height: 130,
                     decoration: BoxDecoration(
@@ -181,7 +194,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       .animate()
                       .scale(
                         begin: const Offset(0.3, 0.3),
-                        end:   const Offset(1.0, 1.0),
+                        end: const Offset(1.0, 1.0),
                         duration: 800.ms,
                         curve: Curves.elasticOut,
                       )
@@ -189,7 +202,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 32),
 
-                  // ── App Name ───────────────────────────────────────────
+                  // ── App Name ─────────────────────────────────────────
                   ShaderMask(
                     shaderCallback: (b) =>
                         AppColors.primaryGradient.createShader(b),
@@ -205,14 +218,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   )
                       .animate(delay: 400.ms)
                       .fadeIn(duration: 700.ms)
-                      .slideY(begin: 0.4, end: 0,
+                      .slideY(
+                          begin: 0.4, end: 0,
                           curve: Curves.easeOutCubic),
 
                   const SizedBox(height: 12),
 
-                  // ── Tagline ────────────────────────────────────────────
+                  // ── Tagline ──────────────────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
                       'Turn simple ideas into complete\nAI video production plans.',
                       textAlign: TextAlign.center,
@@ -230,7 +245,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 24),
 
-                  // ── Version badge ──────────────────────────────────────
+                  // ── Version badge ─────────────────────────────────────
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 5),
@@ -252,9 +267,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const Spacer(flex: 3),
 
-                  // ── Progress bar ───────────────────────────────────────
+                  // ── Progress bar ──────────────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 60),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 60),
                     child: Column(
                       children: [
                         ClipRRect(
@@ -264,8 +280,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             minHeight: 3,
                             backgroundColor:
                                 Colors.white.withOpacity(0.08),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.primary),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -289,7 +306,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                   const SizedBox(height: 32),
 
-                  // ── Footer ─────────────────────────────────────────────
+                  // ── Footer ────────────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -308,7 +325,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             letterSpacing: 0.3,
                           )),
                     ],
-                  ).animate(delay: 1000.ms).fadeIn(duration: 700.ms),
+                  )
+                      .animate(delay: 1000.ms)
+                      .fadeIn(duration: 700.ms),
 
                   const SizedBox(height: 36),
                 ],
