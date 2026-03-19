@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -21,9 +22,9 @@ class CreateScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
-  final _ideaCtrl  = TextEditingController();
+  final _ideaCtrl   = TextEditingController();
   final _scrollCtrl = ScrollController();
-  int _currentStep = 0;
+  int _currentStep  = 0;
   static const int _totalSteps = 3;
 
   // ── Content Type Options ──────────────────────────────────────────────────
@@ -217,7 +218,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       _ideaCtrl.text = widget.initialIdea!;
       ref.read(generateFormProvider.notifier).setIdea(widget.initialIdea!);
     }
-    AdService.instance.loadInterstitial();
+    // ── FIX: Skip AdMob on web ────────────────────────────────────────────
+    if (!kIsWeb) AdService.instance.loadInterstitial();
   }
 
   @override
@@ -240,7 +242,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         ref.read(projectsProvider.notifier).addProject(project);
         ref.read(authProvider.notifier).refreshUser();
         final user = ref.read(currentUserProvider);
-        await AdService.instance.showInterstitial(user);
+        // ── FIX: Skip AdMob on web ────────────────────────────────────────
+        if (!kIsWeb) await AdService.instance.showInterstitial(user);
         if (mounted) context.go('/results/${project.id}', extra: project);
       }
     } else if (mounted) {
@@ -380,9 +383,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   Widget _buildStep(formState, user) {
     switch (_currentStep) {
-      case 0: return _buildStep1(formState, user);
-      case 1: return _buildStep2(formState, user);
-      case 2: return _buildStep3(formState, user);
+      case 0:  return _buildStep1(formState, user);
+      case 1:  return _buildStep2(formState, user);
+      case 2:  return _buildStep3(formState, user);
       default: return const SizedBox();
     }
   }
@@ -470,7 +473,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 Expanded(
                   child: Text(
                     '$contentType Settings',
-                    style: AppTypography.titleMedium.copyWith(color: accentColor),
+                    style: AppTypography.titleMedium
+                        .copyWith(color: accentColor),
                   ),
                 ),
               ],
@@ -480,12 +484,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 style: AppTypography.bodySmall),
             const SizedBox(height: AppSpacing.md),
             ...options.map((opt) {
-              final key       = opt['key'] as String;
-              final label     = opt['label'] as String;
-              final icon      = opt['icon'] as String;
-              final choices   = opt['options'] as List<String>;
-              final defaultVal= opt['default'] as String;
-              final selected  = selectedOptions[key] ?? defaultVal;
+              final key        = opt['key'] as String;
+              final label      = opt['label'] as String;
+              final icon       = opt['icon'] as String;
+              final choices    = opt['options'] as List<String>;
+              final defaultVal = opt['default'] as String;
+              final selected   = selectedOptions[key] ?? defaultVal;
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: _buildOptionSelector(
@@ -536,7 +540,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               onTap: () => onSelect(choice),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? accentColor.withOpacity(0.15)
@@ -552,9 +557,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 child: Text(
                   choice,
                   style: AppTypography.labelSmall.copyWith(
-                    color: isSelected ? accentColor : AppColors.textSecondary,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: isSelected
+                        ? accentColor
+                        : AppColors.textSecondary,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -570,7 +578,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('⏱️', 'Video Duration', 'How long should your video be?'),
+        _sectionTitle('⏱️', 'Video Duration',
+            'How long should your video be?'),
         const SizedBox(height: AppSpacing.sm),
         SectionSelector<int>(
           label: '',
@@ -580,10 +589,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             final isPaid   = d['paid'] == true;
             final isLocked = isPaid && (user?.isFree ?? true);
             return SectionOption<int>(
-              value: d['minutes'] as int,
-              label: d['label'] as String,
+              value:       d['minutes'] as int,
+              label:       d['label'] as String,
               description: d['desc'] as String,
-              locked: isLocked,
+              locked:      isLocked,
             );
           }).toList(),
         ),
@@ -592,11 +601,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             'Which AI will you use to create the video?'),
         const SizedBox(height: AppSpacing.sm),
         ...AppConfig.generators.asMap().entries.map((e) {
-          final gen        = e.value;
-          final isSelected = formState.generator == gen['name'];
+          final gen          = e.value;
+          final isSelected   = formState.generator == gen['name'];
           final clipDuration = gen['clip'] as int;
-          final totalScenes =
-              _getDurationSeconds(formState.durationMinutes) ~/ clipDuration;
+          final totalScenes  =
+              _getDurationSeconds(formState.durationMinutes) ~/
+                  clipDuration;
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -623,8 +633,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   children: [
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      width: 20,
-                      height: 20,
+                      width: 20, height: 20,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
@@ -665,7 +674,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 ),
               ),
             )
-                .animate(delay: Duration(milliseconds: e.key * 50))
+                .animate(
+                    delay: Duration(milliseconds: e.key * 50))
                 .fadeIn()
                 .slideX(begin: -0.05),
           );
@@ -685,30 +695,26 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
-        // ── Section Title ──────────────────────────────────────────────────
-        _sectionTitle('⚙️', 'Final Options', 'Almost ready — one last step'),
+        _sectionTitle('⚙️', 'Final Options',
+            'Almost ready — one last step'),
         const SizedBox(height: AppSpacing.md),
 
-        // ── Voice-Over Card ────────────────────────────────────────────────
         _buildFeatureCard(
           icon: '🎙️',
           title: 'Generate Voice-Over Script',
-          subtitle: 'Timed narration with [MM:SS] markers ready for ElevenLabs or any TTS tool',
+          subtitle:
+              'Timed narration with [MM:SS] markers ready for ElevenLabs or any TTS tool',
           badge: 'OPTIONAL',
           badgeColor: AppColors.secondary,
           value: formState.generateVoiceOver,
-          onChanged: ref.read(generateFormProvider.notifier).setGenerateVoiceOver,
+          onChanged:
+              ref.read(generateFormProvider.notifier).setGenerateVoiceOver,
         ),
 
         const SizedBox(height: AppSpacing.lg),
-
-        // ── What You Get Banner ────────────────────────────────────────────
         _buildWhatYouGetBanner(totalScenes, clipDuration),
-
         const SizedBox(height: AppSpacing.lg),
 
-        // ── Plan Summary ───────────────────────────────────────────────────
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -726,11 +732,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   const Icon(Icons.checklist_rounded,
                       color: AppColors.primary, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    'Plan Summary',
-                    style: AppTypography.titleMedium
-                        .copyWith(color: AppColors.primary),
-                  ),
+                  Text('Plan Summary',
+                      style: AppTypography.titleMedium
+                          .copyWith(color: AppColors.primary)),
                 ],
               ),
               const Divider(height: 20),
@@ -749,21 +753,22 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   '${formState.durationMinutes} minutes'),
               _reviewRow(Icons.movie_creation_outlined, 'Generator',
                   formState.generator),
-              _reviewRow(Icons.slideshow_outlined,
-    'Total Scenes', '$totalScenes clips × ${clipDuration}s'),
+              _reviewRow(Icons.slideshow_outlined, 'Total Scenes',
+                  '$totalScenes clips × ${clipDuration}s'),
               _reviewRow(
                 Icons.record_voice_over_outlined,
                 'Voice-Over',
-                formState.generateVoiceOver ? '✅ Included' : '— Not included',
+                formState.generateVoiceOver
+                    ? '✅ Included'
+                    : '— Not included',
               ),
-
-              // Content type settings in summary
               if (contentTypeOpts.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Divider(
-                    height: 20,
-                    color: _getContentTypeColor(formState.contentType)
-                        .withOpacity(0.3)),
+                  height: 20,
+                  color: _getContentTypeColor(formState.contentType)
+                      .withOpacity(0.3),
+                ),
                 Row(
                   children: [
                     Text(_getContentTypeIcon(formState.contentType),
@@ -772,17 +777,18 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     Text(
                       '${formState.contentType} Settings',
                       style: AppTypography.labelMedium.copyWith(
-                        color: _getContentTypeColor(formState.contentType),
+                        color: _getContentTypeColor(
+                            formState.contentType),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 ...contentTypeOpts.map((opt) {
-                  final key       = opt['key'] as String;
-                  final label     = opt['label'] as String;
-                  final defaultVal= opt['default'] as String;
-                  final value     = selectedOptions[key] ?? defaultVal;
+                  final key        = opt['key'] as String;
+                  final label      = opt['label'] as String;
+                  final defaultVal = opt['default'] as String;
+                  final value      = selectedOptions[key] ?? defaultVal;
                   return _reviewRow(Icons.tune_outlined, label, value);
                 }),
               ],
@@ -792,7 +798,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
         const SizedBox(height: AppSpacing.md),
 
-        // ── Info Note ──────────────────────────────────────────────────────
+        // ── FIX: Web-aware info note ──────────────────────────────────────
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -810,7 +816,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Generation takes 30-90 seconds depending on video length. Please keep the app open.',
+                  kIsWeb
+                      ? 'Generation takes 30-90 seconds. Please keep this tab open.'
+                      : 'Generation takes 30-90 seconds depending on video length. Please keep the app open.',
                   style: AppTypography.bodySmall
                       .copyWith(color: AppColors.secondary),
                 ),
@@ -824,7 +832,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     ).animate().fadeIn();
   }
 
-  // ── Feature Card (Voice-Over toggle) ─────────────────────────────────────
+  // ── Feature Card ──────────────────────────────────────────────────────────
   Widget _buildFeatureCard({
     required String icon,
     required String title,
@@ -859,10 +867,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon circle
           Container(
-            width: 44,
-            height: 44,
+            width: 44, height: 44,
             decoration: BoxDecoration(
               color: value
                   ? AppColors.secondary.withOpacity(0.15)
@@ -870,11 +876,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Center(
-              child: Text(icon, style: const TextStyle(fontSize: 22)),
+              child:
+                  Text(icon, style: const TextStyle(fontSize: 22)),
             ),
           ),
           const SizedBox(width: 12),
-          // Text
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,7 +919,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Toggle
           Switch(
             value: value,
             onChanged: onChanged,
@@ -973,7 +978,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Responsive wrap grid
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1018,8 +1022,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(iconData,
-              size: 14, color: AppColors.textMuted),
+          Icon(iconData, size: 14, color: AppColors.textMuted),
           const SizedBox(width: 8),
           SizedBox(
             width: 100,
@@ -1037,7 +1040,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     );
   }
 
-  Widget _sectionTitle(String emoji, String title, String subtitle) {
+  Widget _sectionTitle(
+      String emoji, String title, String subtitle) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1046,7 +1050,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             Text(emoji, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(title, style: AppTypography.headlineMedium),
+              child: Text(title,
+                  style: AppTypography.headlineMedium),
             ),
           ],
         ),
@@ -1069,8 +1074,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         child: _currentStep < _totalSteps - 1
             ? AppButton(
                 label: 'Continue →',
-                onPressed:
-                    formState.isValid || _currentStep > 0 ? _nextStep : null,
+                onPressed: formState.isValid || _currentStep > 0
+                    ? _nextStep
+                    : null,
                 fullWidth: true,
                 height: 52,
               )
@@ -1078,7 +1084,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 label: genState.isGenerating
                     ? 'Generating your plan...'
                     : '✦  Generate Video Plan',
-                onPressed: genState.isGenerating ? null : _generate,
+                onPressed:
+                    genState.isGenerating ? null : _generate,
                 fullWidth: true,
                 height: 52,
                 isLoading: genState.isGenerating,
@@ -1090,22 +1097,32 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   // ── Helpers ───────────────────────────────────────────────────────────────
   Color _getContentTypeColor(String ct) {
     const m = {
-      'Educational': Color(0xFF4FC3F7), 'Narration':    Color(0xFFCE93D8),
-      'Commentary':  Color(0xFFFFB74D), 'Documentary':  Color(0xFF80CBC4),
-      'Storytelling':Color(0xFFF48FB1), 'Comedy':       Color(0xFFFFF176),
-      'Horror':      Color(0xFFEF9A9A), 'Motivational': Color(0xFFFFCC02),
-      'News':        Color(0xFF90CAF9), 'Realistic':    Color(0xFFA5D6A7),
+      'Educational':  Color(0xFF4FC3F7),
+      'Narration':    Color(0xFFCE93D8),
+      'Commentary':   Color(0xFFFFB74D),
+      'Documentary':  Color(0xFF80CBC4),
+      'Storytelling': Color(0xFFF48FB1),
+      'Comedy':       Color(0xFFFFF176),
+      'Horror':       Color(0xFFEF9A9A),
+      'Motivational': Color(0xFFFFCC02),
+      'News':         Color(0xFF90CAF9),
+      'Realistic':    Color(0xFFA5D6A7),
     };
     return m[ct] ?? AppColors.primary;
   }
 
   String _getContentTypeIcon(String ct) {
     const m = {
-      'Educational': '🎓', 'Narration':    '📖',
-      'Commentary':  '💬', 'Documentary':  '🎬',
-      'Storytelling':'✨', 'Comedy':       '😂',
-      'Horror':      '👻', 'Motivational': '🔥',
-      'News':        '📰', 'Realistic':    '📽️',
+      'Educational':  '🎓',
+      'Narration':    '📖',
+      'Commentary':   '💬',
+      'Documentary':  '🎬',
+      'Storytelling': '✨',
+      'Comedy':       '😂',
+      'Horror':       '👻',
+      'Motivational': '🔥',
+      'News':         '📰',
+      'Realistic':    '📽️',
     };
     return m[ct] ?? '🎬';
   }
@@ -1133,8 +1150,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   int _getClipDuration(String generator) {
     const m = {
-      'Runway': 5, 'Pika': 3, 'Kling': 10,
-      'Sora': 15, 'Luma': 5, 'Haiper': 4, 'Other': 5,
+      'Runway': 5, 'Pika': 3,  'Kling': 10,
+      'Sora': 15,  'Luma': 5,  'Haiper': 4, 'Other': 5,
     };
     return m[generator] ?? 5;
   }
