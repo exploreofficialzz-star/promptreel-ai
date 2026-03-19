@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder used by the build system.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- SEO -->
+  <meta name="description" content="Turn simple ideas into complete AI video production plans. Scripts, scene breakdowns, video prompts, SEO packs and more.">
+  <meta name="keywords" content="AI video production, video planning, AI scripts, video prompts, content creator tools">
+  <meta name="author" content="chAs Tech Group">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="PromptReel AI — AI Video Production Platform">
+  <meta property="og:description" content="Turn ideas into complete AI video production plans in seconds.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://promptreel-web.onrender.com">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PromptReel AI">
+  <meta name="twitter:description" content="AI-powered video production planning platform">
+
+  <!-- Google AdSense — replace XXXXXXXXXXXXXXXXX with your publisher ID -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXXX"
+     crossorigin="anonymous"></script>
+
+  <!-- Favicon -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+
+  <title>PromptReel AI</title>
+
+  <style>
+    /* Loading screen */
+    body {
+      margin: 0;
+      background-color: #0A0A0F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: -apple-system, Arial, sans-serif;
+    }
+    #loading {
+      text-align: center;
+      color: white;
+    }
+    .loader-logo {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .loader-title {
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #FFB830, #FF8C00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .loader-sub {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 32px;
+    }
+    .loader-bar {
+      width: 200px;
+      height: 3px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 0 auto;
+    }
+    .loader-fill {
+      height: 100%;
+      background: linear-gradient(135deg, #FFB830, #FF8C00);
+      border-radius: 3px;
+      animation: load 2s ease-in-out infinite;
+    }
+    @keyframes load {
+      0%   { width: 0%; }
+      50%  { width: 70%; }
+      100% { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading screen shown while Flutter loads -->
+  <div id="loading">
+    <div class="loader-logo">🎬</div>
+    <div class="loader-title">PromptReel AI</div>
+    <div class="loader-sub">AI Video Production Platform</div>
+    <div class="loader-bar">
+      <div class="loader-fill"></div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Hide loading screen when Flutter is ready
+      var loading = document.getElementById('loading');
+
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            if (loading) loading.style.display = 'none';
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
