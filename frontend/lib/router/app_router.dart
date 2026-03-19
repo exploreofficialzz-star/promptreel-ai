@@ -13,23 +13,19 @@ import '../screens/tools/tools_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/plans_screen.dart';
 import '../screens/settings/ai_models_screen.dart';
-import '../screens/landing/landing_screen.dart';
 import '../screens/legal/legal_screens.dart';
 import '../models/project_model.dart';
 
-// ── Public paths — no auth redirect ───────────────────────────────────────────
+// ── Public paths — never redirect ─────────────────────────────────────────────
 const _publicPaths = {
-  '/', '/splash', '/landing',
-  '/login', '/register',
-  '/privacy', '/terms',
+  '/', '/splash', '/login', '/privacy', '/terms',
 };
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
 
   return GoRouter(
-    // ── Web starts at landing, mobile starts at splash ──────────────────────
-    initialLocation: kIsWeb ? '/' : '/splash',
+    initialLocation: '/splash',
     debugLogDiagnostics: false,
 
     redirect: (context, state) {
@@ -37,56 +33,34 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading   = authState.isLoading;
       final currentPath = state.matchedLocation;
 
-      // Never redirect public pages
       if (_publicPaths.contains(currentPath)) return null;
-
-      // Wait for auth to load
       if (isLoading) return null;
-
-      // Not logged in → go to login
       if (!isLoggedIn) return '/login';
-
-      // Already logged in → skip login
       if (isLoggedIn && currentPath == '/login') return '/home';
-
       return null;
     },
 
     routes: [
-
-      // ── Landing page — website home & mobile splash handler ───────────────
+      // ── Splash — handles web vs mobile logic internally ─────────────────
       GoRoute(
         path: '/',
         name: 'root',
-        // Web → shows landing page
-        // Mobile → immediately redirects to /splash via SplashScreen's kIsWeb check
-        builder: (_, __) => kIsWeb
-            ? const LandingScreen()
-            : const SplashScreen(),
+        builder: (_, __) => const SplashScreen(),
       ),
-
-      // ── Landing (explicit route for web nav) ──────────────────────────────
-      GoRoute(
-        path: '/landing',
-        name: 'landing',
-        builder: (_, __) => const LandingScreen(),
-      ),
-
-      // ── Splash (mobile app entry) ─────────────────────────────────────────
       GoRoute(
         path: '/splash',
         name: 'splash',
         builder: (_, __) => const SplashScreen(),
       ),
 
-      // ── Auth ──────────────────────────────────────────────────────────────
+      // ── Auth ────────────────────────────────────────────────────────────
       GoRoute(
         path: '/login',
         name: 'login',
         builder: (_, __) => const LoginScreen(),
       ),
 
-      // ── Legal pages (Play Store + website) ───────────────────────────────
+      // ── Legal ────────────────────────────────────────────────────────────
       GoRoute(
         path: '/privacy',
         name: 'privacy',
@@ -98,7 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const TermsScreen(),
       ),
 
-      // ── App screens ───────────────────────────────────────────────────────
+      // ── App screens ──────────────────────────────────────────────────────
       GoRoute(
         path: '/home',
         name: 'home',
@@ -151,7 +125,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
 
-    // ── 404 Error ─────────────────────────────────────────────────────────
+    // ── 404 ──────────────────────────────────────────────────────────────
     errorBuilder: (context, state) => Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       body: Center(
@@ -164,17 +138,15 @@ final routerProvider = Provider<GoRouter>((ref) {
                     fontWeight: FontWeight.w900,
                     color: Color(0xFFFFB830))),
             const SizedBox(height: 12),
-            Text(
-              'Page not found',
-              style: TextStyle(
-                  fontSize: 18, color: Colors.white.withOpacity(0.7)),
-            ),
+            Text('Page not found',
+                style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.white.withOpacity(0.7))),
             const SizedBox(height: 8),
-            Text(
-              state.matchedLocation,
-              style: TextStyle(
-                  fontSize: 13, color: Colors.white.withOpacity(0.3)),
-            ),
+            Text(state.matchedLocation,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.3))),
             const SizedBox(height: 32),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
