@@ -25,7 +25,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
 
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: kIsWeb ? '/login' : '/splash',
     debugLogDiagnostics: false,
 
     redirect: (context, state) {
