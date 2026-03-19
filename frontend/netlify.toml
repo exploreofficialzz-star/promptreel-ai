@@ -1,7 +1,7 @@
 [build]
   base    = "frontend"
   publish = "build/web"
-  command = "git clone https://github.com/flutter/flutter.git --depth 1 -b 3.24.0 $HOME/flutter && export PATH=$PATH:$HOME/flutter/bin && flutter config --enable-web && flutter create . --platforms web && flutter pub get && flutter build web --release --no-wasm-dry-run"
+  command = "git clone https://github.com/flutter/flutter.git --depth 1 -b 3.24.0 $HOME/flutter && export PATH=$PATH:$HOME/flutter/bin && flutter config --enable-web && flutter create . --platforms web && flutter pub get && flutter build web --release"
 
 [[redirects]]
   from   = "/*"
