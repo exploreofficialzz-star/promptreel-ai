@@ -22,6 +22,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey      = GlobalKey<FormState>();
   bool _obscurePassword = true;
   bool _isRegisterMode  = false;
+  bool _hasSubmitted    = false; // ← ADDED: only show errors after submit
+
+  // ── ADDED: clear any startup errors ───────────────────────────────────────
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authProvider.notifier).clearError();
+    });
+  }
 
   @override
   void dispose() {
@@ -40,6 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    setState(() => _hasSubmitted = true); // ← ADDED
     if (!_formKey.currentState!.validate()) return;
     final notifier = ref.read(authProvider.notifier);
     bool success;
@@ -170,8 +181,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: AppSpacing.lg),
 
-            // ── Error Banner ────────────────────────────────────────────────
-            if (authState.error != null) ...[
+            // ── Error Banner — ONLY show after user submits ─────────────────
+            if (_hasSubmitted && authState.error != null) ...[
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -274,8 +285,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // ── Toggle Register/Login ───────────────────────────────────────
             Center(
               child: GestureDetector(
-                onTap: () => setState(
-                    () => _isRegisterMode = !_isRegisterMode),
+                onTap: () => setState(() {
+                  _isRegisterMode = !_isRegisterMode;
+                  _hasSubmitted   = false; // ← ADDED: reset on toggle
+                }),
                 child: RichText(
                   text: TextSpan(
                     style: AppTypography.bodySmall,
