@@ -1,10 +1,8 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../models/project_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/projects_provider.dart';
@@ -16,6 +14,10 @@ import '../../widgets/common/prompt_copy_card.dart';
 import '../../widgets/ads/native_ad_card.dart';
 import '../../widgets/ads/rewarded_export_gate.dart';
 import '../../widgets/affiliate/affiliate_tab.dart';
+
+// ── Conditional imports for file download ─────────────────────────────────────
+import 'results_download_mobile.dart'
+    if (dart.library.html) 'results_download_web.dart';
 
 class ResultsScreen extends ConsumerStatefulWidget {
   final int projectId;
@@ -35,7 +37,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   ProjectModel? _project;
-  bool _isLoading    = false;
+  bool _isLoading     = false;
   bool _isDownloading = false;
 
   final _tabs = [
@@ -52,42 +54,26 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
     _project = widget.project;
-
-    // Only load from API if we don't already have the project data
     if (_project == null || _project!.result == null) {
       _loadProject();
     }
   }
 
-  // ── Load Project ──────────────────────────────────────────────────────────
   Future<void> _loadProject() async {
     setState(() => _isLoading = true);
-
     try {
-      // 1. Try API first
       final p = await ref.read(apiServiceProvider)
           .getProject(widget.projectId);
       if (mounted) {
-        setState(() {
-          _project   = p;
-          _isLoading = false;
-        });
+        setState(() { _project = p; _isLoading = false; });
         return;
       }
-    } catch (_) {
-      // API failed — fall through to cache
-    }
-
-    // 2. Try local projects provider cache
+    } catch (_) {}
     if (mounted) {
       final cached = ref.read(projectsProvider).projects
           .where((p) => p.id == widget.projectId)
           .firstOrNull;
-
-      setState(() {
-        _project   = cached;
-        _isLoading = false;
-      });
+      setState(() { _project = cached; _isLoading = false; });
     }
   }
 
@@ -102,27 +88,23 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     if (_isDownloading) return;
     setState(() => _isDownloading = true);
     _showSnack('Preparing ZIP package...', isInfo: true);
-
     try {
       final bytes = await ref
           .read(apiServiceProvider)
           .exportProjectZip(_project!.id);
-
       if (bytes.isEmpty) {
         _showSnack('Export failed — no data received.', isError: true);
         return;
       }
-
-      final dir      = await getTemporaryDirectory();
       final filename =
           'promptreel_${_project!.id}_${_project!.platform.toLowerCase()}.zip';
-      final file = File('${dir.path}/$filename');
-      await file.writeAsBytes(bytes);
-
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/zip')],
-        subject: 'PromptReel AI — ${_project!.title}',
-        text:    'Your complete video production package from PromptReel AI!',
+      // ── FIX: Platform-aware download ──────────────────────────────────────
+      await downloadBytes(
+        bytes:    bytes,
+        filename: filename,
+        mimeType: 'application/zip',
+        subject:  'PromptReel AI — ${_project!.title}',
+        text:     'Your complete video production package from PromptReel AI!',
       );
     } catch (e) {
       if (mounted) {
@@ -139,22 +121,20 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     if (_isDownloading) return;
     setState(() => _isDownloading = true);
     _showSnack('Preparing $type file...', isInfo: true);
-
     try {
       final api = ref.read(apiServiceProvider);
-      final dir = await getTemporaryDirectory();
-
       if (type == 'script') {
         final content = await api.exportProjectScript(_project!.id);
         if (content.isEmpty) {
           _showSnack('Script is empty.', isError: true);
           return;
         }
-        final file = File('${dir.path}/script_${_project!.id}.txt');
-        await file.writeAsString(content);
-        await Share.shareXFiles(
-          [XFile(file.path, mimeType: 'text/plain')],
-          subject: 'PromptReel Script — ${_project!.title}',
+        // ── FIX: Platform-aware download ──────────────────────────────────
+        await downloadString(
+          content:  content,
+          filename: 'script_${_project!.id}.txt',
+          mimeType: 'text/plain',
+          subject:  'PromptReel Script — ${_project!.title}',
         );
       } else if (type == 'srt') {
         final content = await api.exportProjectSrt(_project!.id);
@@ -162,12 +142,11 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           _showSnack('Subtitles are empty.', isError: true);
           return;
         }
-        final file =
-            File('${dir.path}/subtitles_${_project!.id}.srt');
-        await file.writeAsString(content);
-        await Share.shareXFiles(
-          [XFile(file.path, mimeType: 'text/srt')],
-          subject: 'PromptReel Subtitles — ${_project!.title}',
+        await downloadString(
+          content:  content,
+          filename: 'subtitles_${_project!.id}.srt',
+          mimeType: 'text/srt',
+          subject:  'PromptReel Subtitles — ${_project!.title}',
         );
       }
     } catch (e) {
@@ -194,12 +173,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     ));
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return _buildLoading();
     if (_project == null) return _buildError();
-
     final result = _project!.result;
     if (result == null) return _buildError();
 
@@ -232,7 +209,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
@@ -289,7 +265,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     );
   }
 
-  // ── Tab Bar ───────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -314,7 +289,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     );
   }
 
-  // ── Overview Tab ──────────────────────────────────────────────────────────
   Widget _buildOverviewTab(VideoResult result) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
@@ -332,13 +306,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           AppCard(
             child: Column(
               children: [
-                _titleRow('▶️ YouTube', result.titles.youtube),
+                _titleRow('▶️ YouTube',  result.titles.youtube),
                 _divider(),
-                _titleRow('🎵 TikTok', result.titles.tiktok),
+                _titleRow('🎵 TikTok',   result.titles.tiktok),
                 _divider(),
                 _titleRow('📸 Instagram', result.titles.instagram),
                 _divider(),
-                _titleRow('📱 Shorts', result.titles.shorts),
+                _titleRow('📱 Shorts',   result.titles.shorts),
               ],
             ),
           ),
@@ -375,24 +349,20 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     const SizedBox(height: AppSpacing.sm),
                     const Divider(),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('Pro Tips',
-                        style: AppTypography.titleMedium),
+                    Text('Pro Tips', style: AppTypography.titleMedium),
                     const SizedBox(height: 8),
                     ...result.productionNotes!.proTips
                         .map((tip) => Padding(
-                              padding:
-                                  const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.only(bottom: 6),
                               child: Row(
                                 crossAxisAlignment:
                                     CrossAxisAlignment.start,
                                 children: [
                                   const Text('💡 ',
-                                      style:
-                                          TextStyle(fontSize: 12)),
+                                      style: TextStyle(fontSize: 12)),
                                   Expanded(
                                     child: Text(tip,
-                                        style: AppTypography
-                                            .bodySmall
+                                        style: AppTypography.bodySmall
                                             .copyWith(
                                                 color: AppColors
                                                     .textPrimary)),
@@ -410,15 +380,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     ).animate().fadeIn();
   }
 
-  // ── Script Tab ────────────────────────────────────────────────────────────
   Widget _buildScriptTab(VideoResult result) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
       child: Column(
         children: [
           PromptCopyCard(
-            label:
-                'FULL SCRIPT — ${_project!.durationMinutes} MINUTES',
+            label: 'FULL SCRIPT — ${_project!.durationMinutes} MINUTES',
             content: result.fullScript,
             maxLines: 20,
           ),
@@ -439,7 +407,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     ).animate().fadeIn();
   }
 
-  // ── Scenes Tab ────────────────────────────────────────────────────────────
   Widget _buildScenesTab(VideoResult result) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
@@ -457,7 +424,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     );
   }
 
-  // ── Prompts Tab ───────────────────────────────────────────────────────────
   Widget _buildPromptsTab(VideoResult result) {
     return DefaultTabController(
       length: result.imagePrompts.isEmpty ? 1 : 2,
@@ -489,7 +455,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   Widget _buildVideoPromptsList(List<VideoPromptItem> prompts) {
     final user   = ref.read(currentUserProvider);
     final isPaid = user?.isPaid ?? false;
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
       children: [
@@ -567,7 +532,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     );
   }
 
-  // ── SEO Tab ───────────────────────────────────────────────────────────────
   Widget _buildSeoTab(VideoResult result) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
@@ -602,8 +566,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('HASHTAGS',
                         style: AppTypography.labelMedium.copyWith(
@@ -633,20 +596,42 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     ).animate().fadeIn();
   }
 
-  // ── Export Tab ────────────────────────────────────────────────────────────
   Widget _buildExportTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── FIX: Web info banner ──────────────────────────────────────────
+          if (kIsWeb) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                    color: AppColors.primary.withOpacity(0.2)),
+              ),
+              child: Row(children: [
+                const Text('💻', style: TextStyle(fontSize: 18)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Files will download directly to your browser\'s download folder.',
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.primary),
+                  ),
+                ),
+              ]),
+            ),
+          ],
           GlowCard(
             glowColor: AppColors.primary,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('📦',
-                    style: TextStyle(fontSize: 32)),
+                const Text('📦', style: TextStyle(fontSize: 32)),
                 const SizedBox(height: 8),
                 Text('Complete Package',
                     style: AppTypography.headlineMedium),
@@ -665,11 +650,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('Individual Files',
-              style: AppTypography.titleMedium),
+          Text('Individual Files', style: AppTypography.titleMedium),
           const SizedBox(height: AppSpacing.sm),
 
-          // ── Script ────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: AppCard(
@@ -689,20 +672,17 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                           style: AppTypography.titleMedium)),
                   _isDownloading
                       ? const SizedBox(
-                          width: 16,
-                          height: 16,
+                          width: 16, height: 16,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: AppColors.primary))
                       : const Icon(Icons.download_outlined,
-                          size: 16,
-                          color: AppColors.textMuted),
+                          size: 16, color: AppColors.textMuted),
                 ],
               ),
             ),
           ),
 
-          // ── SRT ───────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: AppCard(
@@ -722,14 +702,12 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                           style: AppTypography.titleMedium)),
                   _isDownloading
                       ? const SizedBox(
-                          width: 16,
-                          height: 16,
+                          width: 16, height: 16,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: AppColors.secondary))
                       : const Icon(Icons.download_outlined,
-                          size: 16,
-                          color: AppColors.textMuted),
+                          size: 16, color: AppColors.textMuted),
                 ],
               ),
             ),
@@ -747,8 +725,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               badge: 'Recommended',
               category: 'voice',
             ),
-            contextLabel:
-                '🎙️ Need audio for your voice-over script?',
+            contextLabel: '🎙️ Need audio for your voice-over script?',
           ),
           InlineAffiliateCard(
             tool: const AffiliateTool(
@@ -767,7 +744,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     ).animate().fadeIn();
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   Widget _sectionHeader(String emoji, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -789,8 +765,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         children: [
           SizedBox(
             width: 90,
-            child: Text(platform,
-                style: AppTypography.bodySmall),
+            child: Text(platform, style: AppTypography.bodySmall),
           ),
           Expanded(
             child: Text(title,
@@ -824,7 +799,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     );
   }
 
-  // ── Loading / Error States ────────────────────────────────────────────────
   Widget _buildLoading() {
     return Scaffold(
       body: Container(
@@ -837,8 +811,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               CircularProgressIndicator(color: AppColors.primary),
               SizedBox(height: 16),
               Text('Loading project...',
-                  style:
-                      TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(color: AppColors.textSecondary)),
             ],
           ),
         ),
@@ -855,19 +828,16 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('😕',
-                  style: TextStyle(fontSize: 48)),
+              const Text('😕', style: TextStyle(fontSize: 48)),
               const SizedBox(height: 16),
               const Text('Project not found',
                   style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18)),
+                      color: AppColors.textPrimary, fontSize: 18)),
               const SizedBox(height: 8),
               const Text(
                 'The project may have been deleted\nor failed to load.',
                 style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14),
+                    color: AppColors.textSecondary, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -912,8 +882,7 @@ class _SceneCardState extends State<_SceneCard> {
               child: Row(
                 children: [
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 36, height: 36,
                     decoration: BoxDecoration(
                       gradient: AppColors.primaryGradient,
                       borderRadius:
@@ -930,8 +899,7 @@ class _SceneCardState extends State<_SceneCard> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(widget.scene.title,
                             style: AppTypography.titleMedium),
@@ -946,16 +914,14 @@ class _SceneCardState extends State<_SceneCard> {
                     _expanded
                         ? Icons.expand_less
                         : Icons.expand_more,
-                    color: AppColors.textMuted,
-                    size: 18,
+                    color: AppColors.textMuted, size: 18,
                   ),
                 ],
               ),
             ),
             if (_expanded)
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1003,8 +969,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighlight,
         borderRadius: BorderRadius.circular(AppRadius.sm),
