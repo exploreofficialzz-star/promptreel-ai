@@ -33,9 +33,8 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
-  target 'RunnerTests' do
-    inherit! :search_paths
-  end
+  # RunnerTests target removed — not present in Runner.xcodeproj.
+  # Add it back here only if you create an XCTest target in Xcode.
 end
 
 post_install do |installer|
