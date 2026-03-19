@@ -21,7 +21,6 @@ env:
   JAVA_VERSION: '17'
 
 jobs:
-  # ── Code Quality ──────────────────────────────────────────────────────────
   analyze:
     name: 🔍 Analyze & Lint
     runs-on: ubuntu-latest
@@ -35,6 +34,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Fix app_tracking_transparency version
+        working-directory: frontend
+        run: |
+          sed -i 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
+
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
@@ -47,7 +51,6 @@ jobs:
         working-directory: frontend
         run: dart format --output=none --set-exit-if-changed lib/
 
-  # ── Android Build ─────────────────────────────────────────────────────────
   build-android:
     name: 🏗️ Build Android
     runs-on: ubuntu-latest
@@ -77,11 +80,15 @@ jobs:
           key: gradle-${{ hashFiles('frontend/android/**/*.gradle*', 'frontend/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
+      - name: Fix app_tracking_transparency version
+        working-directory: frontend
+        run: |
+          sed -i 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
+
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
 
-      # ── Signing Setup ───────────────────────────────────────────────────
       - name: Decode keystore
         if: github.event_name != 'pull_request'
         working-directory: frontend/android/app
@@ -105,7 +112,6 @@ jobs:
           storeFile=../app/promptreel-release.jks
           EOF
 
-      # ── Build APK (debug for PRs, release for main/tags) ──────────────
       - name: Build APK (debug)
         if: github.event_name == 'pull_request'
         working-directory: frontend
@@ -129,7 +135,6 @@ jobs:
             --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
             --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }}
 
-      # ── Upload Artifacts ────────────────────────────────────────────────
       - name: Upload APK
         uses: actions/upload-artifact@v4
         if: always()
@@ -146,7 +151,6 @@ jobs:
           path: frontend/build/app/outputs/bundle/release/*.aab
           retention-days: 60
 
-  # ── GitHub Release on Tag ────────────────────────────────────────────────
   release:
     name: 🚀 Create GitHub Release
     runs-on: ubuntu-latest
@@ -180,14 +184,14 @@ jobs:
           body: |
             ## 🎬 PromptReel AI ${{ steps.version.outputs.VERSION }}
             Turn simple ideas into complete AI video production plans.
-            
+
             ### 📦 Downloads
             - **APK** — Direct install (sideload)
             - **AAB** — Google Play Store submission
-            
+
             ### What's Changed
             See [CHANGELOG.md](CHANGELOG.md) for full details.
-            
+
             ---
             *Made with ❤️ by chAs Tech Group*
           files: release-artifacts/*
