@@ -23,18 +23,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   void initState() {
     super.initState();
-    
-    // Initialize controller for both web and mobile
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2500),
+      duration: const Duration(milliseconds: 3000),
     )..addListener(() {
-        if (mounted) {
-          setState(() => _progress = _progressController.value);
-        }
+        if (mounted) setState(() => _progress = _progressController.value);
       });
-    
-    _init();
+
+    // Navigate after first frame — avoids GoRouter not ready issue
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override
@@ -44,188 +41,43 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _init() async {
-    // Start animation
-    _progressController.forward();
-    
-    // Wait for animation + loading
-    await Future.delayed(const Duration(milliseconds: 2500));
     if (!mounted) return;
 
-    // Check auth
+    // ── Web → go straight to login immediately ────────────────────────────
+    if (kIsWeb) {
+      context.go('/login');
+      return;
+    }
+
+    // ── Mobile → full splash then check auth ──────────────────────────────
+    AdService.instance.initialize();
+    _progressController.forward();
+    await Future.delayed(const Duration(milliseconds: 3000));
+    if (!mounted) return;
+
     try {
       final isLoggedIn = await ref
           .read(apiServiceProvider)
           .isLoggedIn()
-          .timeout(const Duration(seconds: 5));
-      
+          .timeout(const Duration(seconds: 8));
       if (!mounted) return;
       context.go(isLoggedIn ? '/home' : '/login');
-    } catch (e) {
-      debugPrint('Splash auth error: $e');
+    } catch (_) {
       if (mounted) context.go('/login');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ── Web: FULL ANIMATED SPLASH (not minimal) ───────────────────────────
+    // Web shows blank dark screen — JS already redirected to /#/login
     if (kIsWeb) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0A0A0F),
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF0D0D1A),
-                Color(0xFF0A0A0F),
-                Color(0xFF0D0D1A),
-              ],
-            ),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Animated Logo
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.4),
-                        blurRadius: 40,
-                        spreadRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.movie_filter_rounded,
-                    size: 50,
-                    color: Colors.white,
-                  ),
-                )
-                .animate()
-                .scale(
-                  begin: const Offset(0.5, 0.5),
-                  end: const Offset(1.0, 1.0),
-                  duration: 800.ms,
-                  curve: Curves.elasticOut,
-                )
-                .fadeIn(duration: 600.ms),
-
-                const SizedBox(height: 32),
-
-                // App Name with gradient
-                ShaderMask(
-                  shaderCallback: (bounds) =>
-                      AppColors.primaryGradient.createShader(bounds),
-                  child: const Text(
-                    'PromptReel AI',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                )
-                .animate(delay: 300.ms)
-                .fadeIn(duration: 600.ms)
-                .slideY(begin: 0.3, end: 0),
-
-                const SizedBox(height: 12),
-
-                // Tagline
-                Text(
-                  'AI Video Production Platform',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.5),
-                    letterSpacing: 0.5,
-                  ),
-                )
-                .animate(delay: 500.ms)
-                .fadeIn(duration: 600.ms),
-
-                const SizedBox(height: 48),
-
-                // Progress bar (web-sized)
-                SizedBox(
-                  width: 200,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: _progress,
-                      minHeight: 4,
-                      backgroundColor: Colors.white.withOpacity(0.1),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.primary,
-                      ),
-                    ),
-                  ),
-                )
-                .animate(delay: 700.ms)
-                .fadeIn(duration: 400.ms),
-
-                const SizedBox(height: 16),
-
-                // Loading text
-                Text(
-                  _progress < 0.3
-                      ? 'Initializing...'
-                      : _progress < 0.6
-                          ? 'Loading...'
-                          : _progress < 0.9
-                              ? 'Almost ready...'
-                              : 'Welcome! 🎬',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.4),
-                  ),
-                )
-                .animate(delay: 800.ms)
-                .fadeIn(duration: 400.ms),
-
-                const SizedBox(height: 48),
-
-                // Footer
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Made with ',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.3),
-                      ),
-                    ),
-                    const Text('❤️', style: TextStyle(fontSize: 12)),
-                    Text(
-                      ' by chAs Tech Group',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.3),
-                      ),
-                    ),
-                  ],
-                )
-                .animate(delay: 1000.ms)
-                .fadeIn(duration: 600.ms),
-              ],
-            ),
-          ),
-        ),
+      return const Scaffold(
+        backgroundColor: Color(0xFF0A0A0F),
+        body: SizedBox.shrink(),
       );
     }
 
-    // ── Mobile: full splash (keep your existing mobile code) ──────────────
+    // ── Mobile full splash ────────────────────────────────────────────────
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       body: Container(
@@ -245,7 +97,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // Background glow
               Positioned(
                 top: -100, left: 0, right: 0,
                 child: Center(
@@ -253,26 +104,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     width: 400, height: 400,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          AppColors.primary.withOpacity(0.08),
-                          Colors.transparent,
-                        ],
-                      ),
+                      gradient: RadialGradient(colors: [
+                        AppColors.primary.withOpacity(0.08),
+                        Colors.transparent,
+                      ]),
                     ),
                   ),
                 ),
               ),
-
               Column(
                 children: [
                   const Spacer(flex: 3),
-
-                  // ── App Icon ─────────────────────────────────────────
                   Container(
                     width: 130, height: 130,
                     decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
@@ -281,48 +126,44 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.movie_filter_rounded,
-                      size: 65, 
-                      color: Colors.white,
-                    ),
-                  )
-                  .animate()
-                  .scale(
-                    begin: const Offset(0.3, 0.3),
-                    end: const Offset(1.0, 1.0),
-                    duration: 800.ms,
-                    curve: Curves.elasticOut,
-                  )
-                  .fadeIn(duration: 500.ms),
-
-                  const SizedBox(height: 32),
-
-                  // ── App Name ─────────────────────────────────────────
-                  ShaderMask(
-                    shaderCallback: (b) =>
-                        AppColors.primaryGradient.createShader(b),
-                    child: const Text(
-                      'PromptReel AI',
-                      style: TextStyle(
-                        fontSize: 38,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: Image.asset(
+                        'assets/icon/app_icon.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          decoration: BoxDecoration(
+                            gradient: AppColors.primaryGradient,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: const Icon(Icons.movie_filter_rounded,
+                              size: 65, color: Colors.white),
+                        ),
                       ),
                     ),
                   )
-                  .animate(delay: 400.ms)
-                  .fadeIn(duration: 700.ms)
-                  .slideY(
-                    begin: 0.4, 
-                    end: 0,
-                    curve: Curves.easeOutCubic,
-                  ),
-
+                      .animate()
+                      .scale(
+                          begin: const Offset(0.3, 0.3),
+                          end: const Offset(1.0, 1.0),
+                          duration: 800.ms,
+                          curve: Curves.elasticOut)
+                      .fadeIn(duration: 500.ms),
+                  const SizedBox(height: 32),
+                  ShaderMask(
+                    shaderCallback: (b) =>
+                        AppColors.primaryGradient.createShader(b),
+                    child: const Text('PromptReel AI',
+                        style: TextStyle(
+                          fontSize: 38, fontWeight: FontWeight.w900,
+                          color: Colors.white, letterSpacing: 1.5,
+                        )),
+                  )
+                      .animate(delay: 400.ms)
+                      .fadeIn(duration: 700.ms)
+                      .slideY(begin: 0.4, end: 0,
+                          curve: Curves.easeOutCubic),
                   const SizedBox(height: 12),
-
-                  // ── Tagline ──────────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
@@ -331,29 +172,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       style: TextStyle(
                         fontSize: 15,
                         color: Colors.white.withOpacity(0.55),
-                        height: 1.6,
-                        letterSpacing: 0.3,
+                        height: 1.6, letterSpacing: 0.3,
                       ),
                     ),
                   )
-                  .animate(delay: 600.ms)
-                  .fadeIn(duration: 700.ms)
-                  .slideY(begin: 0.3, end: 0),
-
+                      .animate(delay: 600.ms)
+                      .fadeIn(duration: 700.ms)
+                      .slideY(begin: 0.3, end: 0),
                   const SizedBox(height: 24),
-
-                  // ── Version badge ─────────────────────────────────────
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14, 
-                      vertical: 5,
-                    ),
+                        horizontal: 14, vertical: 5),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(50),
                       border: Border.all(
-                        color: AppColors.primary.withOpacity(0.2),
-                      ),
+                          color: AppColors.primary.withOpacity(0.2)),
                     ),
                     child: Text(
                       'v1.0.0 · Powered by 9 AI Providers',
@@ -364,10 +198,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                     ),
                   ).animate(delay: 700.ms).fadeIn(duration: 500.ms),
-
                   const Spacer(flex: 3),
-
-                  // ── Progress bar ──────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 60),
                     child: Column(
@@ -377,10 +208,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                           child: LinearProgressIndicator(
                             value: _progress,
                             minHeight: 3,
-                            backgroundColor: Colors.white.withOpacity(0.08),
+                            backgroundColor:
+                                Colors.white.withOpacity(0.08),
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.primary,
-                            ),
+                                AppColors.primary),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -401,33 +232,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ],
                     ),
                   ).animate(delay: 900.ms).fadeIn(duration: 500.ms),
-
                   const SizedBox(height: 32),
-
-                  // ── Footer ────────────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'Made with ',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.3),
-                          letterSpacing: 0.3,
-                        ),
-                      ),
+                      Text('Made with ',
+                          style: TextStyle(fontSize: 13,
+                              color: Colors.white.withOpacity(0.3))),
                       const Text('❤️', style: TextStyle(fontSize: 13)),
-                      Text(
-                        ' by chAs Tech Group',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.3),
-                          letterSpacing: 0.3,
-                        ),
-                      ),
+                      Text(' by chAs Tech Group',
+                          style: TextStyle(fontSize: 13,
+                              color: Colors.white.withOpacity(0.3))),
                     ],
                   ).animate(delay: 1000.ms).fadeIn(duration: 700.ms),
-
                   const SizedBox(height: 36),
                 ],
               ),
