@@ -5,20 +5,16 @@ from typing import Optional, List
 
 class Settings(BaseSettings):
     # ── App ───────────────────────────────────────────────────────────────────
-    APP_NAME:     str = "PromptReel AI"
-    APP_VERSION:  str = "1.1.0"
+    APP_NAME:     str  = "PromptReel AI"
+    APP_VERSION:  str  = "1.1.0"
     DEBUG:        bool = False
-    ENVIRONMENT:  str = "production"
+    ENVIRONMENT:  str  = "production"
 
     # ── Database ──────────────────────────────────────────────────────────────
-    # ⚠️ REQUIRED: Set in Render dashboard
-    # Format: postgresql+asyncpg://username:password@host:port/database
     DATABASE_URL: str
 
     # ── Security ──────────────────────────────────────────────────────────────
-    # ⚠️ REQUIRED: Generate strong random key for production
-    # Use: openssl rand -hex 32
-    SECRET_KEY: str
+    SECRET_KEY:                  str
     ALGORITHM:                   str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     REFRESH_TOKEN_EXPIRE_DAYS:   int = 30
@@ -35,17 +31,12 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
 
     # ── Model Names ───────────────────────────────────────────────────────────
-    # Studio tier
     OPENAI_MODEL_STUDIO:    str = "gpt-4o"
     ANTHROPIC_MODEL_STUDIO: str = "claude-3-5-sonnet-20241022"
-
-    # Creator tier
-    OPENAI_MODEL_CREATOR:  str = "gpt-4o-mini"
-    GEMINI_MODEL_CREATOR:  str = "gemini-1.5-pro-latest"
-    GROK_MODEL_CREATOR:    str = "grok-2-1212"
-    MISTRAL_MODEL_CREATOR: str = "mistral-large-latest"
-
-    # Free tier
+    OPENAI_MODEL_CREATOR:   str = "gpt-4o-mini"
+    GEMINI_MODEL_CREATOR:   str = "gemini-1.5-pro-latest"
+    GROK_MODEL_CREATOR:     str = "grok-2-1212"
+    MISTRAL_MODEL_CREATOR:  str = "mistral-large-latest"
     GEMINI_MODEL_FREE:      str = "gemini-2.0-flash"
     DEEPSEEK_MODEL_FREE:    str = "deepseek-chat"
     GROQ_MODEL_FREE:        str = "llama-3.3-70b-versatile"
@@ -57,19 +48,17 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL_FREE2: str = "meta-llama/llama-3.1-8b-instruct:free"
     OPENROUTER_MODEL_FREE3: str = "google/gemma-2-9b-it:free"
 
-    # ── Email (Resend) ────────────────────────────────────────────────────────
+    # ── Email ─────────────────────────────────────────────────────────────────
     RESEND_API_KEY: Optional[str] = None
     EMAIL_FROM:     str = "onboarding@resend.dev"
 
     # ── Flutterwave ───────────────────────────────────────────────────────────
-    # ⚠️ REQUIRED for payments to work
-    # Get from: https://dashboard.flutterwave.com → Settings → API Keys
-    FLUTTERWAVE_SECRET_KEY:   str   # Live: FLWSECK-... (NOT FLWSECK_TEST-...)
-    FLUTTERWAVE_PUBLIC_KEY:   str   # Live: FLWPUBK-... (NOT FLWPUBK_TEST-...)
-    FLUTTERWAVE_ENCRYPT_KEY:  Optional[str] = None  # Optional for now
-    FLUTTERWAVE_WEBHOOK_HASH: str   # Generate random string: openssl rand -hex 32
+    FLUTTERWAVE_SECRET_KEY:   str
+    FLUTTERWAVE_PUBLIC_KEY:   str
+    FLUTTERWAVE_ENCRYPT_KEY:  Optional[str] = None
+    FLUTTERWAVE_WEBHOOK_HASH: str
 
-    # ── Plan Prices USD ───────────────────────────────────────────────────────
+    # ── Plan Prices ───────────────────────────────────────────────────────────
     CREATOR_PRICE_USD: float = 15.00
     STUDIO_PRICE_USD:  float = 35.00
 
@@ -78,21 +67,26 @@ class Settings(BaseSettings):
     FREE_MAX_DURATION: int = 5
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    # ⚠️ Add your Render URL here or set CORS_ORIGINS in environment
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:8080",
+        # ── Production ──────────────────────────────────────
         "https://promptreel.ai",
         "https://app.promptreel.ai",
-        "https://promptreel-ai.onrender.com",  # ← Your Render backend
+        "https://www.promptreel.ai",
+        # ── Netlify ─────────────────────────────────────────
+        "https://promptreel-ai.netlify.app",
+        "https://promtreel-ai.netlify.app",
+        # ── Render ──────────────────────────────────────────
+        "https://promptreel-ai.onrender.com",
     ]
 
-    FRONTEND_URL: str = "https://app.promptreel.ai"
+    FRONTEND_URL: str = "https://promtreel-ai.netlify.app"
 
     class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False  # Allow FLUTTERWAVE_SECRET_KEY or flutterwave_secret_key
+        env_file           = ".env"
+        env_file_encoding  = "utf-8"
+        case_sensitive     = False
 
 
 @lru_cache()
@@ -106,4 +100,4 @@ PLAN_TIER = {
     "free":    "free",
     "creator": "creator",
     "studio":  "studio",
-}
+    }
