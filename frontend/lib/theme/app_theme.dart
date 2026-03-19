@@ -186,19 +186,19 @@ class AppTheme {
           onSurface:   AppColors.textPrimary,
         ),
         textTheme: TextTheme(
-          displayLarge:  AppTypography.displayLarge,
-          displayMedium: AppTypography.displayMedium,
-          displaySmall:  AppTypography.displaySmall,
-          headlineLarge: AppTypography.headlineLarge,
-          headlineMedium:AppTypography.headlineMedium,
-          titleLarge:    AppTypography.titleLarge,
-          titleMedium:   AppTypography.titleMedium,
-          bodyLarge:     AppTypography.bodyLarge,
-          bodyMedium:    AppTypography.bodyMedium,
-          bodySmall:     AppTypography.bodySmall,
-          labelLarge:    AppTypography.labelLarge,
-          labelMedium:   AppTypography.labelMedium,
-          labelSmall:    AppTypography.labelSmall,
+          displayLarge:   AppTypography.displayLarge,
+          displayMedium:  AppTypography.displayMedium,
+          displaySmall:   AppTypography.displaySmall,
+          headlineLarge:  AppTypography.headlineLarge,
+          headlineMedium: AppTypography.headlineMedium,
+          titleLarge:     AppTypography.titleLarge,
+          titleMedium:    AppTypography.titleMedium,
+          bodyLarge:      AppTypography.bodyLarge,
+          bodyMedium:     AppTypography.bodyMedium,
+          bodySmall:      AppTypography.bodySmall,
+          labelLarge:     AppTypography.labelLarge,
+          labelMedium:    AppTypography.labelMedium,
+          labelSmall:     AppTypography.labelSmall,
         ),
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.background,
@@ -210,8 +210,8 @@ class AppTheme {
           centerTitle: false,
         ),
 
-        // ── FIX 1: CardTheme → CardThemeData ─────────────────────────────
-        cardTheme: CardThemeData(
+        // ── FIX: Use CardTheme for Flutter 3.24.0 ────────────────────────
+        cardTheme: CardTheme(
           color: AppColors.surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -306,8 +306,8 @@ class AppTheme {
           color: AppColors.primary,
         ),
 
-        // ── FIX 2: TabBarTheme → TabBarThemeData ─────────────────────────
-        tabBarTheme: TabBarThemeData(
+        // ── FIX: Use TabBarTheme for Flutter 3.24.0 ──────────────────────
+        tabBarTheme: TabBarTheme(
           labelColor:           AppColors.primary,
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor:       AppColors.primary,
@@ -315,8 +315,8 @@ class AppTheme {
           unselectedLabelStyle: AppTypography.labelMedium,
         ),
 
-        // ── FIX 3: DialogTheme → DialogThemeData ──────────────────────────
-        dialogTheme: DialogThemeData(
+        // ── FIX: Use DialogTheme for Flutter 3.24.0 ──────────────────────
+        dialogTheme: DialogTheme(
           backgroundColor: AppColors.surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
