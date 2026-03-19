@@ -36,6 +36,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Wait for auth to finish loading ───────────────────────────────────
       if (isLoading) return null;
 
+      // ── FIX: Already on correct page — stop redirect loop ─────────────────
+      if (isLoggedIn && currentPath == '/home') return null;
+      if (!isLoggedIn && currentPath == '/login') return null;
+
       // ── Logged in on login or root → go to home ───────────────────────────
       if (isLoggedIn && (currentPath == '/login' || currentPath == '/')) {
         return '/home';
