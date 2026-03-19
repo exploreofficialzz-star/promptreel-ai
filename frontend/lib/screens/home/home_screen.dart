@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -25,6 +26,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // ── FIX: On web, fetch user data now since we skipped it on startup ──
+      if (kIsWeb) {
+        ref.read(authProvider.notifier).refreshUser();
+      }
       ref.read(projectsProvider.notifier).load();
       ref.read(projectsProvider.notifier).loadStats();
     });
@@ -424,23 +429,22 @@ class _ProjectTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return AppCard(
       onTap: () {
-        final user      = ref.read(currentUserProvider);
-        final projectId = project.id;
+        final user        = ref.read(currentUserProvider);
+        final projectId   = project.id;
         final projectData = project;
 
         if (user?.isPaid ?? false) {
-          // Paid users — go directly, no ad
           context.go('/results/$projectId', extra: projectData);
           return;
         }
 
-        // ── Free users ────────────────────────────────────────────────────
-        // Navigate FIRST so project data is preserved in route state,
-        // then show ad on top — user sees results when ad dismisses
+        // Free users — navigate first then show ad on top
         context.go('/results/$projectId', extra: projectData);
 
-        // Show ad after navigation — it appears on top of results screen
-        AdService.instance.showProjectViewInterstitial(user);
+        // ── FIX: Skip interstitial on web — AdMob not supported ───────────
+        if (!kIsWeb) {
+          AdService.instance.showProjectViewInterstitial(user);
+        }
       },
       child: Row(
         children: [
