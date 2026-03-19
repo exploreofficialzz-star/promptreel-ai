@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,7 +54,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'name': 'Creator',
       'price_label': r'$15',
       'period': '/month',
-      'amount_usd': 15.0, // Matches backend exactly
+      'amount_usd': 15.0,
       'popular': true,
       'color': 0xFFFFB830,
       'ai_primary': 'GPT-4o-mini',
@@ -77,7 +78,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'name': 'Studio',
       'price_label': r'$35',
       'period': '/month',
-      'amount_usd': 35.0, // Matches backend exactly
+      'amount_usd': 35.0,
       'color': 0xFF00E5CC,
       'ai_primary': 'GPT-4o',
       'ai_chain':
@@ -109,7 +110,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     }
 
     setState(() {
-      _isProcessing = true;
+      _isProcessing   = true;
       _processingPlan = planId;
     });
 
@@ -118,23 +119,24 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           'PR-${user.id}-$planId-${DateTime.now().millisecondsSinceEpoch}';
 
       // ── Build checkout URL ─────────────────────────────────────────────
-      // Backend handles public_key, we just send user data
       final checkoutUrl = Uri.parse(
         '${AppConfig.baseUrl}/api/payments/checkout-page',
       ).replace(queryParameters: {
-        'plan_id': planId, // Backend needs this to identify plan
-        'email': user.email,
-        'name': user.name ?? user.email.split('@')[0],
-        'tx_ref': txRef,
+        'plan_id':  planId,
+        'email':    user.email,
+        'name':     user.name ?? user.email.split('@')[0],
+        'tx_ref':   txRef,
         'currency': 'USD',
       });
 
       debugPrint('Opening checkout: $checkoutUrl');
 
-      // ── Open in Chrome (external browser) ───────────────────────────────
+      // ── FIX: Web opens in new tab, mobile opens external browser ─────────
       final launched = await launchUrl(
         checkoutUrl,
-        mode: LaunchMode.externalApplication,
+        mode: kIsWeb
+            ? LaunchMode.platformDefault      // opens new browser tab on web
+            : LaunchMode.externalApplication, // opens Chrome on mobile
       );
 
       if (!launched) {
@@ -150,8 +152,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         barrierDismissible: false,
         builder: (_) => _PaymentWaitingDialog(
           planName: plan['name'] as String,
-          amount: (plan['amount_usd'] as double).toStringAsFixed(2),
-          txRef: txRef,
+          amount:   (plan['amount_usd'] as double).toStringAsFixed(2),
+          txRef:    txRef,
         ),
       );
 
@@ -159,8 +161,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
       if (confirmed == true) {
         await _verifyAndUpgrade(
-          txRef: txRef,
-          planId: planId,
+          txRef:    txRef,
+          planId:   planId,
           planName: plan['name'] as String,
         );
       } else {
@@ -173,7 +175,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     } finally {
       if (mounted) {
         setState(() {
-          _isProcessing = false;
+          _isProcessing   = false;
           _processingPlan = null;
         });
       }
@@ -193,17 +195,15 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     );
 
     try {
-      // Call backend verify endpoint
-      // Backend will look up transaction by txRef if needed
       final response = await ref.read(apiServiceProvider).verifyPayment(
-        txRef: txRef,
-        planId: planId,
+        txRef:   txRef,
+        planId:  planId,
       );
 
       await ref.read(authProvider.notifier).refreshUser();
 
       if (mounted) {
-        Navigator.of(context).pop(); // Close verifying dialog
+        Navigator.of(context).pop();
         _showSuccess(planName, response);
       }
     } catch (e) {
@@ -232,7 +232,8 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient, shape: BoxShape.circle),
+                  gradient: AppColors.primaryGradient,
+                  shape: BoxShape.circle),
               child: const Icon(Icons.check_rounded,
                   color: Colors.black, size: 40),
             ).animate().scale(curve: Curves.elasticOut, duration: 600.ms),
@@ -294,9 +295,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     ));
   }
 
-  // ... rest of your build methods remain the same ...
-  // (_buildHeader, _buildPaymentInfo, _payMethod, _buildFaq, etc.)
-
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -324,8 +322,36 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                     children: [
                       _buildHeader(),
                       const SizedBox(height: AppSpacing.lg),
+                      // ── FIX: Web info banner ──────────────────────────────
+                      if (kIsWeb) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.08),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.md),
+                            border: Border.all(
+                                color:
+                                    AppColors.primary.withOpacity(0.2)),
+                          ),
+                          child: Row(children: [
+                            const Text('🌐',
+                                style: TextStyle(fontSize: 18)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Payment will open in a new browser tab. '
+                                'Return here after completing payment.',
+                                style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.primary),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ],
                       ..._plans.asMap().entries.map((e) {
-                        final plan = e.value;
+                        final plan     = e.value;
                         final isCurrent =
                             (user?.plan ?? 'free').toLowerCase() ==
                                 (plan['id'] as String).toLowerCase();
@@ -334,12 +360,14 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 16),
                           child: _PlanCard(
-                            plan: plan,
-                            isCurrent: isCurrent,
-                            isLoading: isLoading,
+                            plan:       plan,
+                            isCurrent:  isCurrent,
+                            isLoading:  isLoading,
                             isDisabled: _isProcessing && !isLoading,
-                            onSelect: () => _handleSelect(plan),
-                          ).animate(delay: Duration(milliseconds: e.key * 120))
+                            onSelect:   () => _handleSelect(plan),
+                          ).animate(
+                                  delay: Duration(
+                                      milliseconds: e.key * 120))
                               .fadeIn()
                               .slideY(begin: 0.15),
                         );
@@ -419,10 +447,10 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           const SizedBox(height: AppSpacing.sm),
           const Divider(),
           const SizedBox(height: AppSpacing.sm),
-          _payMethod('💳', 'Cards', 'Visa, Mastercard, Amex'),
+          _payMethod('💳', 'Cards',        'Visa, Mastercard, Amex'),
           _payMethod('🏦', 'Bank Transfer', 'ACH, Wire, Local banks'),
-          _payMethod('📱', 'USSD', 'Nigeria, Ghana, etc.'),
-          _payMethod('📲', 'Mobile Money', 'M-Pesa, MTN, etc.'),
+          _payMethod('📱', 'USSD',          'Nigeria, Ghana, etc.'),
+          _payMethod('📲', 'Mobile Money',  'M-Pesa, MTN, etc.'),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Prices in USD. Monthly subscription, cancel anytime.',
@@ -509,7 +537,8 @@ class _PaymentWaitingDialog extends StatefulWidget {
   });
 
   @override
-  State<_PaymentWaitingDialog> createState() => _PaymentWaitingDialogState();
+  State<_PaymentWaitingDialog> createState() =>
+      _PaymentWaitingDialogState();
 }
 
 class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
@@ -536,9 +565,13 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Complete Payment\nin Browser',
-              style: AppTypography.headlineMedium,
-              textAlign: TextAlign.center),
+          Text(
+            kIsWeb
+                ? 'Complete Payment\nin New Tab'
+                : 'Complete Payment\nin Browser',
+            style: AppTypography.headlineMedium,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(
@@ -563,9 +596,13 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Flutterwave has opened in your browser.\n'
-            'Complete your payment there, then\n'
-            'tap "I Have Paid" below.',
+            kIsWeb
+                ? 'Flutterwave has opened in a new tab.\n'
+                    'Complete your payment there, then\n'
+                    'tap "I Have Paid" below.'
+                : 'Flutterwave has opened in your browser.\n'
+                    'Complete your payment there, then\n'
+                    'tap "I Have Paid" below.',
             style: AppTypography.bodySmall,
             textAlign: TextAlign.center,
           ),
@@ -573,7 +610,9 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
           GestureDetector(
             onTap: () => setState(() => _showTxRef = !_showTxRef),
             child: Text(
-              _showTxRef ? widget.txRef : 'Show transaction reference',
+              _showTxRef
+                  ? widget.txRef
+                  : 'Show transaction reference',
               style: AppTypography.labelSmall
                   .copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
@@ -661,11 +700,11 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(plan['color'] as int);
+    final color    = Color(plan['color'] as int);
     final isPopular = plan['popular'] == true;
-    final isFree = plan['id'] == 'free';
-    final features = plan['features'] as List<dynamic>;
-    final missing = plan['missing'] as List<dynamic>;
+    final isFree    = plan['id'] == 'free';
+    final features  = plan['features'] as List<dynamic>;
+    final missing   = plan['missing'] as List<dynamic>;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -674,7 +713,10 @@ class _PlanCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: isPopular
                 ? LinearGradient(
-                    colors: [color.withOpacity(0.08), AppColors.surface],
+                    colors: [
+                      color.withOpacity(0.08),
+                      AppColors.surface
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight)
                 : AppColors.cardGradient,
@@ -716,12 +758,13 @@ class _PlanCard extends StatelessWidget {
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: AppColors.success.withOpacity(0.15),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.full),
+                              borderRadius: BorderRadius.circular(
+                                  AppRadius.full),
                             ),
                             child: Text('Your current plan',
                                 style: AppTypography.labelSmall
-                                    .copyWith(color: AppColors.success)),
+                                    .copyWith(
+                                        color: AppColors.success)),
                           ),
                       ],
                     ),
@@ -748,8 +791,10 @@ class _PlanCard extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: color.withOpacity(0.2)),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.sm),
+                    border:
+                        Border.all(color: color.withOpacity(0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -801,7 +846,8 @@ class _PlanCard extends StatelessWidget {
                   label: isLoading
                       ? 'Processing…'
                       : 'Get ${plan['name']} — ${plan['price_label']}${plan['period']}',
-                  onPressed: (isDisabled || isLoading) ? null : onSelect,
+                  onPressed:
+                      (isDisabled || isLoading) ? null : onSelect,
                   isLoading: isLoading,
                   fullWidth: true,
                   variant: isPopular
@@ -811,10 +857,12 @@ class _PlanCard extends StatelessWidget {
               else if (isCurrent)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                     border: Border.all(
                         color: AppColors.success.withOpacity(0.3)),
                   ),
@@ -827,7 +875,8 @@ class _PlanCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text('Active Plan',
                             style: AppTypography.labelLarge
-                                .copyWith(color: AppColors.success)),
+                                .copyWith(
+                                    color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -835,15 +884,18 @@ class _PlanCard extends StatelessWidget {
               else
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceHighlight,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.md),
                   ),
                   child: Center(
                     child: Text('Current Plan',
                         style: AppTypography.labelLarge
-                            .copyWith(color: AppColors.textMuted)),
+                            .copyWith(
+                                color: AppColors.textMuted)),
                   ),
                 ),
             ],
@@ -860,7 +912,8 @@ class _PlanCard extends StatelessWidget {
                     horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                   boxShadow: AppShadows.primary,
                 ),
                 child: Text('⭐ MOST POPULAR',
