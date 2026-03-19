@@ -1,0 +1,59 @@
+name: 🌐 Build & Deploy Flutter Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy_flutter_web.yml'
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.24.0'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: flutter-web-pages
+  cancel-in-progress: false
+
+jobs:
+  build-flutter-web:
+    name: 🏗️ Build Flutter Web App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Analyze (no fatal warnings)
+        working-directory: frontend
+        run: flutter analyze --no-fatal-warnings
+
+      - name: Build Flutter Web
+        working-directory: frontend
+        run: |
+          flutter build web --release \
+            --web-renderer canvaskit \
+            --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
+            --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }} \
+            --base-href /promptreel-ai/app/
+
+      - name: Upload Flutter web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-build
+          path: frontend/build/web/
+          retention-days: 7
