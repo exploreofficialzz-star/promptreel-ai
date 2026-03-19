@@ -1,0 +1,58 @@
+name: 🌐 Deploy Marketing Website to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy_website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-website:
+    name: 🏗️ Prepare Website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Validate HTML
+        run: |
+          echo "Checking website files..."
+          ls -la website/
+          test -f website/index.html   || (echo "❌ Missing index.html"   && exit 1)
+          test -f website/manifest.json || (echo "❌ Missing manifest.json" && exit 1)
+          test -f website/robots.txt   || (echo "❌ Missing robots.txt"   && exit 1)
+          echo "✅ All required website files present"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/
+
+  deploy-website:
+    name: 🚀 Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build-website
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Print live URL
+        run: |
+          echo "✅ Marketing website live at: ${{ steps.deployment.outputs.page_url }}"
