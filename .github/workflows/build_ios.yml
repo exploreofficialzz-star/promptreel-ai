@@ -42,6 +42,25 @@ jobs:
         working-directory: frontend/ios
         run: pod install --repo-update
 
+      # ── Patch Xcode project to disable code signing for unsigned CI builds ─
+      - name: Disable code signing in Xcode project
+        if: env.HAS_CERT == 'false'
+        working-directory: frontend/ios
+        run: |
+          sed -i '' \
+            's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' \
+            Runner.xcodeproj/project.pbxproj
+          sed -i '' \
+            's/CODE_SIGN_IDENTITY = [^;]*;/CODE_SIGN_IDENTITY = "";/g' \
+            Runner.xcodeproj/project.pbxproj
+          sed -i '' \
+            's/CODE_SIGNING_REQUIRED = [^;]*;/CODE_SIGNING_REQUIRED = NO;/g' \
+            Runner.xcodeproj/project.pbxproj
+          sed -i '' \
+            's/CODE_SIGNING_ALLOWED = [^;]*;/CODE_SIGNING_ALLOWED = NO;/g' \
+            Runner.xcodeproj/project.pbxproj
+          echo "✅ Code signing disabled in project.pbxproj"
+
       # ── Signing — only runs when secrets are set ──────────────────────────
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'
@@ -72,7 +91,7 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # ── Build — always runs (no codesign until secrets are added) ─────────
+      # ── Build ─────────────────────────────────────────────────────────────
       - name: Build iOS (no codesign)
         working-directory: frontend
         run: |
@@ -80,12 +99,7 @@ jobs:
             --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
             --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }} \
             --build-name=1.1.0 \
-            --build-number=2 \
-            -- \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM=""
+            --build-number=2
 
       # ── Archive & Export — only runs when signing secrets are set ─────────
       - name: Archive & Export IPA
