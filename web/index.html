@@ -6,38 +6,50 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Turn ideas into complete AI video production plans.">
-  <meta property="og:title" content="PromptReel AI — AI Video Production Platform">
-  <meta property="og:description" content="AI-powered video production planning. Scripts, prompts, SEO and more.">
-  <link rel="manifest" href="manifest.json">
   <title>PromptReel AI</title>
+  <script>
+    // Redirect to login BEFORE Flutter loads
+    (function() {
+      var hash = window.location.hash;
+      var allowed = [
+        '#/login', '#/home', '#/create', '#/projects',
+        '#/tools', '#/settings', '#/privacy', '#/terms',
+        '#/results'
+      ];
+      var ok = false;
+      for (var i = 0; i < allowed.length; i++) {
+        if (hash.indexOf(allowed[i]) === 0) { ok = true; break; }
+      }
+      if (!ok) {
+        window.location.replace('/#/login');
+      }
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json">
   <style>
     body {
       margin: 0; background: #0A0A0F;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; font-family: Arial, sans-serif;
+      display: flex; align-items: center;
+      justify-content: center; min-height: 100vh;
+      font-family: Arial, sans-serif;
     }
     #loading { text-align: center; color: white; }
-    .emoji   { font-size: 56px; margin-bottom: 16px; }
-    .title   {
+    .emoji { font-size: 56px; margin-bottom: 16px; }
+    .title {
       font-size: 24px; font-weight: 900; margin-bottom: 8px;
       background: linear-gradient(135deg, #FFB830, #FF8C00);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .sub  { font-size: 13px; color: #555; margin-bottom: 32px; }
-    .bar  { width: 200px; height: 3px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; margin: 0 auto; }
-    .fill { height: 100%; background: linear-gradient(135deg,#FFB830,#FF8C00); animation: ld 2s ease-in-out infinite; }
-    @keyframes ld { 0%{width:0%} 50%{width:70%} 100%{width:100%} }
+    .sub { font-size: 13px; color: #555; }
   </style>
 </head>
 <body>
   <div id="loading">
     <div class="emoji">🎬</div>
     <div class="title">PromptReel AI</div>
-    <div class="sub">AI Video Production Platform</div>
-    <div class="bar"><div class="fill"></div></div>
+    <div class="sub">Loading...</div>
   </div>
   <script>
-    // ── Use Flutter.load() — replaces deprecated loadEntrypoint ──────────────
     window.addEventListener('load', function(ev) {
       var loading = document.getElementById('loading');
       _flutter.loader.load({
