@@ -34,6 +34,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Fix app_tracking_transparency version
+        working-directory: frontend
+        run: |
+          sed -i 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
+
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
@@ -57,3 +62,31 @@ jobs:
           name: flutter-web-build
           path: frontend/build/web/
           retention-days: 7
+
+  deploy-flutter-web:
+    name: 🚀 Deploy Flutter Web to GitHub Pages
+    needs: build-flutter-web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download Flutter web build
+        uses: actions/download-artifact@v4
+        with:
+          name: flutter-web-build
+          path: app/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
