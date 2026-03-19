@@ -1,12 +1,12 @@
-name: Build & Release PromptReel AI
+name: 🤖 Android Build & Release
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     tags:
       - 'v*.*.*'
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       build_type:
@@ -14,218 +14,182 @@ on:
         required: true
         default: 'apk'
         type: choice
-        options:
-          - apk
-          - aab
-          - both
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+        options: [apk, aab, both]
 
 env:
   FLUTTER_VERSION: '3.24.0'
   JAVA_VERSION: '17'
-  APK_OUTPUT: build/app/outputs/flutter-apk/app-release.apk
-  AAB_OUTPUT: build/app/outputs/bundle/release/app-release.aab
 
 jobs:
-  # ── Job 1: Analyze ────────────────────────────────────────────────────────
+  # ── Code Quality ──────────────────────────────────────────────────────────
   analyze:
-    name: Analyze & Test
+    name: 🔍 Analyze & Lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: ☕ Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: 🐦 Set up Flutter ${{ env.FLUTTER_VERSION }}
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      - name: 📦 Get dependencies
+      - name: Install dependencies
+        working-directory: frontend
         run: flutter pub get
 
-      - name: 🔍 Analyze code
-        run: flutter analyze --no-fatal-infos || echo "Analysis warnings found, continuing..."
+      - name: Analyze code
+        working-directory: frontend
+        run: flutter analyze --no-fatal-warnings
 
-      - name: 🧪 Run tests
-        run: flutter test || echo "No tests found, skipping"
+      - name: Check formatting
+        working-directory: frontend
+        run: dart format --output=none --set-exit-if-changed lib/
 
-  # ── Job 2: Build APK ──────────────────────────────────────────────────────
+  # ── Android Build ─────────────────────────────────────────────────────────
   build-android:
-    name: Build Android APK
+    name: 🏗️ Build Android
     runs-on: ubuntu-latest
     needs: analyze
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: ☕ Set up Java ${{ env.JAVA_VERSION }}
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: 🐦 Set up Flutter ${{ env.FLUTTER_VERSION }}
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      - name: 📦 Get dependencies
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('frontend/android/**/*.gradle*', 'frontend/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Install dependencies
+        working-directory: frontend
         run: flutter pub get
 
-      - name: 📁 Create asset directories
+      # ── Signing Setup ───────────────────────────────────────────────────
+      - name: Decode keystore
+        if: github.event_name != 'pull_request'
+        working-directory: frontend/android/app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          mkdir -p assets/images
-          mkdir -p assets/animations
-          mkdir -p assets/icons
-          touch assets/animations/.gitkeep
-          touch assets/icons/.gitkeep
-          # Create a placeholder icon if not committed to repo
-          if [ ! -f assets/images/app_icon.png ]; then
-            touch assets/images/app_icon.png
-          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > promptreel-release.jks
 
-      - name: 🔑 Setup keystore from GitHub Secret
+      - name: Create key.properties
+        if: github.event_name != 'pull_request'
+        working-directory: frontend/android
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/promptreel-release.jks
-          cat > android/key.properties << 'EOF'
-          storeFile=../promptreel-release.jks
-          storePassword=${{ secrets.STORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
+          cat > key.properties << EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=../app/promptreel-release.jks
           EOF
-          echo "✅ Keystore ready"
 
-      - name: 🏗️ Build APK (release)
+      # ── Build APK (debug for PRs, release for main/tags) ──────────────
+      - name: Build APK (debug)
+        if: github.event_name == 'pull_request'
+        working-directory: frontend
         run: |
-          flutter build apk \
-            --release \
-            --obfuscate \
-            --split-debug-info=debug-symbols \
-            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }} \
-            --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }} \
-            --dart-define=FLW_TEST_MODE=false
+          flutter build apk --debug \
+            --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com
 
-      - name: 🏗️ Build AAB (main branch and tags only)
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      - name: Build APK (release)
+        if: github.event_name != 'pull_request' && (github.event.inputs.build_type == 'apk' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+        working-directory: frontend
         run: |
-          flutter build appbundle \
-            --release \
-            --obfuscate \
-            --split-debug-info=debug-symbols-aab \
-            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }} \
-            --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }} \
-            --dart-define=FLW_TEST_MODE=false
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
+            --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }}
 
-      - name: 📏 Show build sizes
+      - name: Build AAB (release)
+        if: github.event_name != 'pull_request' && (github.event.inputs.build_type == 'aab' || github.event.inputs.build_type == 'both' || startsWith(github.ref, 'refs/tags/'))
+        working-directory: frontend
         run: |
-          echo "=== APK ===" && ls -lh ${{ env.APK_OUTPUT }} || echo "APK not found"
-          echo "=== AAB ===" && ls -lh ${{ env.AAB_OUTPUT }} || echo "AAB not found"
+          flutter build appbundle --release \
+            --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
+            --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }}
 
-      - name: 🔖 Rename with version + timestamp
-        run: |
-          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
-          TIMESTAMP=$(date +%Y%m%d-%H%M)
-          cp ${{ env.APK_OUTPUT }} promptreel-ai-${VERSION}-${TIMESTAMP}.apk || true
-          cp ${{ env.AAB_OUTPUT }} promptreel-ai-${VERSION}-${TIMESTAMP}.aab || true
-
-      - name: ⬆️ Upload APK artifact
+      # ── Upload Artifacts ────────────────────────────────────────────────
+      - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: PromptReel-APK-${{ github.run_number }}
-          path: |
-            frontend/promptreel-ai-*.apk
-            frontend/${{ env.APK_OUTPUT }}
+          name: promptreel-apk-${{ github.sha }}
+          path: frontend/build/app/outputs/flutter-apk/*.apk
           retention-days: 30
 
-      - name: ⬆️ Upload AAB artifact
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
-          name: PromptReel-AAB-${{ github.run_number }}
-          path: |
-            frontend/promptreel-ai-*.aab
-            frontend/${{ env.AAB_OUTPUT }}
-          retention-days: 30
+          name: promptreel-aab-${{ github.sha }}
+          path: frontend/build/app/outputs/bundle/release/*.aab
+          retention-days: 60
 
-  # ── Job 3: GitHub Release (tags only) ─────────────────────────────────────
+  # ── GitHub Release on Tag ────────────────────────────────────────────────
   release:
-    name: Create GitHub Release
+    name: 🚀 Create GitHub Release
     runs-on: ubuntu-latest
     needs: build-android
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
-
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: ⬇️ Download APK
+      - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
-          name: PromptReel-APK-${{ github.run_number }}
-          path: release-assets/
+          name: promptreel-apk-${{ github.sha }}
+          path: release-artifacts/
 
-      - name: ⬇️ Download AAB
+      - name: Download AAB artifact
         uses: actions/download-artifact@v4
         with:
-          name: PromptReel-AAB-${{ github.run_number }}
-          path: release-assets/
-        continue-on-error: true
+          name: promptreel-aab-${{ github.sha }}
+          path: release-artifacts/
 
-      - name: 🚀 Create GitHub Release
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "PromptReel AI ${{ github.ref_name }}"
-          draft: false
-          prerelease: false
-          files: release-assets/*
+          name: "PromptReel AI ${{ steps.version.outputs.VERSION }}"
           body: |
-            ## PromptReel AI ${{ github.ref_name }}
-
-            ### 📱 Install
-            1. Download the `.apk` file below
-            2. Enable **Install from unknown sources** on your Android phone
-            3. Open the APK to install
-
-            ### 🎬 What is PromptReel AI?
+            ## 🎬 PromptReel AI ${{ steps.version.outputs.VERSION }}
             Turn simple ideas into complete AI video production plans.
-
+            
+            ### 📦 Downloads
+            - **APK** — Direct install (sideload)
+            - **AAB** — Google Play Store submission
+            
+            ### What's Changed
+            See [CHANGELOG.md](CHANGELOG.md) for full details.
+            
             ---
             *Made with ❤️ by chAs Tech Group*
-
-  # ── Job 4: Notify on failure ──────────────────────────────────────────────
-  notify-failure:
-    name: Notify on Failure
-    runs-on: ubuntu-latest
-    needs: [analyze, build-android]
-    if: failure()
-    steps:
-      - name: Report failure
-        run: |
-          echo "Build failed!"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "By: ${{ github.actor }}"
+          files: release-artifacts/*
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
