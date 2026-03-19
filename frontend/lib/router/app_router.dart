@@ -16,6 +16,7 @@ import '../screens/settings/ai_models_screen.dart';
 import '../screens/legal/legal_screens.dart';
 import '../models/project_model.dart';
 
+// ── Public paths — never require auth ─────────────────────────────────────────
 const _publicPaths = {
   '/', '/splash', '/login', '/privacy', '/terms',
 };
@@ -24,7 +25,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
 
   return GoRouter(
-    // ── Web starts at login, mobile starts at splash ──────────────────────
     initialLocation: kIsWeb ? '/login' : '/splash',
     debugLogDiagnostics: false,
 
@@ -33,30 +33,47 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading   = authState.isLoading;
       final currentPath = state.matchedLocation;
 
-      if (_publicPaths.contains(currentPath)) return null;
+      // ── Wait for auth to finish loading ───────────────────────────────────
       if (isLoading) return null;
+
+      // ── Logged in on login or root → go to home ───────────────────────────
+      if (isLoggedIn && (currentPath == '/login' || currentPath == '/')) {
+        return '/home';
+      }
+
+      // ── Public paths — allow always ───────────────────────────────────────
+      if (_publicPaths.contains(currentPath)) return null;
+
+      // ── Not logged in on protected page → go to login ─────────────────────
       if (!isLoggedIn) return '/login';
-      if (isLoggedIn && currentPath == '/login') return '/home';
+
       return null;
     },
 
     routes: [
+      // ── Root ──────────────────────────────────────────────────────────────
       GoRoute(
         path: '/',
         builder: (_, __) => kIsWeb
             ? const LoginScreen()
             : const SplashScreen(),
       ),
+
+      // ── Splash (mobile only) ──────────────────────────────────────────────
       GoRoute(
         path: '/splash',
         name: 'splash',
         builder: (_, __) => const SplashScreen(),
       ),
+
+      // ── Auth ──────────────────────────────────────────────────────────────
       GoRoute(
         path: '/login',
         name: 'login',
         builder: (_, __) => const LoginScreen(),
       ),
+
+      // ── Legal ─────────────────────────────────────────────────────────────
       GoRoute(
         path: '/privacy',
         name: 'privacy',
@@ -67,6 +84,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'terms',
         builder: (_, __) => const TermsScreen(),
       ),
+
+      // ── App screens ───────────────────────────────────────────────────────
       GoRoute(
         path: '/home',
         name: 'home',
@@ -119,6 +138,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
 
+    // ── 404 ───────────────────────────────────────────────────────────────
     errorBuilder: (context, state) => Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       body: Center(
@@ -126,13 +146,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('404',
-                style: TextStyle(fontSize: 64,
+                style: TextStyle(
+                    fontSize: 64,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFFFFB830))),
             const SizedBox(height: 12),
             Text('Page not found',
-                style: TextStyle(fontSize: 18,
+                style: TextStyle(
+                    fontSize: 18,
                     color: Colors.white.withOpacity(0.7))),
+            const SizedBox(height: 8),
+            Text(state.matchedLocation,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.3))),
             const SizedBox(height: 32),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
