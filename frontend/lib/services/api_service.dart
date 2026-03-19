@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_config.dart';
@@ -10,34 +11,36 @@ final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 class ApiService {
   late final Dio _dio;
   late final Dio _generateDio;
-  final _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-      resetOnError: true,
-    ),
-  );
+
+  // ── FIX: Web-safe storage — no AndroidOptions on web ─────────────────────
+  final _storage = kIsWeb
+      ? const FlutterSecureStorage()
+      : const FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            encryptedSharedPreferences: true,
+            resetOnError: true,
+          ),
+        );
 
   ApiService() {
-    // ── Standard Dio (30s timeout) ────────────────────────────────────────
     _dio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        'Accept':       'application/json',
       },
     ));
 
-    // ── Generation Dio (5 min timeout) ────────────────────────────────────
     _generateDio = Dio(BaseOptions(
       baseUrl: '${AppConfig.baseUrl}${AppConfig.apiPrefix}',
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 300),
-      sendTimeout: const Duration(seconds: 30),
+      sendTimeout:    const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        'Accept':       'application/json',
       },
     ));
 
@@ -49,19 +52,21 @@ class ApiService {
   InterceptorsWrapper _buildAuthInterceptor(Dio dioInstance) {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await _storage.read(key: AppConfig.tokenKey);
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer $token';
-        }
+        try {
+          final token = await _storage.read(key: AppConfig.tokenKey);
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+        } catch (_) {}
         handler.next(options);
       },
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
           final refreshed = await _tryRefreshToken();
           if (refreshed) {
-            final token = await _storage.read(key: AppConfig.tokenKey);
-            error.requestOptions.headers['Authorization'] = 'Bearer $token';
             try {
+              final token = await _storage.read(key: AppConfig.tokenKey);
+              error.requestOptions.headers['Authorization'] = 'Bearer $token';
               final response = await dioInstance.fetch(error.requestOptions);
               handler.resolve(response);
               return;
@@ -100,9 +105,9 @@ class ApiService {
     required String name,
   }) async {
     final res = await _dio.post('/auth/register', data: {
-      'email': email,
+      'email':    email,
       'password': password,
-      'name': name,
+      'name':     name,
     });
     await _saveTokens(res.data);
     return res.data;
@@ -113,7 +118,7 @@ class ApiService {
     required String password,
   }) async {
     final res = await _dio.post('/auth/login', data: {
-      'email': email,
+      'email':    email,
       'password': password,
     });
     await _saveTokens(res.data);
@@ -121,9 +126,11 @@ class ApiService {
   }
 
   Future<void> logout() async {
-    await _storage.delete(key: AppConfig.tokenKey);
-    await _storage.delete(key: AppConfig.refreshTokenKey);
-    await _storage.delete(key: AppConfig.userKey);
+    try {
+      await _storage.delete(key: AppConfig.tokenKey);
+      await _storage.delete(key: AppConfig.refreshTokenKey);
+      await _storage.delete(key: AppConfig.userKey);
+    } catch (_) {}
   }
 
   Future<UserModel> getMe() async {
@@ -131,7 +138,6 @@ class ApiService {
     return UserModel.fromJson(res.data);
   }
 
-  // ── Profile & Password ─────────────────────────────────────────────────────
   Future<void> updateProfile({
     String? name,
     String? currentPassword,
@@ -144,7 +150,6 @@ class ApiService {
     await _dio.put('/auth/me', data: data);
   }
 
-  // ── Notification Preferences ───────────────────────────────────────────────
   Future<Map<String, dynamic>> getNotificationPreferences() async {
     final res = await _dio.get('/auth/notifications');
     return Map<String, dynamic>.from(res.data);
@@ -155,14 +160,13 @@ class ApiService {
     await _dio.put('/auth/notifications', data: prefs);
   }
 
-  // ── Email Verification ─────────────────────────────────────────────────────
   Future<void> verifyEmail({
     required String email,
     required String code,
   }) async {
     await _dio.post('/auth/verify-email', data: {
       'email': email,
-      'code': code,
+      'code':  code,
     });
   }
 
@@ -171,7 +175,6 @@ class ApiService {
         data: {'email': email});
   }
 
-  // ── Forgot / Reset Password ────────────────────────────────────────────────
   Future<void> forgotPassword({required String email}) async {
     await _dio.post('/auth/forgot-password',
         data: {'email': email});
@@ -189,31 +192,37 @@ class ApiService {
     });
   }
 
-  // ── FCM Token (Push Notifications) ────────────────────────────────────────
   Future<void> saveFcmToken(String token) async {
-    await _dio.post('/auth/fcm-token',
-        data: {'fcm_token': token});
+    try {
+      await _dio.post('/auth/fcm-token',
+          data: {'fcm_token': token});
+    } catch (_) {}
   }
 
-  // ── Tokens ────────────────────────────────────────────────────────────────
   Future<void> _saveTokens(Map<String, dynamic> data) async {
-    if (data['access_token'] != null) {
-      await _storage.write(
-          key: AppConfig.tokenKey, value: data['access_token']);
-    }
-    if (data['refresh_token'] != null) {
-      await _storage.write(
-          key: AppConfig.refreshTokenKey,
-          value: data['refresh_token']);
-    }
+    try {
+      if (data['access_token'] != null) {
+        await _storage.write(
+            key: AppConfig.tokenKey, value: data['access_token']);
+      }
+      if (data['refresh_token'] != null) {
+        await _storage.write(
+            key: AppConfig.refreshTokenKey,
+            value: data['refresh_token']);
+      }
+    } catch (_) {}
   }
 
   Future<bool> isLoggedIn() async {
-    final token = await _storage.read(key: AppConfig.tokenKey);
-    return token != null;
+    try {
+      final token = await _storage.read(key: AppConfig.tokenKey);
+      return token != null;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // ── Generation (5-min timeout) ─────────────────────────────────────────────
+  // ── Generation ─────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> generateVideoplan({
     required String idea,
     required String contentType,
@@ -225,14 +234,14 @@ class ApiService {
     Map<String, String> contentTypeOptions = const {},
   }) async {
     final res = await _generateDio.post('/generate/', data: {
-      'idea':                 idea,
-      'content_type':         contentType,
-      'platform':             platform,
-      'duration_minutes':     durationMinutes,
-      'generator':            generator,
+      'idea':                   idea,
+      'content_type':           contentType,
+      'platform':               platform,
+      'duration_minutes':       durationMinutes,
+      'generator':              generator,
       'generate_image_prompts': generateImagePrompts,
-      'generate_voice_over':  generateVoiceOver,
-      'content_type_options': contentTypeOptions,
+      'generate_voice_over':    generateVoiceOver,
+      'content_type_options':   contentTypeOptions,
     });
     return res.data;
   }
@@ -303,25 +312,20 @@ class ApiService {
     return res.data ?? '';
   }
 
-  // ─── PAYMENTS ───────────────────────────────────────────────────────────────
-
-  /// Get available plans from backend ($15 Creator, $35 Studio)
+  // ── Payments ───────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getPlans() async {
     final res = await _dio.get('/payments/plans');
     return res.data;
   }
 
-  /// Get available payment methods for a currency
   Future<Map<String, dynamic>> getPaymentMethods({
     String currency = 'USD',
   }) async {
-    final res = await _dio.get('/payments/methods', queryParameters: {
-      'currency': currency,
-    });
+    final res = await _dio.get('/payments/methods',
+        queryParameters: {'currency': currency});
     return res.data;
   }
 
-  /// Create checkout session and get payment link
   Future<Map<String, dynamic>> createCheckout({
     required String planId,
     required String email,
@@ -329,38 +333,33 @@ class ApiService {
     required String currency,
   }) async {
     final res = await _dio.post('/payments/checkout', data: {
-      'plan_id': planId,
-      'email': email,
-      'name': name,
+      'plan_id':  planId,
+      'email':    email,
+      'name':     name,
       'currency': currency,
     });
     return res.data;
   }
 
-  /// Verify payment after user completes it in browser
-  /// 
-  /// [transactionId] can be "0" or "pending" if not available yet
-  /// Backend will look up by txRef if needed
   Future<Map<String, dynamic>> verifyPayment({
     required String txRef,
     required String planId,
-    String transactionId = '0', // Default to '0' - backend will lookup by txRef
+    String transactionId = '0',
   }) async {
     final res = await _dio.post('/payments/verify', data: {
       'transaction_id': transactionId,
-      'tx_ref': txRef,
-      'plan_id': planId, // Changed from 'plan' to 'plan_id' to match backend
+      'tx_ref':         txRef,
+      'plan_id':        planId,
     });
     return res.data;
   }
 
-  /// Get current payment prices (legacy endpoint)
   Future<Map<String, dynamic>> getPaymentPrices() async {
     final res = await _dio.get('/payments/prices');
     return res.data;
   }
 
-  // ── Error helper ───────────────────────────────────────────────────────────
+  // ── Error Helper ───────────────────────────────────────────────────────────
   static String extractError(dynamic error) {
     if (error is DioException) {
       if (error.type == DioExceptionType.receiveTimeout ||
