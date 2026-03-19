@@ -44,20 +44,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final loggedIn = await _api.isLoggedIn();
       if (loggedIn) {
-        // ── FIX: On web, skip getMe() on startup to avoid CORS error ─────
-        // getMe() will be called after user navigates to /home
         if (kIsWeb) {
+          // ── Web: skip getMe() on startup — no CORS error on load ─────────
+          // user data will be fetched when they reach /home
           state = state.copyWith(
-              isLoggedIn: true, isLoading: false);
+            isLoggedIn: true,
+            isLoading: false,
+          );
         } else {
-          final user = await _api.getMe();
-          state = state.copyWith(
-              isLoggedIn: true, user: user, isLoading: false);
+          // ── Mobile: fetch full user on startup ────────────────────────────
+          try {
+            final user = await _api.getMe();
+            state = state.copyWith(
+              isLoggedIn: true,
+              user: user,
+              isLoading: false,
+            );
+          } catch (_) {
+            // getMe failed but token exists — still mark as logged in
+            state = state.copyWith(
+              isLoggedIn: true,
+              isLoading: false,
+            );
+          }
         }
       } else {
         state = state.copyWith(isLoggedIn: false, isLoading: false);
       }
     } catch (_) {
+      // Any error on startup → not logged in, never crash
       state = state.copyWith(isLoggedIn: false, isLoading: false);
     }
   }
@@ -73,11 +88,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
           email: email, password: password, name: name);
       final user = UserModel.fromJson(data['user']);
       state = state.copyWith(
-          isLoggedIn: true, user: user, isLoading: false);
+        isLoggedIn: true,
+        user: user,
+        isLoading: false,
+      );
       return true;
     } catch (e) {
       state = state.copyWith(
-          isLoading: false, error: ApiService.extractError(e));
+        isLoading: false,
+        error: ApiService.extractError(e),
+      );
       return false;
     }
   }
@@ -88,15 +108,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final data =
-          await _api.login(email: email, password: password);
+      final data = await _api.login(email: email, password: password);
       final user = UserModel.fromJson(data['user']);
       state = state.copyWith(
-          isLoggedIn: true, user: user, isLoading: false);
+        isLoggedIn: true,
+        user: user,
+        isLoading: false,
+      );
       return true;
     } catch (e) {
       state = state.copyWith(
-          isLoading: false, error: ApiService.extractError(e));
+        isLoading: false,
+        error: ApiService.extractError(e),
+      );
       return false;
     }
   }
@@ -109,11 +133,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshUser() async {
     try {
       final user = await _api.getMe();
+      // ── Only update user — never change isLoggedIn on refresh ────────────
       state = state.copyWith(user: user);
-    } catch (_) {}
+    } catch (_) {
+      // ── FIX: Refresh failed → keep existing state, don't log out ─────────
+      // This prevents web CORS errors from logging out the user
+    }
   }
 
-  // ── FIX: clearError method ────────────────────────────────────────────────
   void clearError() => state = state.copyWith(error: null);
 }
 
