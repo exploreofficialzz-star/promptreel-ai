@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -69,13 +70,22 @@ class AppColors {
 class AppTypography {
   AppTypography._();
 
+  // Web-safe fallback font stack for when Google Fonts fails to load
+  static const List<String> _fallbackFonts = [
+    'system-ui',
+    '-apple-system',
+    'BlinkMacSystemFont',
+    'Segoe UI',
+    'sans-serif',
+  ];
+
   static TextStyle get displayLarge => GoogleFonts.syne(
         fontSize: 32,
         fontWeight: FontWeight.w800,
         color: AppColors.textPrimary,
         letterSpacing: -0.5,
         height: 1.2,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get displayMedium => GoogleFonts.syne(
         fontSize: 26,
@@ -83,7 +93,7 @@ class AppTypography {
         color: AppColors.textPrimary,
         letterSpacing: -0.3,
         height: 1.25,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get displaySmall => GoogleFonts.syne(
         fontSize: 22,
@@ -91,28 +101,28 @@ class AppTypography {
         color: AppColors.textPrimary,
         letterSpacing: -0.2,
         height: 1.3,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get headlineLarge => GoogleFonts.syne(
         fontSize: 20,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
         height: 1.35,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get headlineMedium => GoogleFonts.syne(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
         height: 1.35,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get titleLarge => GoogleFonts.syne(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
         height: 1.4,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get titleMedium => GoogleFonts.syne(
         fontSize: 14,
@@ -120,56 +130,56 @@ class AppTypography {
         color: AppColors.textPrimary,
         letterSpacing: 0.1,
         height: 1.4,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get bodyLarge => GoogleFonts.inter(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: AppColors.textPrimary,
         height: 1.6,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get bodyMedium => GoogleFonts.inter(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: AppColors.textSecondary,
         height: 1.6,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get bodySmall => GoogleFonts.inter(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: AppColors.textMuted,
         height: 1.5,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get labelLarge => GoogleFonts.inter(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
         letterSpacing: 0.5,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get labelMedium => GoogleFonts.inter(
         fontSize: 12,
         fontWeight: FontWeight.w600,
         color: AppColors.textSecondary,
         letterSpacing: 0.8,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get labelSmall => GoogleFonts.inter(
         fontSize: 10,
         fontWeight: FontWeight.w500,
         color: AppColors.textMuted,
         letterSpacing: 1.0,
-      );
+      ).copyWith(fontFamilyFallback: _fallbackFonts);
 
   static TextStyle get mono => GoogleFonts.jetBrainsMono(
         fontSize: 13,
         fontWeight: FontWeight.w400,
         color: AppColors.textPrimary,
         height: 1.6,
-      );
+      ).copyWith(fontFamilyFallback: ['Courier New', 'Courier', 'monospace']);
 }
 
 // ── Spacing ─────────────────────────────────────────────────────────────────
@@ -200,31 +210,38 @@ class AppRadius {
 class AppShadows {
   AppShadows._();
 
-  static List<BoxShadow> get primary => [
-        BoxShadow(
-          color: AppColors.primary.withOpacity(0.25),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
-          spreadRadius: -4,
-        ),
-      ];
+  // Shadows are no-ops on web (performance) but work normally on mobile
+  static List<BoxShadow> get primary => kIsWeb
+      ? []
+      : [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+            spreadRadius: -4,
+          ),
+        ];
 
-  static List<BoxShadow> get card => [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.4),
-          blurRadius: 20,
-          offset: const Offset(0, 4),
-          spreadRadius: -2,
-        ),
-      ];
+  static List<BoxShadow> get card => kIsWeb
+      ? []
+      : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+            spreadRadius: -2,
+          ),
+        ];
 
-  static List<BoxShadow> get glow => [
-        BoxShadow(
-          color: AppColors.primary.withOpacity(0.3),
-          blurRadius: 40,
-          spreadRadius: 0,
-        ),
-      ];
+  static List<BoxShadow> get glow => kIsWeb
+      ? []
+      : [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 40,
+            spreadRadius: 0,
+          ),
+        ];
 }
 
 // ── Main Theme ─────────────────────────────────────────────────────────────────
@@ -235,7 +252,7 @@ class AppTheme {
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.background,
-        colorScheme: ColorScheme.dark(
+        colorScheme: const ColorScheme.dark(
           primary: AppColors.primary,
           secondary: AppColors.secondary,
           surface: AppColors.surface,
@@ -263,7 +280,8 @@ class AppTheme {
           backgroundColor: AppColors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
-          systemOverlayStyle: SystemUiOverlayStyle.light,
+          // Web doesn't support SystemUiOverlayStyle — guard it
+          systemOverlayStyle: kIsWeb ? null : SystemUiOverlayStyle.light,
           titleTextStyle: AppTypography.headlineMedium,
           iconTheme: const IconThemeData(color: AppColors.textPrimary),
           centerTitle: false,
@@ -280,7 +298,8 @@ class AppTheme {
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: AppColors.surfaceElevated,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
             borderSide: const BorderSide(color: AppColors.border),
@@ -291,7 +310,8 @@ class AppTheme {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+            borderSide:
+                const BorderSide(color: AppColors.primary, width: 1.5),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
@@ -305,7 +325,8 @@ class AppTheme {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.black,
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
@@ -319,7 +340,8 @@ class AppTheme {
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.primary,
             side: const BorderSide(color: AppColors.primary),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
@@ -342,7 +364,8 @@ class AppTheme {
           backgroundColor: AppColors.surfaceElevated,
           selectedColor: AppColors.primaryGlow,
           labelStyle: AppTypography.labelMedium,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           side: const BorderSide(color: AppColors.border),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.full),
@@ -355,7 +378,8 @@ class AppTheme {
         ),
         snackBarTheme: SnackBarThemeData(
           backgroundColor: AppColors.surfaceHighlight,
-          contentTextStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          contentTextStyle: AppTypography.bodyMedium
+              .copyWith(color: AppColors.textPrimary),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
@@ -402,4 +426,81 @@ class AppTheme {
           ),
         ),
       );
+}
+
+// ── Reusable Widgets ──────────────────────────────────────────────────────────
+
+/// GlowCard — Card with an optional glow border effect.
+/// Safe on all platforms. Does NOT use both color + decoration on Container.
+class GlowCard extends StatelessWidget {
+  final Widget child;
+  final Color glowColor;
+  final EdgeInsetsGeometry? padding;
+
+  const GlowCard({
+    super.key,
+    required this.child,
+    this.glowColor = AppColors.primary,
+    this.padding,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        // ✅ color is inside BoxDecoration — no conflict
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: glowColor.withOpacity(0.3)),
+        boxShadow: kIsWeb
+            ? []
+            : [
+                BoxShadow(
+                  color: glowColor.withOpacity(0.15),
+                  blurRadius: 20,
+                  spreadRadius: 0,
+                ),
+              ],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// TagsDisplay — wrapping chip list for SEO tags and hashtags.
+class TagsDisplay extends StatelessWidget {
+  final List<String> tags;
+  final Color color;
+
+  const TagsDisplay({
+    super.key,
+    required this.tags,
+    this.color = AppColors.primary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: tags
+          .map(
+            (tag) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                // ✅ color inside BoxDecoration — no conflict
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.full),
+                border: Border.all(color: color.withOpacity(0.25)),
+              ),
+              child: Text(
+                tag,
+                style: AppTypography.labelSmall.copyWith(color: color),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
 }
