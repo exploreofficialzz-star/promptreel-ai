@@ -3,7 +3,7 @@ PromptReel AI — Flutterwave Payment Router (Production Ready)
 =============================================================
 - Shows fixed $15 Creator and $35 Studio USD plans
 - Accepts ALL Flutterwave payment methods
-- Handles auto-renewal subscriptions (monthly)
+- Auto-renewal subscriptions (monthly)
 - Cross-platform: Web, Android, iOS
 - Handles transaction lookup by tx_ref when needed
 """
@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 
@@ -67,19 +68,9 @@ APP_PLANS = {
 
 _flw_plan_cache: Dict[str, int] = {}
 
-# ─── Platform Detection ───────────────────────────────────────────────────────
-def detect_platform(user_agent: str = "", referer: str = "") -> str:
-    """Detect platform from headers."""
-    ua = user_agent.lower()
-    if "android" in ua:
-        return "android"
-    elif "iphone" in ua or "ipad" in ua or "ios" in ua:
-        return "ios"
-    return "web"
-
 # ─── Pydantic Models ───────────────────────────────────────────────────────────
 class VerifyPaymentRequest(BaseModel):
-    transaction_id: Optional[str] = None  # Can be "0" - will lookup by tx_ref
+    transaction_id: Optional[str] = None
     tx_ref: str
     plan_id: str
 
@@ -89,15 +80,18 @@ class CheckoutRequest(BaseModel):
     email: str
     name: str
     platform: Optional[str] = "web"  # web, android, ios
-    redirect_url: Optional[str] = None  # Custom redirect for mobile apps
+    redirect_url: Optional[str] = None
 
 
-class SubscriptionResponse(BaseModel):
+class PaymentResponse(BaseModel):
     status: str
-    plan: str
-    expires_at: Optional[datetime] = None
+    tx_ref: str
+    payment_link: Optional[str] = None
+    plan: Dict[str, Any]
+    payment_methods: List[str]
+    is_subscription: bool = True
     auto_renew: bool = True
-    payment_method: Optional[str] = None
+    platform: str
 
 
 # ─── Helper Functions ─────────────────────────────────────────────────────────
@@ -131,11 +125,11 @@ async def _get_or_create_flw_plan(plan_key: str) -> int:
             existing = resp.json().get("data", [])
             for p in existing:
                 if (p.get("name") == f"PromptReel {plan['name']}" and 
-                    float(p.get("amount", 0)) == plan["amount"]):
+                    abs(float(p.get("amount", 0)) - plan["amount"]) < 0.01):
                     _flw_plan_cache[plan_key] = p["id"]
                     return p["id"]
     
-    # Create new plan with auto-renewal enabled
+    # Create new plan with auto-renewal
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{FLW_BASE_URL}/payment-plans",
@@ -162,10 +156,7 @@ async def _get_or_create_flw_plan(plan_key: str) -> int:
 
 
 async def _lookup_tx_by_ref(tx_ref: str) -> Optional[Dict[str, Any]]:
-    """
-    Look up transaction by tx_ref. Returns full transaction data.
-    Used when frontend sends transaction_id="0".
-    """
+    """Look up transaction by tx_ref."""
     logger.info(f"Looking up transaction by tx_ref: {tx_ref}")
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
@@ -236,25 +227,35 @@ def _get_platform_redirect_urls(platform: str, request: Request) -> Dict[str, st
     base_url = str(request.base_url).rstrip("/")
     
     if platform == "android":
-        # Deep link for Android app
         return {
             "success": "promptreel://payment/success",
             "cancel": "promptreel://payment/cancel",
-            "callback": f"{base_url}/api/payments/callback"
+            "callback": f"{base_url}/api/payments/callback?platform=android"
         }
     elif platform == "ios":
-        # Universal link for iOS app
         return {
-            "success": "https://promptreel.ai/payment/success",  # Universal link
+            "success": "https://promptreel.ai/payment/success",
             "cancel": "https://promptreel.ai/payment/cancel",
-            "callback": f"{base_url}/api/payments/callback"
+            "callback": f"{base_url}/api/payments/callback?platform=ios"
         }
-    else:  # web
+    else:
         return {
-            "success": f"{base_url}/api/payments/callback",
-            "cancel": f"{base_url}/api/payments/callback",
-            "callback": f"{base_url}/api/payments/callback"
+            "success": f"{base_url}/api/payments/callback?platform=web",
+            "cancel": f"{base_url}/api/payments/callback?platform=web",
+            "callback": f"{base_url}/api/payments/callback?platform=web"
         }
+
+
+def _extract_user_id_from_tx_ref(tx_ref: str) -> Optional[int]:
+    """Extract user ID from transaction reference."""
+    # Format: PR-{user_id}-{plan}-{timestamp}-{random}
+    try:
+        parts = tx_ref.split("-")
+        if len(parts) >= 3 and parts[0] == "PR":
+            return int(parts[1])
+    except (ValueError, IndexError):
+        pass
+    return None
 
 
 # ─── API Endpoints ───────────────────────────────────────────────────────────
@@ -312,7 +313,7 @@ async def create_checkout(
     request: Request,
     current_user: User = Depends(get_current_user),
 ):
-    """Create checkout session. Returns payment link or data for inline checkout."""
+    """Create checkout session with auto-renewal subscription."""
     if req.plan_id not in APP_PLANS:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -323,7 +324,9 @@ async def create_checkout(
     flw_plan_id = await _get_or_create_flw_plan(req.plan_id)
     
     # Generate unique transaction reference
-    tx_ref = f"PR-{current_user.id}-{req.plan_id}-{int(datetime.now(timezone.utc).timestamp())}"
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+    random_suffix = hashlib.md5(str(timestamp).encode()).hexdigest()[:4]
+    tx_ref = f"PR-{current_user.id}-{req.plan_id}-{timestamp}-{random_suffix}"
     
     methods = await _get_flw_payment_methods(plan["currency"])
     payment_options = ",".join(methods)
@@ -336,7 +339,7 @@ async def create_checkout(
         "amount": str(plan["amount"]),
         "currency": plan["currency"],
         "payment_options": payment_options,
-        "payment_plan": flw_plan_id,  # This enables auto-renewal!
+        "payment_plan": flw_plan_id,  # Enables auto-renewal!
         "redirect_url": redirects["callback"],
         "customer": {
             "email": req.email,
@@ -387,7 +390,7 @@ async def create_checkout(
             "platform": req.platform or "web",
         }
         
-        # For mobile apps, also return inline checkout config
+        # For mobile apps, return inline checkout config
         if req.platform in ["android", "ios"]:
             response_data["inline_config"] = {
                 "public_key": settings.FLUTTERWAVE_PUBLIC_KEY,
@@ -424,8 +427,7 @@ async def checkout_page(
     request: Request = None,
 ):
     """
-    Checkout page - accepts plan_id, looks up details automatically.
-    Cross-platform support: web, android, ios
+    Checkout page with cross-platform support and auto-renewal UI.
     """
     if plan_id not in APP_PLANS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Invalid plan: {plan_id}")
@@ -440,7 +442,9 @@ async def checkout_page(
     flw_plan_id = await _get_or_create_flw_plan(plan_id)
     
     if not tx_ref:
-        tx_ref = f"PR-{int(datetime.now(timezone.utc).timestamp())}-{plan_id}"
+        timestamp = int(datetime.now(timezone.utc).timestamp())
+        random_suffix = hashlib.md5(str(timestamp).encode()).hexdigest()[:4]
+        tx_ref = f"PR-{timestamp}-{plan_id}-{random_suffix}"
     
     methods = await _get_flw_payment_methods(currency)
     payment_options = ",".join(methods)
@@ -448,7 +452,7 @@ async def checkout_page(
     # Platform-specific handling
     redirects = _get_platform_redirect_urls(platform, request)
     
-    # Sanitize
+    # Sanitize inputs
     safe_name = name.replace("'", "\\'").replace('"', '\\"')[:50]
     safe_email = email.replace("'", "").replace('"', "")[:100]
     safe_tx_ref = tx_ref.replace("'", "").replace('"', "")[:100]
@@ -480,25 +484,22 @@ async def checkout_page(
     
     methods_display = " • ".join([method_names.get(m, m) for m in methods[:6]])
     
-    # Platform-specific post-message handling
-    post_message_script = ""
+    # Platform-specific JavaScript bridge
+    js_bridge = ""
     if platform == "android":
-        post_message_script = """
-            // Android WebView communication
+        js_bridge = """
             if (window.PromptReelAndroid) {
-                window.PromptReelAndroid.onPaymentSuccess(JSON.stringify(data));
+                window.PromptReelAndroid.postMessage(JSON.stringify(data));
             }
         """
     elif platform == "ios":
-        post_message_script = """
-            // iOS WKWebView communication
-            if (window.webkit && window.webkit.messageHandlers) {
+        js_bridge = """
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.PromptReel) {
                 window.webkit.messageHandlers.PromptReel.postMessage(JSON.stringify(data));
             }
         """
-    else:
-        post_message_script = """
-            // Web: redirect parent or opener
+    else:  # web
+        js_bridge = """
             if (window.opener) {
                 window.opener.postMessage({type: 'PAYMENT_SUCCESS', data: data}, '*');
             }
@@ -508,13 +509,15 @@ async def checkout_page(
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#0A0A0F">
   <title>PromptReel AI — {safe_plan} Plan</title>
   <script src="https://checkout.flutterwave.com/v3.js"></script>
   <style>
-    *{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}}
-    body{{background:#0A0A0F;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;padding:20px;color:#fff;}}
-    .card{{background:#12121A;border:1px solid #2A2A3A;border-radius:24px;padding:40px 24px;width:100%;max-width:440px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);}}
+    *{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;}}
+    body{{background:#0A0A0F;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#fff;}}
+    .card{{background:#12121A;border:1px solid #2A2A3A;border-radius:24px;padding:40px 24px;width:100%;max-width:440px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);position:relative;}}
+    .platform-badge{{position:absolute;top:16px;right:16px;background:#2A2A3A;color:#888;font-size:11px;padding:4px 8px;border-radius:4px;text-transform:uppercase;}}
     .logo{{font-size:48px;margin-bottom:8px;}}
     .brand{{color:#FFB830;font-size:24px;font-weight:800;margin-bottom:4px;}}
     .tagline{{color:#666;font-size:13px;margin-bottom:28px;}}
@@ -523,25 +526,30 @@ async def checkout_page(
     .price{{color:#fff;font-size:48px;font-weight:900;line-height:1;}}
     .price span{{font-size:20px;font-weight:500;color:#888;vertical-align:top;}}
     .period{{color:#666;font-size:14px;margin-top:4px;}}
-    .auto-renew{{background:#FFB83020;color:#FFB830;font-size:12px;padding:6px 12px;border-radius:20px;display:inline-block;margin-top:8px;}}
+    .auto-renew{{background:linear-gradient(135deg,#FFB83020,#FF8C0020);color:#FFB830;font-size:12px;padding:8px 16px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;margin-top:12px;border:1px solid #FFB83030;}}
     .features{{text-align:left;margin:20px 0;padding:0 12px;}}
     .feature{{color:#aaa;font-size:13px;padding:6px 0;display:flex;align-items:center;gap:8px;}}
     .feature::before{{content:"✓";color:#FFB830;font-weight:700;}}
-    .pay-btn{{width:100%;padding:18px;background:linear-gradient(135deg,#FFB830,#FF8C00);color:#000;font-size:16px;font-weight:800;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;transition:transform 0.2s,box-shadow 0.2s;}}
-    .pay-btn:hover{{transform:translateY(-2px);box-shadow:0 10px 30px -10px rgba(255,184,48,0.5);}}
-    .pay-btn:disabled{{opacity:0.6;cursor:not-allowed;transform:none;}}
+    .pay-btn{{width:100%;padding:18px;background:linear-gradient(135deg,#FFB830,#FF8C00);color:#000;font-size:16px;font-weight:800;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;transition:all 0.2s;box-shadow:0 4px 15px rgba(255,184,48,0.3);}}
+    .pay-btn:hover{{transform:translateY(-2px);box-shadow:0 8px 25px rgba(255,184,48,0.4);}}
+    .pay-btn:disabled{{opacity:0.6;cursor:not-allowed;transform:none;box-shadow:none;}}
+    .pay-btn.loading{{color:transparent;}}
     .methods{{color:#666;font-size:12px;line-height:1.6;padding:16px;background:#0A0A0F;border-radius:8px;margin-bottom:16px;}}
-    .methods strong{{color:#888;display:block;margin-bottom:8px;}}
+    .methods strong{{color:#888;display:block;margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;}}
     .secure{{color:#444;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;}}
-    .status{{color:#888;font-size:13px;margin-top:12px;min-height:20px;}}
-    .loading{{display:none;width:20px;height:20px;border:3px solid rgba(0,0,0,0.3);border-top-color:#000;border-radius:50%;animation:spin 1s linear infinite;}}
-    @keyframes spin{{to{{transform:rotate(360deg);}}}}
-    .platform-badge{{position:absolute;top:16px;right:16px;background:#2A2A3A;color:#888;font-size:11px;padding:4px 8px;border-radius:4px;}}
+    .status{{color:#888;font-size:13px;margin-top:12px;min-height:20px;font-weight:500;}}
+    .status.success{{color:#4CAF50;}}
+    .status.error{{color:#f44336;}}
+    .spinner{{display:none;width:20px;height:20px;border:3px solid rgba(0,0,0,0.3);border-top-color:#000;border-radius:50%;animation:spin 1s linear infinite;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}}
+    .pay-btn.loading .spinner{{display:block;}}
+    @keyframes spin{{to{{transform:translate(-50%,-50%) rotate(360deg);}}}}
+    .error-box{{background:#f4433620;color:#f44336;padding:12px;border-radius:8px;margin-top:12px;font-size:13px;display:none;}}
+    .error-box.show{{display:block;}}
   </style>
 </head>
 <body>
 <div class="card">
-  <div class="platform-badge">{platform.upper()}</div>
+  <div class="platform-badge">{platform}</div>
   <div class="logo">🎬</div>
   <div class="brand">PromptReel AI</div>
   <div class="tagline">AI Video Production Platform</div>
@@ -550,37 +558,65 @@ async def checkout_page(
     <div class="plan-name">{safe_plan} Plan</div>
     <div class="price"><span>$</span>{plan['amount']}</div>
     <div class="period">per month</div>
-    <div class="auto-renew">🔄 Auto-renews monthly</div>
+    <div class="auto-renew">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Auto-renews monthly
+    </div>
     <div class="features">
       {"".join([f'<div class="feature">{f}</div>' for f in plan['features'][:4]])}
     </div>
   </div>
   
   <div class="methods">
-    <strong>💳 Accepted Payment Methods:</strong>
+    <strong>Accepted Payment Methods</strong>
     {methods_display}
   </div>
   
   <button class="pay-btn" id="payBtn" onclick="makePayment()">
-    <span class="loading" id="loading"></span>
+    <div class="spinner"></div>
     <span id="btnText">Subscribe ${plan['amount']}/month</span>
   </button>
   
-  <div class="secure">🔒 Secured by Flutterwave • SSL Encrypted</div>
+  <div class="error-box" id="errorBox"></div>
+  
+  <div class="secure">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+    </svg>
+    Secured by Flutterwave • SSL Encrypted
+  </div>
   <div class="status" id="status"></div>
 </div>
 
 <script>
-  function makePayment() {{
-    const btn = document.getElementById('payBtn');
-    const loading = document.getElementById('loading');
-    const btnText = document.getElementById('btnText');
+  let isProcessing = false;
+  
+  function showError(msg) {{
+    const errorBox = document.getElementById('errorBox');
+    errorBox.textContent = msg;
+    errorBox.classList.add('show');
+    setTimeout(() => errorBox.classList.remove('show'), 5000);
+  }}
+  
+  function updateStatus(msg, type = '') {{
     const status = document.getElementById('status');
+    status.textContent = msg;
+    status.className = 'status ' + type;
+  }}
+  
+  function makePayment() {{
+    if (isProcessing) return;
+    isProcessing = true;
     
+    const btn = document.getElementById('payBtn');
+    const btnText = document.getElementById('btnText');
+    
+    btn.classList.add('loading');
     btn.disabled = true;
-    loading.style.display = 'inline-block';
-    btnText.textContent = 'Initializing...';
-    status.textContent = 'Connecting to payment processor...';
+    updateStatus('Initializing secure payment...');
     
     try {{
       FlutterwaveCheckout({{
@@ -594,7 +630,7 @@ async def checkout_page(
         customer: {{
           email: '{safe_email}',
           name: '{safe_name}',
-          phone_number: '0000000000'
+          phone_number: ''
         }},
         meta: {{
           plan_id: '{plan_id}',
@@ -608,8 +644,8 @@ async def checkout_page(
           logo: 'https://promptreel.ai/logo.png'
         }},
         callback: function(data) {{
-          console.log('Payment callback:', data);
-          status.textContent = 'Payment ' + data.status + '! Processing...';
+          console.log('✅ Payment callback:', data);
+          updateStatus('Payment successful! Verifying...', 'success');
           
           const result = {{
             status: data.status,
@@ -618,42 +654,51 @@ async def checkout_page(
             plan_id: '{plan_id}'
           }};
           
-          {post_message_script}
+          // Platform-specific communication
+          {js_bridge}
           
-          // Also try to redirect
+          // Redirect after short delay
           setTimeout(() => {{
             window.location.href = '{redirects['success']}?tx_ref={safe_tx_ref}&transaction_id=' + (data.transaction_id || '') + '&status=' + data.status;
-          }}, 1000);
+          }}, 1500);
         }},
         onclose: function() {{
+          console.log('❌ Payment cancelled');
+          isProcessing = false;
+          btn.classList.remove('loading');
           btn.disabled = false;
-          loading.style.display = 'none';
-          btnText.textContent = 'Subscribe ${plan['amount']}/month';
-          status.textContent = 'Payment cancelled. You can try again.';
+          updateStatus('Payment cancelled. You can try again.');
           
-          // Notify app of cancellation
+          // Notify cancellation
           const cancelData = {{status: 'cancelled', tx_ref: '{safe_tx_ref}'}};
-          {post_message_script.replace('onPaymentSuccess', 'onPaymentCancelled').replace('PAYMENT_SUCCESS', 'PAYMENT_CANCELLED')}
+          try {{
+            {js_bridge.replace('data', 'cancelData')}
+          }} catch(e) {{}}
         }}
       }});
     }} catch (e) {{
       console.error('Payment error:', e);
+      isProcessing = false;
+      btn.classList.remove('loading');
       btn.disabled = false;
-      loading.style.display = 'none';
-      btnText.textContent = 'Try Again';
-      status.textContent = 'Error: ' + e.message;
+      showError('Error: ' + e.message);
+      updateStatus('Payment failed. Please try again.', 'error');
     }}
   }}
   
-  // Auto-start after 500ms for better UX
-  setTimeout(makePayment, 500);
+  // Auto-start for better UX (optional)
+  // setTimeout(makePayment, 800);
 </script>
 </body>
 </html>"""
     
     return HTMLResponse(
         content=html,
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        },
     )
 
 
@@ -662,13 +707,10 @@ async def payment_callback(
     tx_ref: str,
     transaction_id: Optional[str] = None,
     status: Optional[str] = None,
+    platform: Optional[str] = "web",
     request: Request = None,
 ):
-    """Handle return from Flutterwave. Works for all platforms."""
-    platform = detect_platform(
-        request.headers.get("user-agent", ""),
-        request.headers.get("referer", "")
-    )
+    """Handle return from Flutterwave for all platforms."""
     
     # For mobile apps, return deep link response
     if platform in ["android", "ios"]:
@@ -681,14 +723,33 @@ async def payment_callback(
             "deep_link": f"promptreel://payment/verify?tx_ref={tx_ref}&transaction_id={transaction_id}&status={status}"
         }
     
-    # For web, return JSON that frontend can handle
-    return {
-        "status": status or "unknown",
-        "tx_ref": tx_ref,
-        "transaction_id": transaction_id,
-        "message": "Payment completed. Verifying...",
-        "next_step": "Call POST /api/payments/verify to complete"
-    }
+    # For web, return HTML that closes popup and notifies opener
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script>
+            if (window.opener) {{
+                window.opener.postMessage({{
+                    type: 'PAYMENT_COMPLETE',
+                    data: {{
+                        tx_ref: '{tx_ref}',
+                        transaction_id: '{transaction_id}',
+                        status: '{status}'
+                    }}
+                }}, '*');
+                window.close();
+            }} else {{
+                window.location.href = '/payment/complete?tx_ref={tx_ref}&status={status}';
+            }}
+        </script>
+    </head>
+    <body>
+        <p>Payment {status}. You can close this window.</p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 @router.post("/verify")
@@ -698,27 +759,22 @@ async def verify_payment(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Verify payment and upgrade user plan.
-    Handles transaction_id="0" by looking up tx_ref.
-    Sets up auto-renewal subscription.
+    Verify payment and activate auto-renewal subscription.
     """
     if req.plan_id not in APP_PLANS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid plan")
     
-    # Lookup transaction if ID not provided or is placeholder
+    # Lookup transaction if ID not provided
     tx_data = None
-    if req.transaction_id and req.transaction_id not in ("0", "pending", ""):
+    if req.transaction_id and req.transaction_id not in ("0", "pending", "", None):
         tx_data = await _verify_with_flutterwave(req.transaction_id)
     else:
-        logger.info(f"Looking up transaction by tx_ref: {req.tx_ref}")
         tx_lookup = await _lookup_tx_by_ref(req.tx_ref)
-        
         if not tx_lookup:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 "Payment still processing. Please wait 30 seconds and try again.",
             )
-        
         tx_id = str(tx_lookup.get("id"))
         tx_data = await _verify_with_flutterwave(tx_id)
         req.transaction_id = tx_id
@@ -760,12 +816,16 @@ async def verify_payment(
     flw_plan_id = tx_data.get("plan", {}).get("id") or await _get_or_create_flw_plan(req.plan_id)
     subscription_id = tx_data.get("plan_token")  # Flutterwave subscription token
     
+    # Calculate expiry (30 days from now)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=30)
+    
     # Upgrade user with subscription info
     try:
         current_user.plan = PlanType(req.plan_id)
         current_user.subscription_status = SubscriptionStatus.ACTIVE
-        current_user.subscription_started_at = datetime.now(timezone.utc)
-        current_user.subscription_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+        current_user.subscription_started_at = now
+        current_user.subscription_expires_at = expires_at
         current_user.subscription_id = subscription_id or req.transaction_id
         current_user.flw_plan_id = str(flw_plan_id)
         current_user.flw_customer_id = tx_data.get("customer", {}).get("id")
@@ -786,7 +846,7 @@ async def verify_payment(
     logger.info(
         f"✅ User {current_user.id} upgraded to {req.plan_id} | "
         f"tx={req.transaction_id} | method={payment_method} | "
-        f"amount=${charged_amount} | auto_renew=True"
+        f"amount=${charged_amount} | auto_renew=True | expires={expires_at}"
     )
     
     return {
@@ -797,8 +857,8 @@ async def verify_payment(
         "subscription": {
             "status": "active",
             "auto_renew": True,
-            "expires_at": current_user.subscription_expires_at.isoformat(),
-            "next_billing_date": (current_user.subscription_expires_at).isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "next_billing_date": expires_at.isoformat(),
         },
         "payment_details": {
             "transaction_id": req.transaction_id,
@@ -815,7 +875,7 @@ async def verify_payment(
 async def get_subscription_status(
     current_user: User = Depends(get_current_user),
 ):
-    """Get current subscription status for the user."""
+    """Get current subscription status."""
     return {
         "status": "success",
         "subscription": {
@@ -840,19 +900,19 @@ async def cancel_subscription(
             "No active subscription found",
         )
     
-    # Cancel in Flutterwave if we have a subscription ID
-    if current_user.flw_plan_id:
+    # Cancel in Flutterwave
+    if current_user.flw_plan_id and current_user.subscription_id:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
+                resp = await client.put(
                     f"{FLW_BASE_URL}/subscriptions/{current_user.subscription_id}/cancel",
                     headers=_flw_headers(),
                 )
-                if resp.status_code in (200, 201):
+                if resp.status_code in (200, 201, 202):
                     logger.info(f"Cancelled subscription in Flutterwave: {current_user.subscription_id}")
         except Exception as e:
             logger.error(f"Failed to cancel in Flutterwave: {e}")
-            # Continue to cancel locally even if FLW fails
+            # Continue to cancel locally
     
     # Update user
     current_user.auto_renew = False
@@ -872,9 +932,10 @@ async def flutterwave_webhook(
     verif_hash: Optional[str] = Header(None, alias="verif-hash"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle Flutterwave webhooks for auto-renewal and lifecycle events."""
+    """Handle Flutterwave webhooks for auto-renewal lifecycle."""
     if not settings.FLUTTERWAVE_WEBHOOK_HASH:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Webhook not configured")
+        logger.warning("Webhook received but not configured")
+        return {"status": "ignored"}
     
     if not verif_hash:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Missing signature")
@@ -893,46 +954,38 @@ async def flutterwave_webhook(
     event = payload.get("event")
     data = payload.get("data", {})
     
-    logger.info(f"📡 Webhook: {event}")
+    logger.info(f"📡 Webhook received: {event}")
     
     # Handle successful subscription charge (auto-renewal)
     if event == "charge.completed":
         tx_status = data.get("status")
         tx_ref = data.get("tx_ref")
-        flw_plan_id = data.get("plan", {}).get("id")
         
-        if tx_status == "successful":
-            # Find user by customer email or tx_ref pattern
-            customer_email = data.get("customer", {}).get("email")
-            user_id_from_ref = None
+        if tx_status == "successful" and tx_ref:
+            # Extract user ID from tx_ref
+            user_id = _extract_user_id_from_tx_ref(tx_ref)
             
-            # Extract user ID from tx_ref (format: PR-{user_id}-{plan}-{timestamp})
-            if tx_ref and tx_ref.startswith("PR-"):
-                parts = tx_ref.split("-")
-                if len(parts) >= 2:
-                    try:
-                        user_id_from_ref = int(parts[1])
-                    except ValueError:
-                        pass
-            
-            # Update subscription expiry
-            if user_id_from_ref:
-                from sqlalchemy import select
-                result = await db.execute(select(User).where(User.id == user_id_from_ref))
+            if user_id:
+                # Find user
+                result = await db.execute(select(User).where(User.id == user_id))
                 user = result.scalar_one_or_none()
                 
                 if user and user.subscription_status == SubscriptionStatus.ACTIVE:
-                    # Extend subscription by 30 days
-                    user.subscription_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+                    # Extend subscription by 30 days from now or current expiry
+                    current_expiry = user.subscription_expires_at or datetime.now(timezone.utc)
+                    new_expiry = max(current_expiry, datetime.now(timezone.utc)) + timedelta(days=30)
+                    
+                    user.subscription_expires_at = new_expiry
                     user.subscription_id = data.get("plan_token") or user.subscription_id
                     await db.commit()
-                    logger.info(f"🔄 Auto-renewed subscription for user {user.id}, new expiry: {user.subscription_expires_at}")
+                    
+                    logger.info(f"🔄 Auto-renewed subscription for user {user.id}, new expiry: {new_expiry}")
     
-    # Handle subscription cancellation
+    # Handle subscription cancellation from Flutterwave
     elif event in ("subscription.cancelled", "payment_plan.subscription_cancelled"):
-        flw_subscription_id = data.get("id") or data.get("subscription_id")
-        if flw_subscription_id:
-            result = await db.execute(select(User).where(User.subscription_id == flw_subscription_id))
+        subscription_id = data.get("id") or data.get("subscription_id")
+        if subscription_id:
+            result = await db.execute(select(User).where(User.subscription_id == subscription_id))
             user = result.scalar_one_or_none()
             if user:
                 user.auto_renew = False
@@ -943,21 +996,13 @@ async def flutterwave_webhook(
     # Handle failed subscription charge
     elif event == "charge.failed":
         tx_ref = data.get("tx_ref")
-        if tx_ref and tx_ref.startswith("PR-"):
-            parts = tx_ref.split("-")
-            if len(parts) >= 2:
-                try:
-                    user_id = int(parts[1])
-                    result = await db.execute(select(User).where(User.id == user_id))
-                    user = result.scalar_one_or_none()
-                    if user:
-                        # Don't cancel immediately, mark for retry
-                        logger.warning(f"⚠️ Payment failed for user {user.id}, tx_ref: {tx_ref}")
-                        # Could send email notification here
-                except ValueError:
-                    pass
+        if tx_ref:
+            user_id = _extract_user_id_from_tx_ref(tx_ref)
+            if user_id:
+                logger.warning(f"⚠️ Payment failed for user {user_id}, tx_ref: {tx_ref}")
+                # Could implement retry logic or email notification here
     
-    # Handle subscription created (initial signup)
+    # Handle subscription created
     elif event == "subscription.created":
         logger.info(f"New subscription created: {data.get('id')}")
     
@@ -984,24 +1029,26 @@ async def sync_subscription_status(
                 sub_data = resp.json().get("data", {})
                 flw_status = sub_data.get("status")
                 
-                # Sync status
-                if flw_status == "active":
-                    current_user.subscription_status = SubscriptionStatus.ACTIVE
-                    current_user.auto_renew = True
-                elif flw_status == "cancelled":
-                    current_user.subscription_status = SubscriptionStatus.CANCELLED
-                    current_user.auto_renew = False
-                elif flw_status == "expired":
-                    current_user.subscription_status = SubscriptionStatus.EXPIRED
-                    current_user.auto_renew = False
+                # Map Flutterwave status to our status
+                status_map = {
+                    "active": SubscriptionStatus.ACTIVE,
+                    "cancelled": SubscriptionStatus.CANCELLED,
+                    "expired": SubscriptionStatus.EXPIRED,
+                }
                 
-                await db.commit()
+                new_status = status_map.get(flw_status, current_user.subscription_status)
+                
+                if new_status != current_user.subscription_status:
+                    current_user.subscription_status = new_status
+                    current_user.auto_renew = (flw_status == "active")
+                    await db.commit()
                 
                 return {
                     "status": "synced",
                     "flutterwave_status": flw_status,
                     "local_status": current_user.subscription_status.value,
                     "next_payment": sub_data.get("next_payment_date"),
+                    "auto_renew": current_user.auto_renew,
                 }
             else:
                 return {"status": "error", "message": "Could not fetch from Flutterwave"}
