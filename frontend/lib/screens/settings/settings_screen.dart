@@ -9,12 +9,13 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
-import '../../widgets/ads/banner_ad_widget.dart'; // ← Added
+import '../../widgets/ads/banner_ad_widget.dart';
 
 Future<String> _getAppVersion() async {
   final info = await PackageInfo.fromPlatform();
   return 'v${info.version}+${info.buildNumber}';
 }
+
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -24,7 +25,8 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+        decoration:
+            const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: CustomScrollView(
             slivers: [
@@ -35,7 +37,8 @@ class SettingsScreen extends ConsumerWidget {
                   icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: () => context.go('/home'),
                 ),
-                title: Text('Settings', style: AppTypography.headlineMedium),
+                title:
+                    Text('Settings', style: AppTypography.headlineMedium),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
@@ -47,7 +50,7 @@ class SettingsScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.md),
 
                     // ── Large Banner Ad (free users only) ──────────────────
-                    const LargeBannerAd(), // ← Added
+                    const LargeBannerAd(),
                     const SizedBox(height: AppSpacing.md),
 
                     _SettingsGroup(
@@ -56,8 +59,8 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingsItem(
                           icon: Icons.person_outline,
                           label: 'Edit Profile',
-                          onTap: () =>
-                              _showEditProfileSheet(context, ref, user),
+                          onTap: () => _showEditProfileSheet(
+                              context, ref, user),
                         ),
                         _SettingsItem(
                           icon: Icons.lock_outline,
@@ -98,8 +101,8 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingsItem(
                           icon: Icons.privacy_tip_outlined,
                           label: 'Privacy Policy',
-                          onTap: () => launchUrl(
-                              Uri.parse('https://promptreel.ai/privacy')),
+                          onTap: () => launchUrl(Uri.parse(
+                              'https://promptreel.ai/privacy')),
                         ),
                         _SettingsItem(
                           icon: Icons.description_outlined,
@@ -135,7 +138,9 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         );
                         if (confirm == true) {
-                          await ref.read(authProvider.notifier).logout();
+                          await ref
+                              .read(authProvider.notifier)
+                              .logout();
                           if (context.mounted) context.go('/login');
                         }
                       },
@@ -152,9 +157,10 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // ── Delete Account ──────────────────────────────────────
+                    // ── Delete Account ────────────────────────────────────
                     GestureDetector(
-                      onTap: () => _confirmDeleteAccount(context, ref),
+                      onTap: () =>
+                          _confirmDeleteAccount(context, ref),
                       child: Row(
                         children: [
                           const Icon(Icons.delete_forever_rounded,
@@ -197,7 +203,7 @@ class SettingsScreen extends ConsumerWidget {
   void _showEditProfileSheet(
       BuildContext context, WidgetRef ref, dynamic user) {
     final nameCtrl = TextEditingController(text: user?.name ?? '');
-    final formKey  = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -208,7 +214,9 @@ class SettingsScreen extends ConsumerWidget {
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          left: 24, right: 24, top: 24,
+          left: 24,
+          right: 24,
+          top: 24,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
         ),
         child: Form(
@@ -219,7 +227,8 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               Center(
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: AppColors.border,
                     borderRadius: BorderRadius.circular(2),
@@ -227,7 +236,8 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Edit Profile', style: AppTypography.headlineMedium),
+              Text('Edit Profile',
+                  style: AppTypography.headlineMedium),
               const SizedBox(height: 4),
               Text('Update your display name',
                   style: AppTypography.bodySmall),
@@ -264,16 +274,19 @@ class SettingsScreen extends ConsumerWidget {
                   if (!formKey.currentState!.validate()) return;
                   try {
                     await ref.read(apiServiceProvider).updateProfile(
-                      name: nameCtrl.text.trim(),
-                    );
-                    await ref.read(authProvider.notifier).refreshUser();
+                          name: nameCtrl.text.trim(),
+                        );
+                    await ref
+                        .read(authProvider.notifier)
+                        .refreshUser();
                     if (ctx.mounted) {
                       Navigator.pop(ctx);
                       _showSnack(context, '✅ Profile updated!');
                     }
                   } catch (e) {
                     if (ctx.mounted) {
-                      _showSnack(context, ApiService.extractError(e),
+                      _showSnack(
+                          context, ApiService.extractError(e),
                           isError: true);
                     }
                   }
@@ -289,9 +302,13 @@ class SettingsScreen extends ConsumerWidget {
   // ── Change Password Sheet ──────────────────────────────────────────────────
   void _showChangePasswordSheet(BuildContext context, WidgetRef ref) {
     final currentCtrl = TextEditingController();
-    final newCtrl     = TextEditingController();
+    final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
-    final formKey     = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
+
+    // ✅ FIXED: moved outside StatefulBuilder so setState works correctly
+    bool showCurrent = false;
+    bool showNew = false;
 
     showModalBottomSheet(
       context: context,
@@ -302,12 +319,11 @@ class SettingsScreen extends ConsumerWidget {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
-          bool showCurrent = false;
-          bool showNew     = false;
-
           return Padding(
             padding: EdgeInsets.only(
-              left: 24, right: 24, top: 24,
+              left: 24,
+              right: 24,
+              top: 24,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
             ),
             child: Form(
@@ -318,7 +334,8 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   Center(
                     child: Container(
-                      width: 40, height: 4,
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
                         color: AppColors.border,
                         borderRadius: BorderRadius.circular(2),
@@ -408,8 +425,8 @@ class SettingsScreen extends ConsumerWidget {
                         }
                       } catch (e) {
                         if (ctx.mounted) {
-                          _showSnack(
-                              context, ApiService.extractError(e),
+                          _showSnack(context,
+                              ApiService.extractError(e),
                               isError: true);
                         }
                       }
@@ -451,7 +468,8 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 // ── Delete Account Confirmation ───────────────────────────────────────────────
-Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+Future<void> _confirmDeleteAccount(
+    BuildContext context, WidgetRef ref) async {
   final passwordController = TextEditingController();
   bool obscure = true;
 
@@ -461,12 +479,17 @@ Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setState) => AlertDialog(
         backgroundColor: const Color(0xFF12121E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
         title: const Row(children: [
-          Icon(Icons.warning_amber_rounded, color: Color(0xFFFF4444), size: 22),
+          Icon(Icons.warning_amber_rounded,
+              color: Color(0xFFFF4444), size: 22),
           SizedBox(width: 10),
           Text('Delete Account',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
         ]),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -474,11 +497,15 @@ Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
           children: [
             const Text(
               'This will permanently delete your account and all video plans. This cannot be undone.',
-              style: TextStyle(color: Color(0xFF9999C0), fontSize: 14, height: 1.5),
+              style: TextStyle(
+                  color: Color(0xFF9999C0),
+                  fontSize: 14,
+                  height: 1.5),
             ),
             const SizedBox(height: 20),
             const Text('Enter your password to confirm:',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+                style: TextStyle(
+                    color: Colors.white70, fontSize: 13)),
             const SizedBox(height: 10),
             TextField(
               controller: passwordController,
@@ -487,25 +514,34 @@ Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Your password',
-                hintStyle: const TextStyle(color: Color(0xFF5A5A80)),
+                hintStyle: const TextStyle(
+                    color: Color(0xFF5A5A80)),
                 filled: true,
                 fillColor: const Color(0xFF1A1A2E),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFF2A2A3E)),
+                  borderSide: const BorderSide(
+                      color: Color(0xFF2A2A3E)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFF2A2A3E)),
+                  borderSide: const BorderSide(
+                      color: Color(0xFF2A2A3E)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFFF4444)),
+                  borderSide: const BorderSide(
+                      color: Color(0xFFFF4444)),
                 ),
                 suffixIcon: IconButton(
-                  icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
-                      color: const Color(0xFF5A5A80), size: 18),
-                  onPressed: () => setState(() => obscure = !obscure),
+                  icon: Icon(
+                      obscure
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: const Color(0xFF5A5A80),
+                      size: 18),
+                  onPressed: () =>
+                      setState(() => obscure = !obscure),
                 ),
               ),
             ),
@@ -514,13 +550,15 @@ Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF9999C0))),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF9999C0))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFF4444),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete Forever'),
@@ -536,11 +574,14 @@ Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
   if (password.isEmpty) return;
 
   try {
-    await ref.read(apiServiceProvider).deleteAccount(password: password);
+    await ref
+        .read(apiServiceProvider)
+        .deleteAccount(password: password);
     await ref.read(authProvider.notifier).logout();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account deleted successfully.')),
+        const SnackBar(
+            content: Text('Account deleted successfully.')),
       );
       context.go('/login');
     }
@@ -555,6 +596,8 @@ Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
     }
   }
 }
+
+// ── Notifications Sheet ───────────────────────────────────────────────────────
 class _NotificationsSheet extends ConsumerStatefulWidget {
   @override
   ConsumerState<_NotificationsSheet> createState() =>
@@ -564,10 +607,10 @@ class _NotificationsSheet extends ConsumerStatefulWidget {
 class _NotificationsSheetState
     extends ConsumerState<_NotificationsSheet> {
   bool _generationComplete = true;
-  bool _dailyReminder      = false;
-  bool _productUpdates     = true;
-  bool _promotions         = false;
-  bool _isSaving           = false;
+  bool _dailyReminder = false;
+  bool _productUpdates = true;
+  bool _promotions = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -582,10 +625,11 @@ class _NotificationsSheetState
           .getNotificationPreferences();
       if (mounted) {
         setState(() {
-          _generationComplete = prefs['generation_complete'] ?? true;
-          _dailyReminder      = prefs['daily_reminder'] ?? false;
-          _productUpdates     = prefs['product_updates'] ?? true;
-          _promotions         = prefs['promotions'] ?? false;
+          _generationComplete =
+              prefs['generation_complete'] ?? true;
+          _dailyReminder = prefs['daily_reminder'] ?? false;
+          _productUpdates = prefs['product_updates'] ?? true;
+          _promotions = prefs['promotions'] ?? false;
         });
       }
     } catch (_) {}
@@ -598,15 +642,16 @@ class _NotificationsSheetState
           .read(apiServiceProvider)
           .updateNotificationPreferences({
         'generation_complete': _generationComplete,
-        'daily_reminder':      _dailyReminder,
-        'product_updates':     _productUpdates,
-        'promotions':          _promotions,
+        'daily_reminder': _dailyReminder,
+        'product_updates': _productUpdates,
+        'promotions': _promotions,
       });
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Notification preferences saved!'),
+            content:
+                Text('✅ Notification preferences saved!'),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -631,7 +676,9 @@ class _NotificationsSheetState
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 24, right: 24, top: 24,
+        left: 24,
+        right: 24,
+        top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 32,
       ),
       child: Column(
@@ -640,7 +687,8 @@ class _NotificationsSheetState
         children: [
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
@@ -692,6 +740,7 @@ class _NotificationsSheetState
   }
 }
 
+// ── Notif Toggle ──────────────────────────────────────────────────────────────
 class _NotifToggle extends StatelessWidget {
   final String label;
   final String subtitle;
@@ -769,7 +818,8 @@ class _SubmitButtonState extends State<_SubmitButton> {
 
 // ── Profile Card ──────────────────────────────────────────────────────────────
 class _ProfileCard extends StatelessWidget {
-  final user;
+  // ignore: avoid_annotating_with_dynamic
+  final dynamic user;
   const _ProfileCard({required this.user});
 
   @override
@@ -818,7 +868,8 @@ class _ProfileCard extends StatelessWidget {
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 class _PlanCard extends StatelessWidget {
-  final user;
+  // ignore: avoid_annotating_with_dynamic
+  final dynamic user;
   const _PlanCard({required this.user});
 
   @override
@@ -830,7 +881,7 @@ class _PlanCard extends StatelessWidget {
         gradient: isPaid
             ? const LinearGradient(colors: [
                 Color(0xFF1A2A1A),
-                Color(0xFF0A1A0A)
+                Color(0xFF0A1A0A),
               ])
             : AppColors.cardGradient,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -892,7 +943,8 @@ class _PlanCard extends StatelessWidget {
 class _SettingsGroup extends StatelessWidget {
   final String title;
   final List<_SettingsItem> items;
-  const _SettingsGroup({required this.title, required this.items});
+  const _SettingsGroup(
+      {required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -901,7 +953,8 @@ class _SettingsGroup extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(title, style: AppTypography.labelMedium),
+          child:
+              Text(title, style: AppTypography.labelMedium),
         ),
         AppCard(
           padding: EdgeInsets.zero,
@@ -912,7 +965,9 @@ class _SettingsGroup extends StatelessWidget {
                   e.value,
                   if (e.key < items.length - 1)
                     const Divider(
-                        height: 1, indent: 16, endIndent: 16),
+                        height: 1,
+                        indent: 16,
+                        endIndent: 16),
                 ],
               );
             }).toList(),
