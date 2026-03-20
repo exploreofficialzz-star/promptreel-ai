@@ -70,7 +70,6 @@ class AppColors {
 class AppTypography {
   AppTypography._();
 
-  // Web-safe fallback font stack for when Google Fonts fails to load
   static const List<String> _fallbackFonts = [
     'system-ui',
     '-apple-system',
@@ -179,7 +178,8 @@ class AppTypography {
         fontWeight: FontWeight.w400,
         color: AppColors.textPrimary,
         height: 1.6,
-      ).copyWith(fontFamilyFallback: ['Courier New', 'Courier', 'monospace']);
+      ).copyWith(
+          fontFamilyFallback: ['Courier New', 'Courier', 'monospace']);
 }
 
 // ── Spacing ─────────────────────────────────────────────────────────────────
@@ -210,7 +210,6 @@ class AppRadius {
 class AppShadows {
   AppShadows._();
 
-  // Shadows are no-ops on web (performance) but work normally on mobile
   static List<BoxShadow> get primary => kIsWeb
       ? []
       : [
@@ -280,8 +279,8 @@ class AppTheme {
           backgroundColor: AppColors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
-          // Web doesn't support SystemUiOverlayStyle — guard it
-          systemOverlayStyle: kIsWeb ? null : SystemUiOverlayStyle.light,
+          systemOverlayStyle:
+              kIsWeb ? null : SystemUiOverlayStyle.light,
           titleTextStyle: AppTypography.headlineMedium,
           iconTheme: const IconThemeData(color: AppColors.textPrimary),
           centerTitle: false,
@@ -426,81 +425,4 @@ class AppTheme {
           ),
         ),
       );
-}
-
-// ── Reusable Widgets ──────────────────────────────────────────────────────────
-
-/// GlowCard — Card with an optional glow border effect.
-/// Safe on all platforms. Does NOT use both color + decoration on Container.
-class GlowCard extends StatelessWidget {
-  final Widget child;
-  final Color glowColor;
-  final EdgeInsetsGeometry? padding;
-
-  const GlowCard({
-    super.key,
-    required this.child,
-    this.glowColor = AppColors.primary,
-    this.padding,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding ?? const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        // ✅ color is inside BoxDecoration — no conflict
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: glowColor.withOpacity(0.3)),
-        boxShadow: kIsWeb
-            ? []
-            : [
-                BoxShadow(
-                  color: glowColor.withOpacity(0.15),
-                  blurRadius: 20,
-                  spreadRadius: 0,
-                ),
-              ],
-      ),
-      child: child,
-    );
-  }
-}
-
-/// TagsDisplay — wrapping chip list for SEO tags and hashtags.
-class TagsDisplay extends StatelessWidget {
-  final List<String> tags;
-  final Color color;
-
-  const TagsDisplay({
-    super.key,
-    required this.tags,
-    this.color = AppColors.primary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: tags
-          .map(
-            (tag) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                // ✅ color inside BoxDecoration — no conflict
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppRadius.full),
-                border: Border.all(color: color.withOpacity(0.25)),
-              ),
-              child: Text(
-                tag,
-                style: AppTypography.labelSmall.copyWith(color: color),
-              ),
-            ),
-          )
-          .toList(),
-    );
-  }
 }
