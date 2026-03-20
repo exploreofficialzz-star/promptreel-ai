@@ -12,7 +12,7 @@ on:
       build_type:
         description: 'Build type'
         required: true
-        default: 'apk'
+        default: 'both'
         type: choice
         options: [apk, aab, both]
 
@@ -38,7 +38,6 @@ jobs:
         working-directory: frontend
         run: flutter pub get
 
-      # ── Auto-format first, then analyze ───────────────────────────────────
       - name: Format code
         working-directory: frontend
         run: dart format lib/
@@ -104,7 +103,7 @@ jobs:
           storeFile=../app/promptreel-release.jks
           EOF
 
-      # ── Build ──────────────────────────────────────────────────────────────
+      # ── Build APK (debug for PRs) ──────────────────────────────────────────
       - name: Build APK (debug)
         if: github.event_name == 'pull_request'
         working-directory: frontend
@@ -112,16 +111,18 @@ jobs:
           flutter build apk --debug \
             --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com
 
+      # ── Build APK (release — always on push/tag/manual) ───────────────────
       - name: Build APK (release)
-        if: github.event_name != 'pull_request' && (github.event.inputs.build_type == 'apk' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+        if: github.event_name != 'pull_request'
         working-directory: frontend
         run: |
           flutter build apk --release \
             --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
             --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }}
 
+      # ── Build AAB (release — always on push/tag/manual) ───────────────────
       - name: Build AAB (release)
-        if: github.event_name != 'pull_request' && (github.event.inputs.build_type == 'aab' || github.event.inputs.build_type == 'both' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request'
         working-directory: frontend
         run: |
           flutter build appbundle --release \
