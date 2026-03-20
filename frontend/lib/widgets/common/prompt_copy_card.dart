@@ -38,7 +38,8 @@ class _PromptCopyCardState extends State<PromptCopyCard> {
   @override
   Widget build(BuildContext context) {
     final accent = widget.accentColor ?? AppColors.primary;
-    final hasLongContent = widget.maxLines != null && widget.content.split('\n').length > (widget.maxLines ?? 5);
+    final hasLongContent = widget.maxLines != null &&
+        widget.content.split('\n').length > (widget.maxLines ?? 5);
 
     return Container(
       decoration: BoxDecoration(
@@ -49,57 +50,94 @@ class _PromptCopyCardState extends State<PromptCopyCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // ── Header ────────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: accent.withOpacity(0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.md - 1)),
-              border: Border(bottom: BorderSide(color: AppColors.border)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppRadius.md - 1),
+              ),
+              border: Border(
+                  bottom: BorderSide(color: AppColors.border)),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // ✅ FIXED: Label + badge in Expanded with proper overflow
                 Expanded(
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        widget.label,
-                        style: AppTypography.labelMedium.copyWith(
-                          color: accent,
-                          letterSpacing: 0.8,
+                      // ✅ FIXED: Wrap label in Flexible so it truncates
+                      // instead of pushing the Copy button off screen
+                      Flexible(
+                        child: Text(
+                          widget.label,
+                          style: AppTypography.labelMedium.copyWith(
+                            color: accent,
+                            letterSpacing: 0.8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                       if (widget.badge != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: accent.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(AppRadius.full),
-                          ),
-                          child: Text(
-                            widget.badge!,
-                            style: AppTypography.labelSmall.copyWith(color: accent),
+                        const SizedBox(width: 6),
+                        // ✅ FIXED: Badge also constrained so it doesn't overflow
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 120),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: accent.withOpacity(0.15),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.full),
+                            ),
+                            child: Text(
+                              widget.badge!,
+                              style: AppTypography.labelSmall
+                                  .copyWith(color: accent),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                           ),
                         ),
                       ],
                     ],
                   ),
                 ),
+
+                // ✅ FIXED: Copy button always visible — not pushed off screen
+                const SizedBox(width: 8),
                 GestureDetector(
                   onTap: _copy,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _copied ? AppColors.success.withOpacity(0.2) : accent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      color: _copied
+                          ? AppColors.success.withOpacity(0.2)
+                          : accent.withOpacity(0.15),
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.full),
+                      // ✅ Added border so Copy button is always visible
+                      border: Border.all(
+                        color: _copied
+                            ? AppColors.success.withOpacity(0.4)
+                            : accent.withOpacity(0.3),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _copied ? Icons.check_rounded : Icons.copy_rounded,
+                          _copied
+                              ? Icons.check_rounded
+                              : Icons.copy_rounded,
                           size: 12,
                           color: _copied ? AppColors.success : accent,
                         ),
@@ -107,7 +145,8 @@ class _PromptCopyCardState extends State<PromptCopyCard> {
                         Text(
                           _copied ? 'Copied!' : 'Copy',
                           style: AppTypography.labelSmall.copyWith(
-                            color: _copied ? AppColors.success : accent,
+                            color:
+                                _copied ? AppColors.success : accent,
                           ),
                         ),
                       ],
@@ -118,13 +157,13 @@ class _PromptCopyCardState extends State<PromptCopyCard> {
             ),
           ),
 
-          // Content
+          // ── Content ───────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                SelectableText(
                   widget.content,
                   style: widget.isMonospace
                       ? AppTypography.mono
@@ -132,16 +171,18 @@ class _PromptCopyCardState extends State<PromptCopyCard> {
                           color: AppColors.textPrimary,
                           height: 1.7,
                         ),
-                  maxLines: hasLongContent && !_expanded ? widget.maxLines : null,
-                  overflow: hasLongContent && !_expanded ? TextOverflow.ellipsis : null,
+                  maxLines:
+                      hasLongContent && !_expanded ? widget.maxLines : null,
                 ),
                 if (hasLongContent) ...[
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () => setState(() => _expanded = !_expanded),
+                    onTap: () =>
+                        setState(() => _expanded = !_expanded),
                     child: Text(
                       _expanded ? '↑ Show less' : '↓ Show more',
-                      style: AppTypography.labelMedium.copyWith(color: accent),
+                      style: AppTypography.labelMedium
+                          .copyWith(color: accent),
                     ),
                   ),
                 ],
@@ -154,7 +195,7 @@ class _PromptCopyCardState extends State<PromptCopyCard> {
   }
 }
 
-// Tag display widget
+// ─── Tags Display ─────────────────────────────────────────────────────────────
 class TagsDisplay extends StatelessWidget {
   final List<String> tags;
   final Color? color;
@@ -168,11 +209,14 @@ class TagsDisplay extends StatelessWidget {
       runSpacing: 6,
       children: tags.map((tag) {
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: (color ?? AppColors.primary).withOpacity(0.1),
             borderRadius: BorderRadius.circular(AppRadius.full),
-            border: Border.all(color: (color ?? AppColors.primary).withOpacity(0.3)),
+            border: Border.all(
+                color:
+                    (color ?? AppColors.primary).withOpacity(0.3)),
           ),
           child: Text(
             tag,
