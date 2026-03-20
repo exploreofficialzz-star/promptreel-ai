@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 
@@ -26,7 +27,8 @@ class AppCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: AppColors.cardGradient,
-        borderRadius: BorderRadius.circular(borderRadius ?? AppRadius.lg),
+        borderRadius:
+            BorderRadius.circular(borderRadius ?? AppRadius.lg),
         border: hasBorder
             ? Border.all(
                 color: borderColor ?? AppColors.border,
@@ -36,19 +38,22 @@ class AppCard extends StatelessWidget {
         boxShadow: hasGlow ? AppShadows.glow : AppShadows.card,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius ?? AppRadius.lg),
+        borderRadius:
+            BorderRadius.circular(borderRadius ?? AppRadius.lg),
         child: Material(
           color: Colors.transparent,
           child: onTap != null
               ? InkWell(
                   onTap: onTap,
                   child: Padding(
-                    padding: padding ?? const EdgeInsets.all(AppSpacing.md),
+                    padding:
+                        padding ?? const EdgeInsets.all(AppSpacing.md),
                     child: child,
                   ),
                 )
               : Padding(
-                  padding: padding ?? const EdgeInsets.all(AppSpacing.md),
+                  padding:
+                      padding ?? const EdgeInsets.all(AppSpacing.md),
                   child: child,
                 ),
         ),
@@ -57,6 +62,7 @@ class AppCard extends StatelessWidget {
   }
 }
 
+// ─── Glow Card ────────────────────────────────────────────────────────────────
 class GlowCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -76,13 +82,16 @@ class GlowCard extends StatelessWidget {
         gradient: AppColors.cardGradient,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: glowColor.withOpacity(0.4), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: glowColor.withOpacity(0.15),
-            blurRadius: 30,
-            spreadRadius: -5,
-          ),
-        ],
+        // ✅ Shadows disabled on web for performance
+        boxShadow: kIsWeb
+            ? []
+            : [
+                BoxShadow(
+                  color: glowColor.withOpacity(0.15),
+                  blurRadius: 30,
+                  spreadRadius: -5,
+                ),
+              ],
       ),
       child: Padding(
         padding: padding ?? const EdgeInsets.all(AppSpacing.md),
@@ -92,7 +101,7 @@ class GlowCard extends StatelessWidget {
   }
 }
 
-// Stat Card
+// ─── Stat Card ────────────────────────────────────────────────────────────────
 class StatCard extends StatelessWidget {
   final String label;
   final String value;
