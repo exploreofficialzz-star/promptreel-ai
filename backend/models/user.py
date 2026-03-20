@@ -12,7 +12,6 @@ class PlanType(str, enum.Enum):
     STUDIO  = "studio"
 
 
-# ✅ ADDED: SubscriptionStatus enum used by payments.py
 class SubscriptionStatus(str, enum.Enum):
     active    = "active"
     inactive  = "inactive"
@@ -53,6 +52,18 @@ class User(Base):
     subscription_id         = Column(String(255), nullable=True)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
 
+    # ── Subscription extended fields (used by payments.py) ───────────────────
+    subscription_status     = Column(
+        SAEnum(SubscriptionStatus, native_enum=False),
+        default=SubscriptionStatus.inactive,
+        nullable=True,
+    )
+    subscription_started_at = Column(DateTime(timezone=True), nullable=True)
+    flw_plan_id             = Column(String(255), nullable=True)
+    flw_customer_id         = Column(String(255), nullable=True)
+    payment_method          = Column(String(100), nullable=True)
+    auto_renew              = Column(Boolean, default=False, nullable=False)
+
     # ── Notification preferences ──────────────────────────────────────────────
     notif_generation_complete = Column(Boolean, default=True,  nullable=False)
     notif_daily_reminder      = Column(Boolean, default=False, nullable=False)
@@ -74,24 +85,13 @@ class User(Base):
 
     @property
     def is_paid(self) -> bool:
-        """
-        Returns True only if the user is on a paid plan AND
-        the subscription has not yet expired.
-        A None expiry means the subscription was set manually / has no end date.
-        """
         if self.plan not in (PlanType.CREATOR, PlanType.STUDIO):
             return False
         if self.subscription_expires_at is None:
-            # No expiry set — treat as valid (admin-granted or legacy row)
             return True
         return datetime.now(timezone.utc) < self.subscription_expires_at
 
     def downgrade_if_expired(self) -> bool:
-        """
-        Downgrades plan to FREE if subscription has expired.
-        Returns True if a downgrade was performed.
-        Call this inside request handlers that check plan status.
-        """
         if (
             self.plan in (PlanType.CREATOR, PlanType.STUDIO)
             and self.subscription_expires_at is not None
