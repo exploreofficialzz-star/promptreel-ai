@@ -1,81 +1,103 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';  // ← FIXED: proper import at top
+import 'package:webview_flutter/webview_flutter.dart';
 import '../config/app_config.dart';
 
 /// Cross-platform Flutterwave payment service.
-/// - Web     → opens Flutterwave hosted checkout in a browser tab
-/// - Mobile  → opens Flutterwave JS SDK inside an in-app WebView
+/// - Web     → opens your backend checkout page in browser tab
+/// - Mobile  → opens your backend checkout page in in-app WebView
 class FlutterwavePaymentService {
+  
+  /// Start payment process
+  /// Returns: 'success', 'cancelled', 'pending' (web), or null on error
   static Future<String?> startPayment({
     required BuildContext context,
     required String email,
     required String name,
-    required String amount,
+    required String planId,  // 'creator' or 'studio' - NOT amount
     required String txRef,
-    required String plan,
+    String currency = 'USD',
   }) async {
+    // Validate plan
+    if (planId != 'creator' && planId != 'studio') {
+      throw ArgumentError('Invalid plan. Must be "creator" or "studio"');
+    }
+
     if (kIsWeb) {
       return _startWebPayment(
-        email: email, name: name, amount: amount,
-        txRef: txRef, plan: plan,
+        email: email,
+        name: name,
+        planId: planId,
+        txRef: txRef,
+        currency: currency,
       );
     } else {
       return _startMobilePayment(
         context: context,
-        email: email, name: name, amount: amount,
-        txRef: txRef, plan: plan,
+        email: email,
+        name: name,
+        planId: planId,
+        txRef: txRef,
+        currency: currency,
       );
     }
   }
 
   // ─── WEB ─────────────────────────────────────────────────────────────────
-  // On web, open the Flutterwave hosted checkout in a new browser tab.
-  // Flutter web cannot run a WebView or execute native JS SDKs directly.
+  /// On web, open your backend checkout page in new browser tab
   static Future<String?> _startWebPayment({
-    required String email, required String name,
-    required String amount, required String txRef, required String plan,
+    required String email,
+    required String name,
+    required String planId,
+    required String txRef,
+    required String currency,
   }) async {
-    final params = {
-      'public_key':              AppConfig.flutterwavePublicKey,
-      'tx_ref':                  txRef,
-      'amount':                  amount,
-      'currency':                'USD',
-      'payment_options':         'card',
-      'redirect_url':            'https://promptreel-ai.onrender.com/api/payments/callback',
-      'customer[email]':         email,
-      'customer[name]':          name,
-      'customizations[title]':         'PromptReel AI',
-      'customizations[description]':   '$plan Plan - Monthly Subscription',
-      'meta[plan]':   plan,
-      'meta[tx_ref]': txRef,
-    };
-    final query = params.entries
-        .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
+    // Build URL to YOUR backend checkout page
+    final checkoutUrl = Uri.parse(
+      '${AppConfig.apiBaseUrl}/api/payments/checkout-page',
+    ).replace(queryParameters: {
+      'plan_id': planId,
+      'email': email,
+      'name': name,
+      'tx_ref': txRef,
+      'currency': currency,
+    });
 
-    final uri = Uri.parse('https://checkout.flutterwave.com/v3/hosted/pay?$query');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      // Cannot detect in-app completion on web; caller shows "return & refresh" UI.
+    debugPrint('Opening checkout URL: $checkoutUrl');
+
+    if (await canLaunchUrl(checkoutUrl)) {
+      await launchUrl(
+        checkoutUrl,
+        mode: LaunchMode.externalApplication,
+      );
+      // Web cannot detect completion, return 'pending'
+      // Caller should show "I have paid" button
       return 'pending';
     }
+    
+    debugPrint('Could not launch URL: $checkoutUrl');
     return null;
   }
 
   // ─── MOBILE ──────────────────────────────────────────────────────────────
-  // On Android/iOS, push an in-app WebView that loads the Flutterwave JS SDK.
+  /// On Android/iOS, open checkout in in-app WebView
   static Future<String?> _startMobilePayment({
     required BuildContext context,
-    required String email, required String name,
-    required String amount, required String txRef, required String plan,
+    required String email,
+    required String name,
+    required String planId,
+    required String txRef,
+    required String currency,
   }) async {
     final result = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => _MobilePaymentPage(
-          email: email, name: name, amount: amount,
-          txRef: txRef, plan: plan,
+          email: email,
+          name: name,
+          planId: planId,
+          txRef: txRef,
+          currency: currency,
         ),
         fullscreenDialog: true,
       ),
@@ -84,15 +106,20 @@ class FlutterwavePaymentService {
   }
 }
 
-// Backward-compatible alias
-typedef FlutterwaveWebPayment = FlutterwavePaymentService;
-
 // ─── Mobile WebView Page ──────────────────────────────────────────────────────
 class _MobilePaymentPage extends StatefulWidget {
-  final String email, name, amount, txRef, plan;
+  final String email;
+  final String name;
+  final String planId;
+  final String txRef;
+  final String currency;
+
   const _MobilePaymentPage({
-    required this.email, required this.name, required this.amount,
-    required this.txRef, required this.plan,
+    required this.email,
+    required this.name,
+    required this.planId,
+    required this.txRef,
+    required this.currency,
   });
 
   @override
@@ -100,76 +127,90 @@ class _MobilePaymentPage extends StatefulWidget {
 }
 
 class _MobilePaymentPageState extends State<_MobilePaymentPage> {
-  late final WebViewController _controller;  // ← FIXED: typed, not dynamic
+  late final WebViewController _controller;
   bool _isLoading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _buildWebViewController();
+    _initWebView();
   }
 
-  void _buildWebViewController() {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) => setState(() => _isLoading = true),
-          onPageFinished: (_) => setState(() => _isLoading = false),
-          onNavigationRequest: (req) {
-            final url = req.url;
-            if (url.contains('status=successful') ||
-                (url.contains('payment/callback') &&
-                    url.contains('transaction_id'))) {
-              Navigator.of(context).pop('success');
-              return NavigationDecision.prevent;
-            }
-            if (url.contains('status=cancelled') ||
-                url.contains('status=failed')) {
-              Navigator.of(context).pop('cancelled');
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadHtmlString(_html);
+  void _initWebView() {
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (_) {
+              if (mounted) setState(() => _isLoading = true);
+            },
+            onPageFinished: (_) {
+              if (mounted) setState(() => _isLoading = false);
+            },
+            onWebResourceError: (error) {
+              debugPrint('WebView error: ${error.description}');
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _hasError = true;
+                });
+              }
+            },
+            onNavigationRequest: (req) {
+              final url = req.url;
+              debugPrint('Navigation request: $url');
+              
+              // Check for success
+              if (url.contains('status=successful') ||
+                  (url.contains('/api/payments/callback') && 
+                   url.contains('transaction_id'))) {
+                _handleSuccess();
+                return NavigationDecision.prevent;
+              }
+              
+              // Check for cancellation/failure
+              if (url.contains('status=cancelled') ||
+                  url.contains('status=failed') ||
+                  url.contains('cancel')) {
+                _handleCancellation();
+                return NavigationDecision.prevent;
+              }
+              
+              return NavigationDecision.navigate;
+            },
+          ),
+        )
+        ..loadRequest(_checkoutUri);
+    } catch (e) {
+      debugPrint('WebView init error: $e');
+      setState(() => _hasError = true);
+    }
   }
 
-  String get _html {
-    final k = AppConfig.flutterwavePublicKey;
-    final a = widget.amount;
-    final e = widget.email;
-    final n = widget.name;
-    final t = widget.txRef;
-    final p = widget.plan;
-    return '''<!DOCTYPE html><html><head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://checkout.flutterwave.com/v3.js"></script>
-<style>*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0A0A0F;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif}
-.c{text-align:center;color:#fff;padding:40px 20px}
-.t{font-size:22px;font-weight:800;color:#FFB830;margin-bottom:8px}
-.s{font-size:14px;color:#888;margin-bottom:32px}
-.a{font-size:36px;font-weight:900;color:#fff;margin-bottom:8px}
-.pl{font-size:14px;color:#FFB830;text-transform:uppercase;letter-spacing:2px;margin-bottom:32px}
-.b{background:linear-gradient(135deg,#FFB830,#FF8C00);color:#000;border:none;padding:16px 48px;border-radius:50px;font-size:16px;font-weight:800;cursor:pointer;width:100%;max-width:300px}</style>
-</head><body>
-<div class="c"><div style="font-size:48px;margin-bottom:16px">🎬</div>
-<div class="t">PromptReel AI</div>
-<div class="s">Secure payment via Flutterwave</div>
-<div class="a">\$$a/mo</div><div class="pl">$p Plan</div>
-<button class="b" onclick="pay()">Pay Now</button></div>
-<script>
-window.onload=()=>setTimeout(pay,800);
-function pay(){FlutterwaveCheckout({public_key:"$k",tx_ref:"$t",amount:$a,currency:"USD",payment_options:"card",
-redirect_url:"https://promptreel.ai/payment/callback",
-meta:{source:"promptreel_app",plan:"$p"},
-customer:{email:"$e",phone_number:"0000000000",name:"$n"},
-customizations:{title:"PromptReel AI",description:"$p Plan"},
-callback:function(d){window.location.href="https://promptreel.ai/payment/callback?status="+(d.status==="successful"||d.status==="completed"?"successful":d.status)+"&tx_ref=$t&transaction_id="+d.transaction_id;},
-onclose:function(){window.location.href="https://promptreel.ai/payment/callback?status=cancelled";}});}
-</script></body></html>''';
+  Uri get _checkoutUri {
+    return Uri.parse(
+      '${AppConfig.apiBaseUrl}/api/payments/checkout-page',
+    ).replace(queryParameters: {
+      'plan_id': widget.planId,
+      'email': widget.email,
+      'name': widget.name,
+      'tx_ref': widget.txRef,
+      'currency': widget.currency,
+    });
+  }
+
+  void _handleSuccess() {
+    if (mounted) {
+      Navigator.of(context).pop('success');
+    }
+  }
+
+  void _handleCancellation() {
+    if (mounted) {
+      Navigator.of(context).pop('cancelled');
+    }
   }
 
   @override
@@ -178,42 +219,85 @@ onclose:function(){window.location.href="https://promptreel.ai/payment/callback?
       backgroundColor: const Color(0xFF0A0A0F),
       appBar: AppBar(
         backgroundColor: const Color(0xFF12121A),
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop('cancelled'),
+          onPressed: () => _handleCancellation(),
         ),
-        title: const Text('Secure Payment',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const Text(
+          'Secure Payment',
+          style: TextStyle(color: Colors.white, fontSize: 16),
+        ),
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 16),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.green.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
-              border:
-                  Border.all(color: Colors.green.withOpacity(0.3)),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
             ),
-            child: const Row(children: [
-              Icon(Icons.lock_outline, size: 12, color: Colors.green),
-              SizedBox(width: 4),
-              Text('Secure',
-                  style:
-                      TextStyle(color: Colors.green, fontSize: 12)),
-            ]),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 12, color: Colors.green),
+                SizedBox(width: 4),
+                Text(
+                  'SSL Secure',
+                  style: TextStyle(color: Colors.green, fontSize: 12),
+                ),
+              ],
+            ),
           ),
         ],
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),  // ← FIXED: typed directly
+          WebViewWidget(controller: _controller),
           if (_isLoading)
             Container(
               color: const Color(0xFF0A0A0F),
               child: const Center(
-                child: CircularProgressIndicator(
-                    color: Color(0xFFFFB830)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: Color(0xFFFFB830)),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading secure checkout...',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_hasError)
+            Container(
+              color: const Color(0xFF0A0A0F),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, 
+                      color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Failed to load payment page',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _hasError = false;
+                          _isLoading = true;
+                        });
+                        _initWebView();
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -221,3 +305,6 @@ onclose:function(){window.location.href="https://promptreel.ai/payment/callback?
     );
   }
 }
+
+// Backward-compatible alias
+typedef FlutterwaveWebPayment = FlutterwavePaymentService;
