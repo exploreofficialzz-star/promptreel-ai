@@ -115,7 +115,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final result = await FlutterwavePaymentService.startPayment(
         context: context,
         email: user.email,
-        name: user.name ?? user.email.split('@').first,
+        name: user.name.isNotEmpty ? user.name : user.email.split('@').first,
         planId: planId,
         currency: 'USD',
       );
@@ -330,8 +330,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     
-    // Get subscription status from user model (adjust field names based on your UserModel)
-    final bool isAutoRenew = false; // TODO: Get from user model when available
+    // Check if user has active subscription
     final bool isActive = user?.plan == 'creator' || user?.plan == 'studio';
 
     return Scaffold(
