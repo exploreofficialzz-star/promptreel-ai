@@ -9,16 +9,14 @@ PromptReel AI — Flutterwave Payment Router (Production Ready)
 """
 import hashlib
 import hmac
-import json
 import logging
-import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -45,7 +43,7 @@ APP_PLANS = {
             "100 video exports/month",
             "1080p quality",
             "Basic AI voice cloning",
-            "Email support"
+            "Email support",
         ],
     },
     "studio": {
@@ -61,14 +59,15 @@ APP_PLANS = {
             "Advanced AI voice cloning",
             "Priority support",
             "Team collaboration",
-            "API access"
+            "API access",
         ],
-    }
+    },
 }
 
 _flw_plan_cache: Dict[str, int] = {}
 
-# ─── Pydantic Models ───────────────────────────────────────────────────────────
+
+# ─── Pydantic Models ──────────────────────────────────────────────────────────
 class VerifyPaymentRequest(BaseModel):
     transaction_id: Optional[str] = None
     tx_ref: str
@@ -119,12 +118,13 @@ async def _get_or_create_flw_plan(plan_key: str) -> int:
             f"{FLW_BASE_URL}/payment-plans",
             headers=_flw_headers(),
         )
-
         if resp.status_code == 200:
             existing = resp.json().get("data", [])
             for p in existing:
-                if (p.get("name") == f"PromptReel {plan['name']}" and
-                        abs(float(p.get("amount", 0)) - plan["amount"]) < 0.01):
+                if (
+                    p.get("name") == f"PromptReel {plan['name']}"
+                    and abs(float(p.get("amount", 0)) - plan["amount"]) < 0.01
+                ):
                     _flw_plan_cache[plan_key] = p["id"]
                     return p["id"]
 
@@ -140,7 +140,6 @@ async def _get_or_create_flw_plan(plan_key: str) -> int:
                 "duration": None,
             },
         )
-
         if resp.status_code in (200, 201):
             plan_id = resp.json().get("data", {}).get("id")
             _flw_plan_cache[plan_key] = plan_id
@@ -162,16 +161,13 @@ async def _lookup_tx_by_ref(tx_ref: str) -> Optional[Dict[str, Any]]:
             params={"tx_ref": tx_ref},
             headers=_flw_headers(),
         )
-
         if resp.status_code != 200:
             logger.error(f"Lookup failed: {resp.status_code}")
             return None
-
         data = resp.json().get("data", [])
         if not data:
             logger.warning(f"No transaction found for tx_ref: {tx_ref}")
             return None
-
         return data[0]
 
 
@@ -199,48 +195,43 @@ async def _get_flw_payment_methods(currency: str = "USD") -> List[str]:
 async def _verify_with_flutterwave(transaction_id: str) -> dict:
     """Verify transaction with Flutterwave."""
     url = f"{FLW_BASE_URL}/transactions/{transaction_id}/verify"
-
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(url, headers=_flw_headers())
-
     if resp.status_code != 200:
         logger.error(f"Verification failed: {resp.status_code}")
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
             "Could not verify payment",
         )
-
     body = resp.json()
     if body.get("status") != "success":
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
             f"Flutterwave error: {body.get('message', 'Unknown error')}",
         )
-
     return body.get("data", {})
 
 
 def _get_platform_redirect_urls(platform: str, request: Request) -> Dict[str, str]:
     """Generate platform-specific redirect URLs."""
     base_url = str(request.base_url).rstrip("/")
-
     if platform == "android":
         return {
             "success": "promptreel://payment/success",
             "cancel": "promptreel://payment/cancel",
-            "callback": f"{base_url}/api/payments/callback?platform=android"
+            "callback": f"{base_url}/api/payments/callback?platform=android",
         }
     elif platform == "ios":
         return {
             "success": f"{base_url}/api/payments/callback?platform=ios&status=successful",
             "cancel": f"{base_url}/api/payments/callback?platform=ios&status=cancelled",
-            "callback": f"{base_url}/api/payments/callback?platform=ios"
+            "callback": f"{base_url}/api/payments/callback?platform=ios",
         }
     else:
         return {
             "success": f"{base_url}/api/payments/callback?platform=web",
             "cancel": f"{base_url}/api/payments/callback?platform=web",
-            "callback": f"{base_url}/api/payments/callback?platform=web"
+            "callback": f"{base_url}/api/payments/callback?platform=web",
         }
 
 
@@ -255,7 +246,7 @@ def _extract_user_id_from_tx_ref(tx_ref: str) -> Optional[int]:
     return None
 
 
-# ─── API Endpoints ───────────────────────────────────────────────────────────
+# ─── API Endpoints ────────────────────────────────────────────────────────────
 @router.get("/plans")
 async def get_app_plans():
     """Return the $15 Creator and $35 Studio plans."""
@@ -271,7 +262,6 @@ async def get_payment_methods(currency: str = Query("USD")):
     """Get available payment methods."""
     currency = currency.upper()
     methods = await _get_flw_payment_methods(currency)
-
     method_names = {
         "card": "Credit/Debit Card",
         "account": "Bank Account",
@@ -294,7 +284,6 @@ async def get_payment_methods(currency: str = Query("USD")):
         "applepay": "Apple Pay",
         "internetbanking": "Internet Banking",
     }
-
     return {
         "status": "success",
         "currency": currency,
@@ -326,7 +315,6 @@ async def create_checkout(
 
     methods = await _get_flw_payment_methods(plan["currency"])
     payment_options = ",".join(methods)
-
     redirects = _get_platform_redirect_urls(req.platform or "web", request)
 
     payload = {
@@ -336,10 +324,7 @@ async def create_checkout(
         "payment_options": payment_options,
         "payment_plan": flw_plan_id,
         "redirect_url": redirects["callback"],
-        "customer": {
-            "email": req.email,
-            "name": req.name,
-        },
+        "customer": {"email": req.email, "name": req.name},
         "meta": {
             "user_id": str(current_user.id),
             "plan_id": req.plan_id,
@@ -359,55 +344,47 @@ async def create_checkout(
             headers=_flw_headers(),
             json=payload,
         )
-
         if resp.status_code != 200:
             logger.error(f"Failed to create payment: {resp.text}")
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
                 "Could not initialize payment",
             )
-
         data = resp.json().get("data", {})
 
-        response_data = {
-            "status": "success",
+    response_data = {
+        "status": "success",
+        "tx_ref": tx_ref,
+        "payment_link": data.get("link"),
+        "plan": {
+            "id": req.plan_id,
+            "name": plan["name"],
+            "amount": plan["amount"],
+            "currency": plan["currency"],
+        },
+        "payment_methods": methods,
+        "is_subscription": True,
+        "auto_renew": True,
+        "platform": req.platform or "web",
+    }
+
+    if req.platform in ["android", "ios"]:
+        response_data["inline_config"] = {
+            "public_key": settings.FLUTTERWAVE_PUBLIC_KEY,
             "tx_ref": tx_ref,
-            "payment_link": data.get("link"),
-            "plan": {
-                "id": req.plan_id,
-                "name": plan["name"],
-                "amount": plan["amount"],
-                "currency": plan["currency"],
+            "amount": plan["amount"],
+            "currency": plan["currency"],
+            "payment_options": payment_options,
+            "payment_plan": flw_plan_id,
+            "customer": {"email": req.email, "name": req.name},
+            "meta": {"user_id": str(current_user.id), "plan_id": req.plan_id},
+            "customizations": {
+                "title": "PromptReel AI",
+                "description": f"{plan['name']} Plan",
             },
-            "payment_methods": methods,
-            "is_subscription": True,
-            "auto_renew": True,
-            "platform": req.platform or "web",
         }
 
-        if req.platform in ["android", "ios"]:
-            response_data["inline_config"] = {
-                "public_key": settings.FLUTTERWAVE_PUBLIC_KEY,
-                "tx_ref": tx_ref,
-                "amount": plan["amount"],
-                "currency": plan["currency"],
-                "payment_options": payment_options,
-                "payment_plan": flw_plan_id,
-                "customer": {
-                    "email": req.email,
-                    "name": req.name,
-                },
-                "meta": {
-                    "user_id": str(current_user.id),
-                    "plan_id": req.plan_id,
-                },
-                "customizations": {
-                    "title": "PromptReel AI",
-                    "description": f"{plan['name']} Plan",
-                },
-            }
-
-        return response_data
+    return response_data
 
 
 @router.get("/checkout-page", response_class=HTMLResponse)
@@ -440,7 +417,6 @@ async def checkout_page(
 
     methods = await _get_flw_payment_methods(currency)
     payment_options = ",".join(methods)
-
     redirects = _get_platform_redirect_urls(platform, request)
 
     safe_name = name.replace("'", "\\'").replace('"', '\\"')[:50]
@@ -601,8 +577,6 @@ async def checkout_page(
     isProcessing = true;
 
     const btn = document.getElementById('payBtn');
-    const btnText = document.getElementById('btnText');
-
     btn.classList.add('loading');
     btn.disabled = true;
     updateStatus('Initializing secure payment...');
@@ -675,13 +649,14 @@ async def checkout_page(
 </body>
 </html>"""
 
+    # ✅ FIXED: Single braces — this is outside the f-string
     return HTMLResponse(
         content=html,
-        headers={{
+        headers={
             "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
             "Pragma": "no-cache",
-            "Expires": "0"
-        }},
+            "Expires": "0",
+        },
     )
 
 
@@ -701,11 +676,10 @@ async def payment_callback(
             "transaction_id": transaction_id,
             "platform": platform,
             "message": "Payment completed. Return to app to verify.",
-            "deep_link": f"promptreel://payment/verify?tx_ref={tx_ref}&transaction_id={transaction_id}&status={status}"
+            "deep_link": f"promptreel://payment/verify?tx_ref={tx_ref}&transaction_id={transaction_id}&status={status}",
         }
 
-    html = f"""
-    <!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
     <html>
     <head>
         <script>
@@ -724,11 +698,8 @@ async def payment_callback(
             }}
         </script>
     </head>
-    <body>
-        <p>Payment {status}. You can close this window.</p>
-    </body>
-    </html>
-    """
+    <body><p>Payment {status}. You can close this window.</p></body>
+    </html>"""
     return HTMLResponse(content=html)
 
 
@@ -786,16 +757,17 @@ async def verify_payment(
             f"Currency mismatch. Expected {expected_currency}",
         )
 
-    flw_plan_id = tx_data.get("plan", {}).get("id") or await _get_or_create_flw_plan(req.plan_id)
+    flw_plan_id = (
+        tx_data.get("plan", {}).get("id") or await _get_or_create_flw_plan(req.plan_id)
+    )
     subscription_id = tx_data.get("plan_token")
-
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=30)
 
     try:
         current_user.plan = PlanType(req.plan_id)
-        # ✅ FIXED: lowercase enum values
-        current_user.subscription_status = SubscriptionStatus.active
+        # ✅ FIXED: String values since subscription_status is now String column
+        current_user.subscription_status = "active"
         current_user.subscription_started_at = now
         current_user.subscription_expires_at = expires_at
         current_user.subscription_id = subscription_id or req.transaction_id
@@ -803,7 +775,6 @@ async def verify_payment(
         current_user.flw_customer_id = tx_data.get("customer", {}).get("id")
         current_user.payment_method = tx_data.get("payment_type", "unknown")
         current_user.auto_renew = True
-
         await db.commit()
         await db.refresh(current_user)
     except Exception as e:
@@ -814,7 +785,6 @@ async def verify_payment(
         )
 
     payment_method = tx_data.get("payment_type", "unknown")
-
     logger.info(
         f"✅ User {current_user.id} upgraded to {req.plan_id} | "
         f"tx={req.transaction_id} | method={payment_method} | "
@@ -851,12 +821,13 @@ async def get_subscription_status(
     return {
         "status": "success",
         "subscription": {
-            "plan": current_user.plan.value if hasattr(current_user.plan, 'value') else str(current_user.plan),
-            "status": current_user.subscription_status.value if current_user.subscription_status and hasattr(current_user.subscription_status, 'value') else "inactive",
-            "auto_renew": getattr(current_user, 'auto_renew', False),
+            "plan": current_user.plan.value if hasattr(current_user.plan, "value") else str(current_user.plan),
+            # ✅ FIXED: subscription_status is now a plain String
+            "status": current_user.subscription_status or "inactive",
+            "auto_renew": getattr(current_user, "auto_renew", False),
             "expires_at": current_user.subscription_expires_at.isoformat() if current_user.subscription_expires_at else None,
             "started_at": current_user.subscription_started_at.isoformat() if current_user.subscription_started_at else None,
-        }
+        },
     }
 
 
@@ -880,19 +851,21 @@ async def cancel_subscription(
                     headers=_flw_headers(),
                 )
                 if resp.status_code in (200, 201, 202):
-                    logger.info(f"Cancelled subscription in Flutterwave: {current_user.subscription_id}")
+                    logger.info(f"Cancelled in Flutterwave: {current_user.subscription_id}")
         except Exception as e:
             logger.error(f"Failed to cancel in Flutterwave: {e}")
 
-    # ✅ FIXED: lowercase enum values
+    # ✅ FIXED: String value
     current_user.auto_renew = False
-    current_user.subscription_status = SubscriptionStatus.cancelled
+    current_user.subscription_status = "cancelled"
     await db.commit()
 
     return {
         "success": True,
         "message": "Subscription cancelled. You have access until the end of your billing period.",
-        "access_until": current_user.subscription_expires_at.isoformat() if current_user.subscription_expires_at else None,
+        "access_until": current_user.subscription_expires_at.isoformat()
+        if current_user.subscription_expires_at
+        else None,
     }
 
 
@@ -923,30 +896,24 @@ async def flutterwave_webhook(
     payload = await request.json()
     event = payload.get("event")
     data = payload.get("data", {})
-
     logger.info(f"📡 Webhook received: {event}")
 
     if event == "charge.completed":
         tx_status = data.get("status")
         tx_ref = data.get("tx_ref")
-
         if tx_status == "successful" and tx_ref:
             user_id = _extract_user_id_from_tx_ref(tx_ref)
-
             if user_id:
                 result = await db.execute(select(User).where(User.id == user_id))
                 user = result.scalar_one_or_none()
-
-                # ✅ FIXED: lowercase enum value
-                if user and user.subscription_status == SubscriptionStatus.active:
+                # ✅ FIXED: compare with string
+                if user and user.subscription_status == "active":
                     current_expiry = user.subscription_expires_at or datetime.now(timezone.utc)
                     new_expiry = max(current_expiry, datetime.now(timezone.utc)) + timedelta(days=30)
-
                     user.subscription_expires_at = new_expiry
                     user.subscription_id = data.get("plan_token") or user.subscription_id
                     await db.commit()
-
-                    logger.info(f"🔄 Auto-renewed subscription for user {user.id}, new expiry: {new_expiry}")
+                    logger.info(f"🔄 Auto-renewed for user {user.id}, new expiry: {new_expiry}")
 
     elif event in ("subscription.cancelled", "payment_plan.subscription_cancelled"):
         subscription_id = data.get("id") or data.get("subscription_id")
@@ -955,8 +922,8 @@ async def flutterwave_webhook(
             user = result.scalar_one_or_none()
             if user:
                 user.auto_renew = False
-                # ✅ FIXED: lowercase enum value
-                user.subscription_status = SubscriptionStatus.cancelled
+                # ✅ FIXED: string value
+                user.subscription_status = "cancelled"
                 await db.commit()
                 logger.info(f"❌ Subscription cancelled for user {user.id}")
 
@@ -988,29 +955,28 @@ async def sync_subscription_status(
                 f"{FLW_BASE_URL}/subscriptions/{current_user.subscription_id}",
                 headers=_flw_headers(),
             )
-
             if resp.status_code == 200:
                 sub_data = resp.json().get("data", {})
                 flw_status = sub_data.get("status")
 
-                # ✅ FIXED: lowercase enum values
+                # ✅ FIXED: string values
                 status_map = {
-                    "active": SubscriptionStatus.active,
-                    "cancelled": SubscriptionStatus.cancelled,
-                    "expired": SubscriptionStatus.expired,
+                    "active": "active",
+                    "cancelled": "cancelled",
+                    "expired": "expired",
                 }
-
                 new_status = status_map.get(flw_status, current_user.subscription_status)
 
                 if new_status != current_user.subscription_status:
                     current_user.subscription_status = new_status
-                    current_user.auto_renew = (flw_status == "active")
+                    current_user.auto_renew = flw_status == "active"
                     await db.commit()
 
                 return {
                     "status": "synced",
                     "flutterwave_status": flw_status,
-                    "local_status": current_user.subscription_status.value,
+                    # ✅ FIXED: plain string, no .value needed
+                    "local_status": current_user.subscription_status or "inactive",
                     "next_payment": sub_data.get("next_payment_date"),
                     "auto_renew": current_user.auto_renew,
                 }
