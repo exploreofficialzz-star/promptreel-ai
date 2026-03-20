@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -21,7 +21,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
 
 # ─── Rate Limiter ──────────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
@@ -64,39 +63,48 @@ if not settings.DEBUG:
             "promptreel.ai",
             "localhost",
             "127.0.0.1",
+            "*",  # ✅ Allow all for WebView compatibility
         ],
     )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    # ✅ Allow all origins so Android/iOS WebViews can load checkout page
+    allow_origins=["*"],
+    allow_credentials=False,  # ✅ Must be False when allow_origins=["*"]
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Accept", "Accept-Language", "Content-Language",
-        "Content-Type", "Authorization", "X-Requested-With",
-    ],
+    allow_headers=["*"],
     max_age=600,
 )
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
+async def add_security_headers(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
-    response.headers["X-Process-Time"]         = f"{process_time:.3f}s"
-    response.headers["X-Powered-By"]           = "PromptReel AI by chAs Tech Group"
+
+    response.headers["X-Process-Time"] = f"{process_time:.3f}s"
+    response.headers["X-Powered-By"] = "PromptReel AI by chAs Tech Group"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"]        = "DENY"
-    response.headers["X-XSS-Protection"]       = "1; mode=block"
-    response.headers["Referrer-Policy"]        = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"]     = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
+    # ✅ FIXED: Only add X-Frame-Options on non-payment pages
+    # Payment checkout pages must be embeddable in Android/iOS WebViews
+    path = request.url.path
+    is_payment_page = "/payments/checkout" in path or "/payments/callback" in path
+    if not is_payment_page:
+        response.headers["X-Frame-Options"] = "DENY"
+
     if not settings.DEBUG:
         response.headers["Strict-Transport-Security"] = (
             "max-age=63072000; includeSubDomains; preload"
         )
+
     return response
 
 
@@ -111,7 +119,10 @@ async def not_found_handler(request: Request, exc):
 
 @app.exception_handler(405)
 async def method_not_allowed_handler(request: Request, exc):
-    return JSONResponse(status_code=405, content={"error": "Method not allowed"})
+    return JSONResponse(
+        status_code=405,
+        content={"error": "Method not allowed"},
+    )
 
 
 @app.exception_handler(500)
@@ -129,14 +140,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         f"Unhandled exception on {request.method} {request.url.path}: {exc}",
         exc_info=True,
     )
-    return JSONResponse(status_code=500, content={"error": "An unexpected error occurred."})
+    return JSONResponse(
+        status_code=500,
+        content={"error": "An unexpected error occurred."},
+    )
 
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
-app.include_router(auth.router, prefix="/api")
+app.include_router(auth.router,     prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
+app.include_router(export.router,   prefix="/api")
 app.include_router(payments.router, prefix="/api")
 
 
@@ -144,20 +158,20 @@ app.include_router(payments.router, prefix="/api")
 @app.get("/")
 async def root():
     return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "tagline": "Turn simple ideas into complete AI video production plans.",
-        "status": "operational",
+        "app":       settings.APP_NAME,
+        "version":   settings.APP_VERSION,
+        "tagline":   "Turn simple ideas into complete AI video production plans.",
+        "status":    "operational",
         "developer": "chAs Tech Group",
-        "docs": "/docs",
+        "docs":      "/docs",
     }
 
 
 @app.get("/health")
 async def health():
     return {
-        "status": "healthy",
-        "app": settings.APP_NAME,
+        "status":  "healthy",
+        "app":     settings.APP_NAME,
         "version": settings.APP_VERSION,
     }
 
@@ -224,4 +238,4 @@ if __name__ == "__main__":
         workers=1 if settings.DEBUG else 4,
         proxy_headers=True,
         forwarded_allow_ips="*",
-    )
+)
