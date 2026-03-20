@@ -9,8 +9,9 @@ Future<void> downloadBytes({
   String? text,
 }) async {
   final blob = html.Blob([bytes], mimeType);
-  final url  = html.Url.createObjectUrlFromBlob(blob);
-  final anchor = html.AnchorElement(href: url)
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  // ✅ No variable assignment — cascade directly on AnchorElement
+  html.AnchorElement(href: url)
     ..setAttribute('download', filename)
     ..click();
   html.Url.revokeObjectUrl(url);
@@ -23,8 +24,9 @@ Future<void> downloadString({
   String? subject,
 }) async {
   final blob = html.Blob([content], mimeType);
-  final url  = html.Url.createObjectUrlFromBlob(blob);
-  final anchor = html.AnchorElement(href: url)
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  // ✅ No variable assignment — cascade directly on AnchorElement
+  html.AnchorElement(href: url)
     ..setAttribute('download', filename)
     ..click();
   html.Url.revokeObjectUrl(url);
