@@ -1,18 +1,15 @@
 name: 🍎 iOS Build & Release
 
+# ── Disabled until Apple Developer account is ready ──────────────────────────
+# To re-enable: change workflow_dispatch back to push/tags trigger
+# and add the required secrets to your repo.
 on:
-  push:
-    branches: [main]
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      export_method:
-        description: 'Export method'
+      confirm:
+        description: 'Type YES to confirm you have added all Apple secrets'
         required: true
-        default: 'ad-hoc'
-        type: choice
-        options: [app-store, ad-hoc, development]
+        default: 'NO'
 
 env:
   FLUTTER_VERSION: '3.24.0'
@@ -21,6 +18,7 @@ jobs:
   build-ios:
     name: 🏗️ Build iOS IPA
     runs-on: macos-latest
+    if: github.event.inputs.confirm == 'YES'
     env:
       HAS_CERT: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' }}
       HAS_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
@@ -42,26 +40,6 @@ jobs:
         working-directory: frontend/ios
         run: pod install --repo-update
 
-      # ── Patch Xcode project to disable code signing for unsigned CI builds ─
-      - name: Disable code signing in Xcode project
-        if: env.HAS_CERT == 'false'
-        working-directory: frontend/ios
-        run: |
-          sed -i '' \
-            's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "";/g' \
-            Runner.xcodeproj/project.pbxproj
-          sed -i '' \
-            's/CODE_SIGN_IDENTITY = [^;]*;/CODE_SIGN_IDENTITY = "";/g' \
-            Runner.xcodeproj/project.pbxproj
-          sed -i '' \
-            's/CODE_SIGNING_REQUIRED = [^;]*;/CODE_SIGNING_REQUIRED = NO;/g' \
-            Runner.xcodeproj/project.pbxproj
-          sed -i '' \
-            's/CODE_SIGNING_ALLOWED = [^;]*;/CODE_SIGNING_ALLOWED = NO;/g' \
-            Runner.xcodeproj/project.pbxproj
-          echo "✅ Code signing disabled in project.pbxproj"
-
-      # ── Signing — only runs when secrets are set ──────────────────────────
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'
         env:
@@ -91,17 +69,15 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # ── Build ─────────────────────────────────────────────────────────────
-      - name: Build iOS (no codesign)
+      - name: Build iOS
         working-directory: frontend
         run: |
-          flutter build ios --release --no-codesign \
+          flutter build ios --release \
             --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
             --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }} \
             --build-name=1.1.0 \
             --build-number=2
 
-      # ── Archive & Export — only runs when signing secrets are set ─────────
       - name: Archive & Export IPA
         if: env.HAS_CERT == 'true'
         working-directory: frontend/ios
@@ -128,44 +104,23 @@ jobs:
           path: ${{ runner.temp }}/export/*.ipa
           retention-days: 30
 
-      # ── Confirmation when no signing secrets yet ──────────────────────────
-      - name: ✅ Build complete (unsigned)
-        if: env.HAS_CERT == 'false'
-        run: |
-          echo "✅ iOS build succeeded (unsigned)"
-          echo "ℹ️  To enable full IPA export, add these secrets to your repo:"
-          echo "   - IOS_CERTIFICATE_BASE64"
-          echo "   - IOS_CERTIFICATE_PASSWORD"
-          echo "   - IOS_KEYCHAIN_PASSWORD"
-          echo "   - IOS_PROVISIONING_PROFILE_BASE64"
-          echo "   - APPLE_TEAM_ID"
-
-  # ── TestFlight Upload on Tag ───────────────────────────────────────────────
   testflight:
     name: 📤 Upload to TestFlight
     runs-on: macos-latest
     needs: build-ios
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.confirm == 'YES'
     env:
       HAS_CERT: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' }}
     steps:
-      - name: Check signing secrets
-        if: env.HAS_CERT != 'true'
-        run: |
-          echo "⚠️ Skipping TestFlight — IOS_CERTIFICATE_BASE64 secret not set."
-          exit 0
-
       - uses: actions/checkout@v4
 
       - name: Download IPA
-        if: env.HAS_CERT == 'true'
         uses: actions/download-artifact@v4
         with:
           name: promptreel-ios-${{ github.sha }}
           path: ipa/
 
       - name: Upload to App Store Connect
-        if: env.HAS_CERT == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
