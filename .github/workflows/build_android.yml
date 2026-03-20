@@ -34,22 +34,18 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Fix app_tracking_transparency version
-        working-directory: frontend
-        run: |
-          sed -i 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
-
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
 
+      # ── Auto-format first, then analyze ───────────────────────────────────
+      - name: Format code
+        working-directory: frontend
+        run: dart format lib/
+
       - name: Analyze code
         working-directory: frontend
         run: flutter analyze --no-fatal-warnings
-
-      - name: Check formatting
-        working-directory: frontend
-        run: dart format --output=none --set-exit-if-changed lib/
 
   build-android:
     name: 🏗️ Build Android
@@ -80,15 +76,11 @@ jobs:
           key: gradle-${{ hashFiles('frontend/android/**/*.gradle*', 'frontend/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Fix app_tracking_transparency version
-        working-directory: frontend
-        run: |
-          sed -i 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
-
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
 
+      # ── Signing Setup ──────────────────────────────────────────────────────
       - name: Decode keystore
         if: github.event_name != 'pull_request'
         working-directory: frontend/android/app
@@ -112,6 +104,7 @@ jobs:
           storeFile=../app/promptreel-release.jks
           EOF
 
+      # ── Build ──────────────────────────────────────────────────────────────
       - name: Build APK (debug)
         if: github.event_name == 'pull_request'
         working-directory: frontend
@@ -135,6 +128,7 @@ jobs:
             --dart-define=API_BASE_URL=https://promptreel-ai.onrender.com \
             --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }}
 
+      # ── Upload Artifacts ───────────────────────────────────────────────────
       - name: Upload APK
         uses: actions/upload-artifact@v4
         if: always()
@@ -151,6 +145,7 @@ jobs:
           path: frontend/build/app/outputs/bundle/release/*.aab
           retention-days: 60
 
+  # ── GitHub Release on Tag ──────────────────────────────────────────────────
   release:
     name: 🚀 Create GitHub Release
     runs-on: ubuntu-latest
