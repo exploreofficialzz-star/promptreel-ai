@@ -21,7 +21,7 @@ dependencies:
   dio: ^5.7.0
   pretty_dio_logger: ^1.3.1
   connectivity_plus: ^6.1.0
-  http: ^1.2.0  # Added for payment API calls
+  http: ^1.2.0                          # ← ADDED
 
   # ── Local Storage ─────────────────────────────────────────────────────────
   flutter_secure_storage: ^9.2.2
@@ -50,17 +50,16 @@ dependencies:
   # ── Icons ─────────────────────────────────────────────────────────────────
   iconsax_flutter: ^1.0.1
 
-  # ── Payments (Flutterwave) ──────────────────────────────────────────────
+  # ── Payments ──────────────────────────────────────────────────────────────
   webview_flutter: ^4.8.0
-  webview_flutter_wkwebview: ^3.13.0  # iOS WebView support
-  webview_flutter_android: ^3.16.0     # Android WebView support
+  webview_flutter_wkwebview: ^3.13.0    # ← ADDED (iOS WebView engine)
 
   # ── Monetization ──────────────────────────────────────────────────────────
   google_mobile_ads: ^5.3.1
   # app_tracking_transparency: iOS ATT prompt (AdMob personalised ads iOS 14.5+).
   # This package is iOS-only; the kIsWeb guard in main.dart ensures
   # it is never called on web or Android.
-  app_tracking_transparency: ^2.0.6+1  # ← FIXED (was ^3.0.1)
+  app_tracking_transparency: ^2.0.6+1
 
   cupertino_icons: ^1.0.8
 
