@@ -1,12 +1,15 @@
 name: 🌐 Deploy Marketing Website to GitHub Pages
 
+# ✅ Disabled — website is now deployed together with Flutter web
+# by deploy_flutter_web.yml which combines both into one deployment.
+# Having two workflows deploy to GitHub Pages causes them to overwrite each other.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'website/**'
-      - '.github/workflows/deploy_website.yml'
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'This workflow is disabled. Use deploy_flutter_web.yml instead.'
+        required: true
+        default: 'no'
 
 permissions:
   contents: read
@@ -18,43 +21,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-website:
-    name: 🏗️ Prepare Website
+  disabled:
+    name: ⚠️ Disabled
     runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'yes'
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Validate HTML
+      - name: Notice
         run: |
-          echo "Checking website files..."
-          ls -la website/
-          test -f website/index.html    || (echo "❌ Missing index.html"    && exit 1)
-          test -f website/manifest.json || (echo "❌ Missing manifest.json" && exit 1)
-          test -f website/robots.txt    || (echo "❌ Missing robots.txt"    && exit 1)
-          echo "✅ All required website files present"
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: website/
-
-  deploy-website:
-    name: 🚀 Deploy to GitHub Pages
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build-website
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Print live URL
-        run: |
-          echo "✅ Marketing website live at: ${{ steps.deployment.outputs.page_url }}"
+          echo "⚠️ This workflow is disabled."
+          echo "Website is deployed by deploy_flutter_web.yml instead."
+          echo "Both website and Flutter web are combined in one deployment."
