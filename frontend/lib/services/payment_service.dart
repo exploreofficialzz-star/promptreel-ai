@@ -4,10 +4,9 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-// Import platform-specific webview packages
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../config/app_config.dart';
@@ -25,14 +24,6 @@ enum PaymentStatus {
 /// - Web     → opens checkout in popup with postMessage communication
 /// - Mobile  → opens checkout in in-app WebView with JavaScript channels
 class FlutterwavePaymentService {
-  static const MethodChannel _channel = MethodChannel('com.promptreel/payment');
-  
-  /// Stream controller for payment events (for state management)
-  static final StreamController<PaymentEvent> _paymentEvents = 
-      StreamController<PaymentEvent>.broadcast();
-  
-  static Stream<PaymentEvent> get paymentEvents => _paymentEvents.stream;
-
   /// Start payment process
   /// Returns PaymentResult with status and transaction details
   static Future<PaymentResult> startPayment({
@@ -52,10 +43,10 @@ class FlutterwavePaymentService {
 
     // Generate txRef if not provided
     final String finalTxRef = txRef ?? _generateTxRef(planId);
-    
+
     try {
       PaymentResult result;
-      
+
       if (kIsWeb) {
         result = await _startWebPayment(
           email: email,
@@ -81,14 +72,6 @@ class FlutterwavePaymentService {
       } else if (result.status == PaymentStatus.cancelled && onCancel != null) {
         onCancel();
       }
-
-      // Emit event for global state management
-      _paymentEvents.add(PaymentEvent(
-        status: result.status,
-        txRef: finalTxRef,
-        planId: planId,
-        transactionId: result.transactionId,
-      ));
 
       return result;
     } catch (e, stackTrace) {
@@ -129,49 +112,20 @@ class FlutterwavePaymentService {
 
     debugPrint('🌐 Web Payment URL: $checkoutUrl');
 
-    // For web, we need to handle the popup and postMessage
-    // This requires JavaScript interop
-    try {
-      final result = await _launchWebPopup(checkoutUrl.toString(), txRef);
-      return result;
-    } catch (e) {
-      debugPrint('Web payment error: $e');
-      // Fallback: just open in new tab and return pending
-      if (await canLaunchUrl(checkoutUrl)) {
-        await launchUrl(
-          checkoutUrl,
-          mode: LaunchMode.externalApplication,
-        );
-        return PaymentResult(
-          status: PaymentStatus.pending,
-          txRef: txRef,
-          message: 'Payment opened in new tab. Please complete and return.',
-        );
-      }
-      rethrow;
+    // For web, open in new tab and return pending
+    if (await canLaunchUrl(checkoutUrl)) {
+      await launchUrl(
+        checkoutUrl,
+        mode: LaunchMode.externalApplication,
+      );
+      return PaymentResult(
+        status: PaymentStatus.pending,
+        txRef: txRef,
+        message: 'Payment opened in new tab. Please complete and return.',
+      );
     }
-  }
 
-  /// Launch web popup with postMessage listener
-  static Future<PaymentResult> _launchWebPopup(String url, String txRef) async {
-    // This uses JS interop to open popup and listen for messages
-    // Implementation depends on your web setup (dart:html or package:web)
-    
-    // For now, return pending - implement with dart:html in web directory
-    // ignore: avoid_web_libraries_in_flutter
-    // final result = await html.window.open(url, 'payment');
-    
-    // Simplified: Open in new tab and return pending
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-    
-    return PaymentResult(
-      status: PaymentStatus.pending,
-      txRef: txRef,
-      message: 'Complete payment in the opened tab',
-    );
+    throw Exception('Could not launch payment URL');
   }
 
   // ─── MOBILE IMPLEMENTATION ────────────────────────────────────────────────
@@ -210,11 +164,14 @@ class FlutterwavePaymentService {
     required String planId,
   }) async {
     try {
+      // Get auth token from your auth provider/storage
+      final token = await _getAuthToken();
+      
       final response = await http.post(
         Uri.parse('${AppConfig.apiBaseUrl}/api/payments/verify'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${await AuthService.getToken()}',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'tx_ref': txRef,
@@ -249,10 +206,12 @@ class FlutterwavePaymentService {
   /// Cancel auto-renewal subscription
   static Future<bool> cancelSubscription() async {
     try {
+      final token = await _getAuthToken();
+      
       final response = await http.post(
         Uri.parse('${AppConfig.apiBaseUrl}/api/payments/subscription/cancel'),
         headers: {
-          'Authorization': 'Bearer ${await AuthService.getToken()}',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
       );
       return response.statusCode == 200;
@@ -265,10 +224,12 @@ class FlutterwavePaymentService {
   /// Get current subscription status
   static Future<SubscriptionStatus?> getSubscriptionStatus() async {
     try {
+      final token = await _getAuthToken();
+      
       final response = await http.get(
         Uri.parse('${AppConfig.apiBaseUrl}/api/payments/subscription/status'),
         headers: {
-          'Authorization': 'Bearer ${await AuthService.getToken()}',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
       );
 
@@ -281,6 +242,14 @@ class FlutterwavePaymentService {
       debugPrint('Get subscription status error: $e');
       return null;
     }
+  }
+
+  // Helper to get auth token - implement based on your auth system
+  static Future<String?> _getAuthToken() async {
+    // Replace with your actual token retrieval logic
+    // Example: return await SecureStorage.read('auth_token');
+    // Or: return await AuthService.getToken();
+    return null;
   }
 }
 
@@ -351,8 +320,7 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
           },
           onWebResourceError: (WebResourceError error) {
             debugPrint('❌ WebView error: ${error.description} (Code: ${error.errorCode})');
-            // Don't show error for cancellation
-            if (error.errorCode != -3) { // -3 is often cancellation
+            if (error.errorCode != -3) {
               setState(() {
                 _isLoading = false;
                 _hasError = true;
@@ -364,19 +332,16 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
             final url = request.url;
             debugPrint('🔗 Navigation request: $url');
 
-            // Handle success
             if (_isSuccessUrl(url)) {
               _handleSuccess(url);
               return NavigationDecision.prevent;
             }
 
-            // Handle cancellation
             if (_isCancelUrl(url)) {
               _handleCancellation();
               return NavigationDecision.prevent;
             }
 
-            // Handle deep links back to app
             if (url.startsWith('promptreel://')) {
               _handleDeepLink(url);
               return NavigationDecision.prevent;
@@ -387,10 +352,8 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
         ),
       );
 
-    // Add JavaScript channels for communication
     _addJavaScriptChannels(controller);
 
-    // Load checkout page
     final checkoutUrl = _buildCheckoutUrl();
     controller.loadRequest(checkoutUrl);
 
@@ -411,7 +374,6 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
   }
 
   void _addJavaScriptChannels(WebViewController controller) {
-    // For Android
     controller.addJavaScriptChannel(
       'PromptReelAndroid',
       onMessageReceived: (JavaScriptMessage message) {
@@ -420,7 +382,6 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
       },
     );
 
-    // For iOS (using different channel name)
     controller.addJavaScriptChannel(
       'PromptReel',
       onMessageReceived: (JavaScriptMessage message) {
@@ -446,18 +407,15 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
   }
 
   void _injectJavaScriptBridge() {
-    // Inject JavaScript to bridge Flutterwave callback with our channels
     const script = '''
       (function() {
-        // Override Flutterwave callback if exists
         if (window.FlutterwaveCheckout) {
-          const originalCallback = window.FlutterwaveCheckout;
+          const originalCheckout = window.FlutterwaveCheckout;
           window.FlutterwaveCheckout = function(config) {
             const originalOnClose = config.onclose;
             const originalCallback = config.callback;
             
             config.callback = function(data) {
-              // Send to Flutter
               const message = JSON.stringify({
                 status: data.status,
                 transaction_id: data.transaction_id,
@@ -485,11 +443,10 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
               if (originalOnClose) originalOnClose();
             };
             
-            return originalCallback(config);
+            return originalCheckout(config);
           };
         }
         
-        // Listen for postMessage from checkout page
         window.addEventListener('message', function(event) {
           if (event.data && event.data.type === 'PAYMENT_SUCCESS') {
             const message = JSON.stringify(event.data.data);
@@ -520,7 +477,6 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
   }
 
   void _handleSuccess(String url) {
-    // Extract transaction ID from URL
     String? transactionId;
     try {
       final uri = Uri.parse(url);
@@ -555,7 +511,6 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
   }
 
   void _handleDeepLink(String url) {
-    // Parse deep link
     if (url.contains('success')) {
       _handleSuccess(url);
     } else if (url.contains('cancel')) {
@@ -725,22 +680,6 @@ class PaymentVerificationResult {
     this.subscription,
     required this.message,
   });
-}
-
-class PaymentEvent {
-  final PaymentStatus status;
-  final String txRef;
-  final String planId;
-  final String? transactionId;
-  final DateTime timestamp;
-
-  PaymentEvent({
-    required this.status,
-    required this.txRef,
-    required this.planId,
-    this.transactionId,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
 }
 
 class SubscriptionStatus {
