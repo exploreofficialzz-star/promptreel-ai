@@ -12,6 +12,15 @@ class PlanType(str, enum.Enum):
     STUDIO  = "studio"
 
 
+# ✅ ADDED: SubscriptionStatus enum used by payments.py
+class SubscriptionStatus(str, enum.Enum):
+    active    = "active"
+    inactive  = "inactive"
+    cancelled = "cancelled"
+    expired   = "expired"
+    trial     = "trial"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -101,4 +110,3 @@ class User(Base):
         if self.is_paid:
             return 20
         return 5
-
