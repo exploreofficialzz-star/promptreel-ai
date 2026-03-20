@@ -1,13 +1,9 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/api_service.dart';
-import '../../services/flutterwave_payment_service.dart'; // NEW: Cross-platform payment service
+import '../../services/payment_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
@@ -54,7 +50,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'name': 'Creator',
       'price_label': r'$15',
       'period': '/month',
-      'amount_usd': 15.0, // Use actual value, not AppConfig
+      'amount_usd': 15.0,
       'popular': true,
       'color': 0xFFFFB830,
       'ai_primary': 'GPT-4o-mini',
@@ -78,7 +74,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       'name': 'Studio',
       'price_label': r'$35',
       'period': '/month',
-      'amount_usd': 35.0, // Use actual value, not AppConfig
+      'amount_usd': 35.0,
       'color': 0xFF00E5CC,
       'ai_primary': 'GPT-4o',
       'ai_chain':
@@ -116,7 +112,6 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
     try {
       // ─── CROSS-PLATFORM PAYMENT ─────────────────────────────────────────
-      // Uses FlutterwavePaymentService which handles Web, Android, iOS automatically
       final result = await FlutterwavePaymentService.startPayment(
         context: context,
         email: user.email,
@@ -141,13 +136,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
         case PaymentStatus.pending:
           // Web platform: show waiting dialog for user to complete in browser
-          if (kIsWeb) {
-            await _showWebPaymentWaitingDialog(
-              planName: plan['name'] as String,
-              amount: (plan['amount_usd'] as double).toStringAsFixed(2),
-              txRef: result.txRef,
-            );
-          }
+          await _showWebPaymentWaitingDialog(
+            planName: plan['name'] as String,
+            amount: (plan['amount_usd'] as double).toStringAsFixed(2),
+            txRef: result.txRef,
+          );
           break;
 
         case PaymentStatus.cancelled:
@@ -336,6 +329,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
+    
+    // Get subscription status from user model (adjust field names based on your UserModel)
+    final bool isAutoRenew = false; // TODO: Get from user model when available
+    final bool isActive = user?.plan == 'creator' || user?.plan == 'studio';
+
     return Scaffold(
       body: Container(
         decoration:
@@ -354,7 +352,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                     style: AppTypography.headlineMedium),
                 actions: [
                   // Subscription status indicator
-                  if (user?.subscription_status == 'active')
+                  if (isActive)
                     Container(
                       margin: const EdgeInsets.only(right: 16),
                       padding: const EdgeInsets.symmetric(
@@ -368,7 +366,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.auto_renew,
+                          Icon(Icons.sync,
                               size: 14, color: AppColors.success),
                           const SizedBox(width: 4),
                           Text(
@@ -411,7 +409,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                       }),
                       _buildPaymentInfo(),
                       const SizedBox(height: AppSpacing.md),
-                      _buildAutoRenewalInfo(), // NEW: Auto-renewal info
+                      _buildAutoRenewalInfo(),
                       const SizedBox(height: AppSpacing.md),
                       _buildFaq(),
                     ],
@@ -478,7 +476,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                   Text('Secure Payment via Flutterwave',
                       style: AppTypography.titleMedium),
                   Text(
-                    'Worldwide • Cards • Bank • Mobile Money • ${kIsWeb ? 'Browser' : 'In-App'}',
+                    'Worldwide • Cards • Bank • Mobile Money',
                     style: AppTypography.labelSmall,
                   ),
                 ],
@@ -505,7 +503,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     );
   }
 
-  // ─── NEW: Auto-Renewal Info Card ───────────────────────────────────────────
+  // ─── Auto-Renewal Info Card ───────────────────────────────────────────
   Widget _buildAutoRenewalInfo() {
     return AppCard(
       child: Column(
@@ -651,7 +649,6 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Icon ──────────────────────────────────────────────────────────
           Container(
             width: 72,
             height: 72,
@@ -664,14 +661,10 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // ── Title ─────────────────────────────────────────────────────────
           Text('Complete Payment\nin Browser',
               style: AppTypography.headlineMedium,
               textAlign: TextAlign.center),
           const SizedBox(height: 10),
-
-          // ── Plan info ─────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: 16, vertical: 10),
@@ -694,7 +687,6 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 12),
-
           Text(
             'Flutterwave has opened in your browser.\n'
             'Complete your payment there, then\n'
@@ -703,8 +695,6 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
-
-          // ── Show txRef toggle ─────────────────────────────────────────────
           GestureDetector(
             onTap: () => setState(() => _showTxRef = !_showTxRef),
             child: Text(
@@ -715,16 +705,12 @@ class _PaymentWaitingDialogState extends State<_PaymentWaitingDialog> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // ── Paid button ───────────────────────────────────────────────────
           AppButton(
             label: '✅  I Have Paid',
             onPressed: () => Navigator.of(context).pop(true),
             fullWidth: true,
           ),
           const SizedBox(height: 8),
-
-          // ── Cancel button ─────────────────────────────────────────────────
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(
@@ -839,7 +825,6 @@ class _PlanCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header ───────────────────────────────────────────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -881,8 +866,6 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ],
               ),
-
-              // ── AI Badge ──────────────────────────────────────────────────
               if (plan['ai_badge'] != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Container(
@@ -907,12 +890,9 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ),
               ],
-
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),
-
-              // ── Features ──────────────────────────────────────────────────
               ...features.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
@@ -928,8 +908,6 @@ class _PlanCard extends StatelessWidget {
                       ],
                     ),
                   )),
-
-              // ── Missing ───────────────────────────────────────────────────
               if (missing.isNotEmpty)
                 ...missing.map((f) => Padding(
                       padding: const EdgeInsets.only(bottom: 6),
@@ -942,10 +920,7 @@ class _PlanCard extends StatelessWidget {
                                 style: AppTypography.bodySmall)),
                       ]),
                     )),
-
               const SizedBox(height: AppSpacing.md),
-
-              // ── CTA ───────────────────────────────────────────────────────
               if (!isFree && !isCurrent)
                 AppButton(
                   label: isLoading
@@ -999,8 +974,6 @@ class _PlanCard extends StatelessWidget {
             ],
           ),
         ),
-
-        // ── Popular Badge ─────────────────────────────────────────────────
         if (isPopular)
           Positioned(
             top: -12,
