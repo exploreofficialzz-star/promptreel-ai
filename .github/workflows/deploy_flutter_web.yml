@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'website/**'
       - '.github/workflows/deploy_flutter_web.yml'
   workflow_dispatch:
 
@@ -55,26 +56,39 @@ jobs:
             --dart-define=FLW_PUBLIC_KEY=${{ secrets.FLW_PUBLIC_KEY }} \
             --base-href /promptreel-ai/app/
 
-      - name: Upload Flutter web build
+      # ✅ Combine website + Flutter web into one deployment folder
+      - name: Combine website and Flutter web
+        run: |
+          mkdir -p combined
+          # Copy marketing website to root
+          cp -r website/. combined/
+          # Copy Flutter web build to /app/ subfolder
+          mkdir -p combined/app
+          cp -r frontend/build/web/. combined/app/
+          echo "✅ Combined structure:"
+          ls -la combined/
+          ls -la combined/app/
+
+      - name: Upload combined build
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-web-build
-          path: frontend/build/web/
+          name: combined-web-build
+          path: combined/
           retention-days: 7
 
   deploy-flutter-web:
-    name: 🚀 Deploy Flutter Web to GitHub Pages
+    name: 🚀 Deploy to GitHub Pages
     needs: build-flutter-web
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Download Flutter web build
+      - name: Download combined build
         uses: actions/download-artifact@v4
         with:
-          name: flutter-web-build
-          path: app/
+          name: combined-web-build
+          path: combined/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -82,8 +96,13 @@ jobs:
       - name: Upload to Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: app/
+          path: combined/
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Print URLs
+        run: |
+          echo "✅ Marketing site: https://exploreofficialzz-star.github.io/promptreel-ai/"
+          echo "✅ Flutter web app: https://exploreofficialzz-star.github.io/promptreel-ai/app/"
