@@ -243,6 +243,57 @@ class FlutterwavePaymentService {
     }
   }
 
+  /// Get available payment methods from backend
+  static Future<List<Map<String, String>>?> getPaymentMethods({String currency = 'USD'}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.apiBaseUrl}/api/payments/methods?currency=$currency'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final methods = data['payment_methods'] as List<dynamic>;
+        return methods.map((m) => {
+          'id': m['id'] as String,
+          'name': m['name'] as String,
+        }).toList();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Get payment methods error: $e');
+      return null;
+    }
+  }
+
+  /// Retry failed payment verification (for pending transactions)
+  static Future<PaymentVerificationResult> retryVerification({
+    required String txRef,
+    required String planId,
+    int maxRetries = 3,
+  }) async {
+    for (int i = 0; i < maxRetries; i++) {
+      final result = await verifyPayment(
+        txRef: txRef,
+        transactionId: '0',
+        planId: planId,
+      );
+      
+      if (result.success) {
+        return result;
+      }
+      
+      // Wait before retry
+      if (i < maxRetries - 1) {
+        await Future.delayed(Duration(seconds: 2 * (i + 1)));
+      }
+    }
+    
+    return PaymentVerificationResult(
+      success: false,
+      message: 'Payment verification failed after $maxRetries attempts',
+    );
+  }
+
   // Helper to get auth token - implement based on your auth system
   static Future<String?> _getAuthToken() async {
     // Replace with your actual token retrieval logic
@@ -279,11 +330,28 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
   bool _hasError = false;
   String? _errorMessage;
   int _progress = 0;
+  Timer? _timeoutTimer;
 
   @override
   void initState() {
     super.initState();
     _initWebView();
+    // Set timeout for payment (5 minutes)
+    _timeoutTimer = Timer(const Duration(minutes: 5), () {
+      if (mounted && _isLoading) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = 'Payment session timed out. Please try again.';
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timeoutTimer?.cancel();
+    super.dispose();
   }
 
   void _initWebView() {
@@ -518,6 +586,7 @@ class _MobilePaymentScreenState extends State<MobilePaymentScreen> {
   }
 
   void _returnResult(PaymentResult result) {
+    _timeoutTimer?.cancel();
     if (mounted) {
       Navigator.of(context).pop(result);
     }
