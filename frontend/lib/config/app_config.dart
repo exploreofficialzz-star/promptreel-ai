@@ -17,14 +17,35 @@ class AppConfig {
   static const int    connectTimeoutMs = 30000;
   static const int    receiveTimeoutMs = 300000; // 5 minutes for generation
 
+  // ✅ FIX #1: Added apiBaseUrl getter (required by payment_service.dart)
+  static String get apiBaseUrl {
+    return baseUrl.endsWith('/') 
+        ? baseUrl.substring(0, baseUrl.length - 1) 
+        : baseUrl;
+  }
+
   // ── Flutterwave ───────────────────────────────────────────────────────────
   static const String flutterwavePublicKey = String.fromEnvironment(
     'FLW_PUBLIC_KEY',
     defaultValue: '', // Set via --dart-define=FLW_PUBLIC_KEY=FLWPUBK_LIVE-... at build time
   );
-  static const bool   flutterwaveTestMode = false; // Set to true for sandbox testing
-  static const double creatorPriceUsd     = 15.00;
-  static const double studioPriceUsd      = 35.00;
+  
+  // ✅ FIX #2: Added flwPublicKey getter (used by payment_service.dart)
+  static String get flwPublicKey {
+    if (flutterwavePublicKey.isEmpty) {
+      throw Exception('FLW_PUBLIC_KEY not set! Add: --dart-define=FLW_PUBLIC_KEY=FLWPUBK_live_XXX');
+    }
+    return flutterwavePublicKey;
+  }
+
+  // ✅ FIX #3: Changed from hardcoded false to environment variable with production default
+  static const bool flutterwaveTestMode = bool.fromEnvironment(
+    'FLW_TEST_MODE',
+    defaultValue: false, // Production default (false), set to true only for testing
+  );
+
+  static const double creatorPriceUsd = 15.00;
+  static const double studioPriceUsd  = 35.00;
 
   // ── Storage Keys ──────────────────────────────────────────────────────────
   static const String tokenKey        = 'access_token';
@@ -133,8 +154,8 @@ class AppConfig {
     {'minutes': 1,  'label': '1 min',  'desc': 'Quick bite'},
     {'minutes': 3,  'label': '3 min',  'desc': 'Short form'},
     {'minutes': 5,  'label': '5 min',  'desc': 'Standard'},
-    {'minutes': 10, 'label': '10 min', 'desc': 'Deep dive'},
-    {'minutes': 20, 'label': '20 min', 'desc': 'Long form', 'paid': true},
+    {'minutes': 10, 'label': '10 min',  'desc': 'Deep dive'},
+    {'minutes': 20, 'label': '20 min',  'desc': 'Long form', 'paid': true},
   ];
 
   // ── Generators ────────────────────────────────────────────────────────────
