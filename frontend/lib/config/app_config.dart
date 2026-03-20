@@ -17,7 +17,7 @@ class AppConfig {
   static const int    connectTimeoutMs = 30000;
   static const int    receiveTimeoutMs = 300000; // 5 minutes for generation
 
-  // ✅ FIX #1: Added apiBaseUrl getter (required by payment_service.dart)
+  // ✅ FIX #1: Added apiBaseUrl getter   (required by payment_service.dart)
   static String get apiBaseUrl {
     return baseUrl.endsWith('/') 
         ? baseUrl.substring(0, baseUrl.length - 1) 
