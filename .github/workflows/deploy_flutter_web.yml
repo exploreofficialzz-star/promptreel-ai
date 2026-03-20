@@ -34,16 +34,15 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Fix app_tracking_transparency version
+      - name: Format code
         working-directory: frontend
-        run: |
-          sed -i 's/app_tracking_transparency: \^3.0.1/app_tracking_transparency: ^2.0.6+1/' pubspec.yaml
+        run: dart format lib/
 
       - name: Install dependencies
         working-directory: frontend
         run: flutter pub get
 
-      - name: Analyze (no fatal warnings)
+      - name: Analyze
         working-directory: frontend
         run: flutter analyze --no-fatal-warnings
 
@@ -79,8 +78,6 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload to Pages
         uses: actions/upload-pages-artifact@v3
