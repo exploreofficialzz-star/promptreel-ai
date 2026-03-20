@@ -52,12 +52,9 @@ class User(Base):
     subscription_id         = Column(String(255), nullable=True)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    # ── Subscription extended fields (used by payments.py) ───────────────────
-    subscription_status     = Column(
-        SAEnum(SubscriptionStatus, native_enum=False),
-        default=SubscriptionStatus.inactive,
-        nullable=True,
-    )
+    # ── Subscription extended fields ──────────────────────────────────────────
+    # ✅ FIX: Using String instead of SAEnum to avoid PostgreSQL native enum conflict
+    subscription_status     = Column(String(20), default='inactive', nullable=True)
     subscription_started_at = Column(DateTime(timezone=True), nullable=True)
     flw_plan_id             = Column(String(255), nullable=True)
     flw_customer_id         = Column(String(255), nullable=True)
