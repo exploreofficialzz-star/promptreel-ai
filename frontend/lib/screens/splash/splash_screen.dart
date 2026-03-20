@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // MethodChannel for ATT
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +16,9 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  // ✅ FIX: prevents _init() from navigating more than once
+  bool _navigated = false;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +39,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!mounted) return;
 
+    // ✅ FIX: only navigate once even if widget rebuilds
+    if (_navigated) return;
+    _navigated = true;
+
     // Check auth and navigate
     final isLoggedIn = await ref.read(apiServiceProvider).isLoggedIn();
 
@@ -52,14 +59,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   /// Only called on mobile (guarded by !kIsWeb above).
   Future<void> _requestATT() async {
     try {
-      // Use the plugin's method channel directly so we avoid importing dart:io.
-      // The app_tracking_transparency plugin handles the iOS-only check internally.
       const channel = MethodChannel('app_tracking_transparency');
-      final status = await channel.invokeMethod<int>('getTrackingAuthorizationStatus');
+      final status = await channel
+          .invokeMethod<int>('getTrackingAuthorizationStatus');
       // 0 = notDetermined — show the prompt
       if (status == 0) {
         await Future.delayed(const Duration(milliseconds: 600));
-        await channel.invokeMethod<void>('requestTrackingAuthorization');
+        await channel
+            .invokeMethod<void>('requestTrackingAuthorization');
       }
     } catch (_) {
       // ATT not available (Android, simulator without entitlement) — safe to skip
@@ -114,7 +121,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     'assets/icon/app_icon.png',
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) {
-                      // Fallback if image not found
                       return Container(
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -164,7 +170,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               )
                   .animate(delay: 400.ms)
                   .fadeIn(duration: 700.ms)
-                  .slideY(begin: 0.4, end: 0,
+                  .slideY(
+                      begin: 0.4,
+                      end: 0,
                       curve: Curves.easeOutCubic),
 
               const SizedBox(height: 12),
@@ -192,7 +200,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
               // ── Loading Bar ───────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 80),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 80),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
