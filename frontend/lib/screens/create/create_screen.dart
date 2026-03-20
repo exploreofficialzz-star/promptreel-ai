@@ -8,7 +8,6 @@ import '../../providers/projects_provider.dart';
 import '../../services/ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/app_button.dart';
-import '../../widgets/common/section_selector.dart';
 import '../../widgets/ads/banner_ad_widget.dart';
 import '../../config/app_config.dart';
 
@@ -21,7 +20,7 @@ class CreateScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
-  final _ideaCtrl  = TextEditingController();
+  final _ideaCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   int _currentStep = 0;
   static const int _totalSteps = 3;
@@ -30,180 +29,244 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   static const Map<String, List<Map<String, dynamic>>> _contentTypeOptions = {
     'Educational': [
       {
-        'key': 'target_audience', 'label': 'Target Audience', 'icon': '👥',
+        'key': 'target_audience',
+        'label': 'Target Audience',
+        'icon': '👥',
         'options': ['Kids (5-12)', 'Teens (13-17)', 'Adults (18+)', 'Professionals'],
         'default': 'Adults (18+)',
       },
       {
-        'key': 'teaching_style', 'label': 'Teaching Style', 'icon': '📖',
+        'key': 'teaching_style',
+        'label': 'Teaching Style',
+        'icon': '📖',
         'options': ['Lecture style', 'Step-by-step tutorial', 'Storytelling', 'Q&A format'],
         'default': 'Step-by-step tutorial',
       },
       {
-        'key': 'complexity', 'label': 'Complexity Level', 'icon': '🎯',
+        'key': 'complexity',
+        'label': 'Complexity Level',
+        'icon': '🎯',
         'options': ['Beginner friendly', 'Intermediate', 'Advanced', 'Expert level'],
         'default': 'Beginner friendly',
       },
     ],
     'Narration': [
       {
-        'key': 'narrator_voice', 'label': 'Narrator Voice', 'icon': '🎙️',
+        'key': 'narrator_voice',
+        'label': 'Narrator Voice',
+        'icon': '🎙️',
         'options': ['Male voice', 'Female voice', 'Child voice', 'Elderly voice'],
         'default': 'Male voice',
       },
       {
-        'key': 'narrator_accent', 'label': 'Narrator Accent', 'icon': '🌍',
+        'key': 'narrator_accent',
+        'label': 'Narrator Accent',
+        'icon': '🌍',
         'options': ['American English', 'British English', 'Australian', 'African', 'Neutral international'],
         'default': 'Neutral international',
       },
       {
-        'key': 'narration_pace', 'label': 'Narration Pace', 'icon': '⏱️',
+        'key': 'narration_pace',
+        'label': 'Narration Pace',
+        'icon': '⏱️',
         'options': ['Slow & deliberate', 'Normal pace', 'Fast-paced', 'Dynamic (varies)'],
         'default': 'Normal pace',
       },
       {
-        'key': 'story_pov', 'label': 'Story POV', 'icon': '👁️',
+        'key': 'story_pov',
+        'label': 'Story POV',
+        'icon': '👁️',
         'options': ['First person (I/me)', 'Second person (you)', 'Third person (he/she/they)', 'Omniscient narrator'],
         'default': 'Third person (he/she/they)',
       },
     ],
     'Commentary': [
       {
-        'key': 'opinion_strength', 'label': 'Opinion Strength', 'icon': '💬',
+        'key': 'opinion_strength',
+        'label': 'Opinion Strength',
+        'icon': '💬',
         'options': ['Mild & balanced', 'Moderate opinions', 'Strong opinions', 'Very provocative'],
         'default': 'Moderate opinions',
       },
       {
-        'key': 'commentary_style', 'label': 'Commentary Style', 'icon': '🎤',
+        'key': 'commentary_style',
+        'label': 'Commentary Style',
+        'icon': '🎤',
         'options': ['Deep analysis', 'Reaction style', 'Review format', 'Debate style', 'Explainer'],
         'default': 'Deep analysis',
       },
       {
-        'key': 'presenter_energy', 'label': 'Presenter Energy', 'icon': '⚡',
+        'key': 'presenter_energy',
+        'label': 'Presenter Energy',
+        'icon': '⚡',
         'options': ['Calm & measured', 'Enthusiastic', 'Intense & passionate', 'Sarcastic & witty'],
         'default': 'Enthusiastic',
       },
     ],
     'Documentary': [
       {
-        'key': 'documentary_style', 'label': 'Documentary Style', 'icon': '🎬',
+        'key': 'documentary_style',
+        'label': 'Documentary Style',
+        'icon': '🎬',
         'options': ['Nature & wildlife', 'True crime', 'Historical', 'Science & tech', 'Social issues', 'Biography'],
         'default': 'Historical',
       },
       {
-        'key': 'narration_tone', 'label': 'Narration Tone', 'icon': '🎭',
+        'key': 'narration_tone',
+        'label': 'Narration Tone',
+        'icon': '🎭',
         'options': ['Serious & factual', 'Suspenseful', 'Inspiring & hopeful', 'Neutral & journalistic'],
         'default': 'Serious & factual',
       },
       {
-        'key': 'evidence_style', 'label': 'Evidence Style', 'icon': '📊',
+        'key': 'evidence_style',
+        'label': 'Evidence Style',
+        'icon': '📊',
         'options': ['Interview-based', 'Data & statistics', 'Field footage style', 'Archive materials', 'Mixed approach'],
         'default': 'Mixed approach',
       },
     ],
     'Storytelling': [
       {
-        'key': 'story_genre', 'label': 'Story Genre', 'icon': '📚',
+        'key': 'story_genre',
+        'label': 'Story Genre',
+        'icon': '📚',
         'options': ['Adventure', 'Romance', 'Mystery & thriller', 'Fantasy', 'Sci-fi', 'Drama', 'Folklore & legend'],
         'default': 'Adventure',
       },
       {
-        'key': 'main_character', 'label': 'Main Character Type', 'icon': '🦸',
+        'key': 'main_character',
+        'label': 'Main Character Type',
+        'icon': '🦸',
         'options': ['Classic hero', 'Anti-hero', 'Unlikely hero', 'Ensemble cast', 'No main character'],
         'default': 'Classic hero',
       },
       {
-        'key': 'story_arc', 'label': 'Story Arc', 'icon': '📈',
+        'key': 'story_arc',
+        'label': 'Story Arc',
+        'icon': '📈',
         'options': ['Hero\'s journey', 'Redemption arc', 'Revenge story', 'Discovery & growth', 'Survival story'],
         'default': 'Hero\'s journey',
       },
     ],
     'Comedy': [
       {
-        'key': 'humor_style', 'label': 'Humor Style', 'icon': '😂',
+        'key': 'humor_style',
+        'label': 'Humor Style',
+        'icon': '😂',
         'options': ['Dry & sarcastic', 'Slapstick & physical', 'Dark humor', 'Observational', 'Absurd & surreal', 'Puns & wordplay'],
         'default': 'Observational',
       },
       {
-        'key': 'comedy_pacing', 'label': 'Comedy Pacing', 'icon': '⏩',
+        'key': 'comedy_pacing',
+        'label': 'Comedy Pacing',
+        'icon': '⏩',
         'options': ['Rapid-fire jokes', 'Slow burn comedy', 'Build-up & payoff', 'Dynamic mixed pace'],
         'default': 'Build-up & payoff',
       },
       {
-        'key': 'comedy_format', 'label': 'Comedy Format', 'icon': '🎪',
+        'key': 'comedy_format',
+        'label': 'Comedy Format',
+        'icon': '🎪',
         'options': ['Stand-up style', 'Sketch comedy', 'Roast style', 'Parody & satire', 'Storytelling with jokes'],
         'default': 'Storytelling with jokes',
       },
     ],
     'Horror': [
       {
-        'key': 'scare_type', 'label': 'Scare Type', 'icon': '👻',
+        'key': 'scare_type',
+        'label': 'Scare Type',
+        'icon': '👻',
         'options': ['Psychological horror', 'Jump scare based', 'Slow dread buildup', 'Gore & graphic', 'Supernatural', 'Thriller & suspense'],
         'default': 'Psychological horror',
       },
       {
-        'key': 'horror_subgenre', 'label': 'Horror Subgenre', 'icon': '🕯️',
+        'key': 'horror_subgenre',
+        'label': 'Horror Subgenre',
+        'icon': '🕯️',
         'options': ['Ghost story', 'Slasher', 'Cosmic horror', 'Survival horror', 'Paranormal', 'Creature feature'],
         'default': 'Ghost story',
       },
       {
-        'key': 'atmosphere', 'label': 'Atmosphere', 'icon': '🌑',
+        'key': 'atmosphere',
+        'label': 'Atmosphere',
+        'icon': '🌑',
         'options': ['Dark & oppressive', 'Silent & tense', 'Chaotic & frantic', 'Surreal & dreamlike', 'Isolated & lonely'],
         'default': 'Dark & oppressive',
       },
     ],
     'Motivational': [
       {
-        'key': 'energy_level', 'label': 'Energy Level', 'icon': '🔥',
+        'key': 'energy_level',
+        'label': 'Energy Level',
+        'icon': '🔥',
         'options': ['Calm & inspiring', 'High energy', 'Intense & urgent', 'Gentle & nurturing', 'Raw & real'],
         'default': 'High energy',
       },
       {
-        'key': 'target_audience', 'label': 'Target Audience', 'icon': '🎯',
+        'key': 'target_audience',
+        'label': 'Target Audience',
+        'icon': '🎯',
         'options': ['Entrepreneurs', 'Athletes & fitness', 'Students', 'General public', 'People in struggle', 'Success seekers'],
         'default': 'General public',
       },
       {
-        'key': 'message_style', 'label': 'Message Style', 'icon': '💪',
+        'key': 'message_style',
+        'label': 'Message Style',
+        'icon': '💪',
         'options': ['Personal story', 'Facts & statistics', 'Famous quotes', 'Direct challenge', 'Step-by-step guide'],
         'default': 'Personal story',
       },
     ],
     'News': [
       {
-        'key': 'reporting_style', 'label': 'Reporting Style', 'icon': '📰',
+        'key': 'reporting_style',
+        'label': 'Reporting Style',
+        'icon': '📰',
         'options': ['Breaking news', 'In-depth investigation', 'Opinion & editorial', 'Feature story', 'Explainer journalism'],
         'default': 'Breaking news',
       },
       {
-        'key': 'news_tone', 'label': 'News Tone', 'icon': '📡',
+        'key': 'news_tone',
+        'label': 'News Tone',
+        'icon': '📡',
         'options': ['Urgent & immediate', 'Neutral & objective', 'Investigative', 'Conversational', 'Formal & authoritative'],
         'default': 'Neutral & objective',
       },
       {
-        'key': 'presenter_format', 'label': 'Presenter Format', 'icon': '🎙️',
+        'key': 'presenter_format',
+        'label': 'Presenter Format',
+        'icon': '🎙️',
         'options': ['Anchor desk style', 'Field reporter', 'Documentary explainer', 'Podcast style', 'Interview format'],
         'default': 'Anchor desk style',
       },
     ],
     'Realistic': [
       {
-        'key': 'character_gender', 'label': 'Main Character Gender', 'icon': '👤',
+        'key': 'character_gender',
+        'label': 'Main Character Gender',
+        'icon': '👤',
         'options': ['Male', 'Female', 'Non-binary', 'No main character'],
         'default': 'Male',
       },
       {
-        'key': 'character_age', 'label': 'Character Age', 'icon': '🎂',
+        'key': 'character_age',
+        'label': 'Character Age',
+        'icon': '🎂',
         'options': ['Child (5-12)', 'Teen (13-17)', 'Young adult (18-30)', 'Middle-aged (31-55)', 'Elderly (55+)'],
         'default': 'Young adult (18-30)',
       },
       {
-        'key': 'character_accent', 'label': 'Character Voice & Accent', 'icon': '🗣️',
+        'key': 'character_accent',
+        'label': 'Character Voice & Accent',
+        'icon': '🗣️',
         'options': ['American English', 'British English', 'African accent', 'Asian accent', 'Latin accent', 'Australian', 'No dialogue'],
         'default': 'American English',
       },
       {
-        'key': 'setting_type', 'label': 'Setting Type', 'icon': '🌍',
+        'key': 'setting_type',
+        'label': 'Setting Type',
+        'icon': '🌍',
         'options': ['Urban city', 'Rural countryside', 'Indoor domestic', 'Outdoor nature', 'Fantasy realistic', 'Industrial', 'Coastal'],
         'default': 'Urban city',
       },
@@ -230,10 +293,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   Future<void> _generate() async {
     final form = ref.read(generateFormProvider);
     if (!form.isValid) {
-      _showError('Please enter a video idea (at least 10 characters)');
+      _showIdeaValidationMessage();
       return;
     }
-    final success = await ref.read(generationProvider.notifier).generate(form);
+    final success =
+        await ref.read(generationProvider.notifier).generate(form);
     if (success && mounted) {
       final project = ref.read(generationProvider).project;
       if (project != null) {
@@ -249,6 +313,42 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     }
   }
 
+  // ✅ FIXED: friendly validation message when idea is empty/too short
+  void _showIdeaValidationMessage() {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Text('💡 ', style: TextStyle(fontSize: 18)),
+            const Expanded(
+              child: Text(
+                'Maybe type your video idea you want to create today...',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    // Scroll back to top so user sees the text field
+    _scrollCtrl.animateTo(
+      0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+    );
+  }
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -262,12 +362,22 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     );
   }
 
+  // ✅ FIXED: validate idea before proceeding from step 0
   void _nextStep() {
+    if (_currentStep == 0) {
+      final idea = _ideaCtrl.text.trim();
+      if (idea.length < 10) {
+        _showIdeaValidationMessage();
+        return;
+      }
+    }
     if (_currentStep < _totalSteps - 1) {
       setState(() => _currentStep++);
-      _scrollCtrl.animateTo(0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut);
+      _scrollCtrl.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -278,13 +388,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   @override
   Widget build(BuildContext context) {
     final formState = ref.watch(generateFormProvider);
-    final genState  = ref.watch(generationProvider);
-    final user      = ref.watch(currentUserProvider);
+    final genState = ref.watch(generationProvider);
+    final user = ref.watch(currentUserProvider);
 
     return Scaffold(
       body: StickyBannerAd(
         child: Container(
-          decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+          decoration:
+              const BoxDecoration(gradient: AppColors.backgroundGradient),
           child: SafeArea(
             child: Column(
               children: [
@@ -293,10 +404,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     controller: _scrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
-                      transitionBuilder: (child, anim) => FadeTransition(
+                      transitionBuilder: (child, anim) =>
+                          FadeTransition(
                         opacity: anim,
                         child: SlideTransition(
                           position: Tween(
@@ -331,14 +444,17 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded,
                 color: AppColors.textPrimary),
-            onPressed: _currentStep > 0 ? _prevStep : () => context.go('/home'),
+            onPressed: _currentStep > 0
+                ? _prevStep
+                : () => context.go('/home'),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Create Video Plan', style: AppTypography.headlineMedium),
+                Text('Create Video Plan',
+                    style: AppTypography.headlineMedium),
                 Text(
                   'Step ${_currentStep + 1} of $_totalSteps',
                   style: AppTypography.bodySmall,
@@ -358,17 +474,23 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       child: Row(
         children: List.generate(_totalSteps, (i) {
           final isActive = i == _currentStep;
-          final isDone   = i < _currentStep;
+          final isDone = i < _currentStep;
           return Expanded(
             child: Padding(
-              padding: EdgeInsets.only(right: i < _totalSteps - 1 ? 6 : 0),
+              padding: EdgeInsets.only(
+                  right: i < _totalSteps - 1 ? 6 : 0),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 height: 4,
                 decoration: BoxDecoration(
-                  gradient: isDone || isActive ? AppColors.primaryGradient : null,
-                  color: isDone || isActive ? null : AppColors.border,
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  gradient: isDone || isActive
+                      ? AppColors.primaryGradient
+                      : null,
+                  color: isDone || isActive
+                      ? null
+                      : AppColors.border,
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                 ),
               ),
             ),
@@ -380,10 +502,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   Widget _buildStep(formState, user) {
     switch (_currentStep) {
-      case 0: return _buildStep1(formState, user);
-      case 1: return _buildStep2(formState, user);
-      case 2: return _buildStep3(formState, user);
-      default: return const SizedBox();
+      case 0:
+        return _buildStep1(formState, user);
+      case 1:
+        return _buildStep2(formState, user);
+      case 2:
+        return _buildStep3(formState, user);
+      default:
+        return const SizedBox();
     }
   }
 
@@ -392,8 +518,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('🎬', 'Your Video Idea', 'What is your video about?'),
+        _sectionTitle('🎬', 'Your Video Idea',
+            'What is your video about?'),
         const SizedBox(height: AppSpacing.sm),
+
+        // ── Idea Text Field ────────────────────────────────────────────────
         TextField(
           controller: _ideaCtrl,
           maxLines: 4,
@@ -401,43 +530,221 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           onChanged: ref.read(generateFormProvider.notifier).setIdea,
           style: AppTypography.bodyLarge.copyWith(fontSize: 15),
           decoration: InputDecoration(
-            hintText: 'e.g. "Top 10 deadliest snakes in the world and how to survive them"',
+            hintText:
+                'e.g. "Top 10 deadliest snakes in the world and how to survive them"',
             hintMaxLines: 3,
             counterStyle: AppTypography.labelSmall,
             alignLabelWithHint: true,
+            // ✅ Show helper text guiding user
+            helperText: _ideaCtrl.text.trim().isEmpty
+                ? '💡 Type your video idea to get started'
+                : null,
+            helperStyle: AppTypography.labelSmall
+                .copyWith(color: AppColors.primary),
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        SectionSelector<String>(
-          label: 'Content Type',
-          selected: formState.contentType,
-          onSelect: ref.read(generateFormProvider.notifier).setContentType,
-          options: AppConfig.contentTypes
-              .map((t) => SectionOption<String>(
-                    value: t['name'],
-                    label: t['name'],
-                    emoji: t['icon'],
-                    description: t['desc'],
-                  ))
-              .toList(),
-        ),
+
+        const SizedBox(height: AppSpacing.xl),
+
+        // ── Content Type ───────────────────────────────────────────────────
+        _sectionTitle('🎭', 'Content Type',
+            'What style of video are you creating?'),
+        const SizedBox(height: AppSpacing.md),
+
+        // ✅ FIXED: Custom content type grid with proper spacing
+        _buildContentTypeGrid(formState),
+
         const SizedBox(height: AppSpacing.md),
         _buildContentTypeOptions(formState),
-        const SizedBox(height: AppSpacing.lg),
-        SectionSelector<String>(
-          label: 'Target Platform',
-          selected: formState.platform,
-          onSelect: ref.read(generateFormProvider.notifier).setPlatform,
-          options: AppConfig.platforms
-              .map((p) => SectionOption<String>(
-                    value: p['name'],
-                    label: p['name'],
-                    emoji: p['icon'],
-                  ))
-              .toList(),
-        ),
+
+        const SizedBox(height: AppSpacing.xl),
+
+        // ── Target Platform ────────────────────────────────────────────────
+        _sectionTitle('📱', 'Target Platform',
+            'Where will you publish this video?'),
+        const SizedBox(height: AppSpacing.md),
+        _buildPlatformGrid(formState),
       ],
     ).animate().fadeIn();
+  }
+
+  // ✅ NEW: Custom content type grid with proper spacing
+  Widget _buildContentTypeGrid(formState) {
+    final contentTypes = AppConfig.contentTypes;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,  // ✅ Proper horizontal spacing
+        mainAxisSpacing: 12,   // ✅ Proper vertical spacing
+        childAspectRatio: 2.4, // ✅ Good card proportions
+      ),
+      itemCount: contentTypes.length,
+      itemBuilder: (context, i) {
+        final type = contentTypes[i];
+        final name = type['name'] as String;
+        final icon = type['icon'] as String;
+        final desc = type['desc'] as String;
+        final isSelected = formState.contentType == name;
+        final color = _getContentTypeColor(name);
+
+        return GestureDetector(
+          onTap: () => ref
+              .read(generateFormProvider.notifier)
+              .setContentType(name),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: isSelected ? AppColors.cardGradient : null,
+              color: isSelected ? null : AppColors.surfaceElevated,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: isSelected
+                    ? color.withOpacity(0.7)
+                    : AppColors.border,
+                width: isSelected ? 1.5 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: color.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      )
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                // ✅ Icon container
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? color.withOpacity(0.15)
+                        : AppColors.border.withOpacity(0.3),
+                    borderRadius:
+                        BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Center(
+                    child: Text(icon,
+                        style: const TextStyle(fontSize: 18)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // ✅ Text
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        name,
+                        style: AppTypography.titleMedium.copyWith(
+                          color: isSelected
+                              ? color
+                              : AppColors.textPrimary,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        desc,
+                        style: AppTypography.labelSmall.copyWith(
+                          color: isSelected
+                              ? color.withOpacity(0.8)
+                              : AppColors.textMuted,
+                          fontSize: 10,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+            .animate(
+                delay: Duration(milliseconds: i * 40))
+            .fadeIn()
+            .scale(begin: const Offset(0.95, 0.95));
+      },
+    );
+  }
+
+  // ✅ NEW: Custom platform grid with proper spacing
+  Widget _buildPlatformGrid(formState) {
+    final platforms = AppConfig.platforms;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.8,
+      ),
+      itemCount: platforms.length,
+      itemBuilder: (context, i) {
+        final platform = platforms[i];
+        final name = platform['name'] as String;
+        final icon = platform['icon'] as String;
+        final isSelected = formState.platform == name;
+
+        return GestureDetector(
+          onTap: () => ref
+              .read(generateFormProvider.notifier)
+              .setPlatform(name),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              gradient: isSelected ? AppColors.cardGradient : null,
+              color: isSelected ? null : AppColors.surfaceElevated,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.primary.withOpacity(0.7)
+                    : AppColors.border,
+                width: isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(icon,
+                    style: const TextStyle(fontSize: 20)),
+                const SizedBox(height: 4),
+                Text(
+                  name,
+                  style: AppTypography.labelSmall.copyWith(
+                    color: isSelected
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                    fontWeight: isSelected
+                        ? FontWeight.w700
+                        : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        )
+            .animate(
+                delay: Duration(milliseconds: i * 30))
+            .fadeIn();
+      },
+    );
   }
 
   // ── Content Type Options Panel ────────────────────────────────────────────
@@ -445,9 +752,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final options = _contentTypeOptions[formState.contentType];
     if (options == null || options.isEmpty) return const SizedBox();
 
-    final contentType     = formState.contentType as String;
-    final selectedOptions = formState.contentTypeOptions as Map<String, String>;
-    final accentColor     = _getContentTypeColor(contentType);
+    final contentType = formState.contentType as String;
+    final selectedOptions =
+        formState.contentTypeOptions as Map<String, String>;
+    final accentColor = _getContentTypeColor(contentType);
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
@@ -470,7 +778,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 Expanded(
                   child: Text(
                     '$contentType Settings',
-                    style: AppTypography.titleMedium.copyWith(color: accentColor),
+                    style: AppTypography.titleMedium
+                        .copyWith(color: accentColor),
                   ),
                 ),
               ],
@@ -480,14 +789,15 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 style: AppTypography.bodySmall),
             const SizedBox(height: AppSpacing.md),
             ...options.map((opt) {
-              final key       = opt['key'] as String;
-              final label     = opt['label'] as String;
-              final icon      = opt['icon'] as String;
-              final choices   = opt['options'] as List<String>;
-              final defaultVal= opt['default'] as String;
-              final selected  = selectedOptions[key] ?? defaultVal;
+              final key = opt['key'] as String;
+              final label = opt['label'] as String;
+              final icon = opt['icon'] as String;
+              final choices = opt['options'] as List<String>;
+              final defaultVal = opt['default'] as String;
+              final selected = selectedOptions[key] ?? defaultVal;
               return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                padding:
+                    const EdgeInsets.only(bottom: AppSpacing.md),
                 child: _buildOptionSelector(
                   key: key,
                   label: label,
@@ -536,12 +846,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               onTap: () => onSelect(choice),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? accentColor.withOpacity(0.15)
                       : AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.full),
                   border: Border.all(
                     color: isSelected
                         ? accentColor.withOpacity(0.6)
@@ -552,9 +864,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 child: Text(
                   choice,
                   style: AppTypography.labelSmall.copyWith(
-                    color: isSelected ? accentColor : AppColors.textSecondary,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: isSelected
+                        ? accentColor
+                        : AppColors.textSecondary,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -570,36 +885,116 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('⏱️', 'Video Duration', 'How long should your video be?'),
-        const SizedBox(height: AppSpacing.sm),
-        SectionSelector<int>(
-          label: '',
-          selected: formState.durationMinutes,
-          onSelect: ref.read(generateFormProvider.notifier).setDuration,
-          options: AppConfig.durations.map((d) {
-            final isPaid   = d['paid'] == true;
-            final isLocked = isPaid && (user?.isFree ?? true);
-            return SectionOption<int>(
-              value: d['minutes'] as int,
-              label: d['label'] as String,
-              description: d['desc'] as String,
-              locked: isLocked,
-            );
-          }).toList(),
+        _sectionTitle('⏱️', 'Video Duration',
+            'How long should your video be?'),
+        const SizedBox(height: AppSpacing.md),
+
+        // ✅ Duration grid with proper spacing
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.6,
+          ),
+          itemCount: AppConfig.durations.length,
+          itemBuilder: (context, i) {
+            final d = AppConfig.durations[i];
+            final isPaid = d['paid'] == true;
+            final isLocked =
+                isPaid && (user?.isFree ?? true);
+            final minutes = d['minutes'] as int;
+            final isSelected =
+                formState.durationMinutes == minutes;
+
+            return GestureDetector(
+              onTap: isLocked
+                  ? () => _showError(
+                      'Upgrade to Creator to unlock longer videos')
+                  : () => ref
+                      .read(generateFormProvider.notifier)
+                      .setDuration(minutes),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? AppColors.cardGradient
+                      : null,
+                  color: isSelected
+                      ? null
+                      : AppColors.surfaceElevated,
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.primary.withOpacity(0.7)
+                        : AppColors.border,
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Column(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            d['label'] as String,
+                            style: AppTypography.titleMedium
+                                .copyWith(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            d['desc'] as String,
+                            style: AppTypography.labelSmall
+                                .copyWith(fontSize: 9),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isLocked)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Icon(Icons.lock_outline,
+                            size: 12,
+                            color: AppColors.textMuted),
+                      ),
+                  ],
+                ),
+              ),
+            )
+                .animate(
+                    delay: Duration(milliseconds: i * 40))
+                .fadeIn();
+          },
         ),
-        const SizedBox(height: AppSpacing.lg),
+
+        const SizedBox(height: AppSpacing.xl),
         _sectionTitle('🤖', 'AI Video Generator',
             'Which AI will you use to create the video?'),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.md),
+
         ...AppConfig.generators.asMap().entries.map((e) {
-          final gen        = e.value;
+          final gen = e.value;
           final isSelected = formState.generator == gen['name'];
           final clipDuration = gen['clip'] as int;
           final totalScenes =
-              _getDurationSeconds(formState.durationMinutes) ~/ clipDuration;
+              _getDurationSeconds(formState.durationMinutes) ~/
+                  clipDuration;
 
           return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 10),
             child: GestureDetector(
               onTap: () => ref
                   .read(generateFormProvider.notifier)
@@ -608,16 +1003,22 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  gradient: isSelected ? AppColors.cardGradient : null,
-                  color: isSelected ? null : AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  gradient: isSelected
+                      ? AppColors.cardGradient
+                      : null,
+                  color: isSelected
+                      ? null
+                      : AppColors.surfaceElevated,
+                  borderRadius:
+                      BorderRadius.circular(AppRadius.md),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.primary.withOpacity(0.6)
                         : AppColors.border,
                     width: isSelected ? 1.5 : 1,
                   ),
-                  boxShadow: isSelected ? AppShadows.primary : null,
+                  boxShadow:
+                      isSelected ? AppShadows.primary : null,
                 ),
                 child: Row(
                   children: [
@@ -638,7 +1039,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Text(gen['name'] as String,
                               style: AppTypography.titleMedium),
@@ -652,8 +1054,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.1),
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.full),
+                        borderRadius: BorderRadius.circular(
+                            AppRadius.full),
                       ),
                       child: Text(
                         '$totalScenes scenes',
@@ -665,7 +1067,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 ),
               ),
             )
-                .animate(delay: Duration(milliseconds: e.key * 50))
+                .animate(
+                    delay: Duration(
+                        milliseconds: e.key * 50))
                 .fadeIn()
                 .slideX(begin: -0.05),
           );
@@ -676,29 +1080,34 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   // ── Step 3: Voice-Over + Review ───────────────────────────────────────────
   Widget _buildStep3(formState, user) {
-    final clipDuration    = _getClipDuration(formState.generator);
-    final totalScenes     =
-        _getDurationSeconds(formState.durationMinutes) ~/ clipDuration;
-    final selectedOptions = formState.contentTypeOptions as Map<String, String>;
-    final contentTypeOpts = _contentTypeOptions[formState.contentType] ?? [];
+    final clipDuration = _getClipDuration(formState.generator);
+    final totalScenes =
+        _getDurationSeconds(formState.durationMinutes) ~/
+            clipDuration;
+    final selectedOptions =
+        formState.contentTypeOptions as Map<String, String>;
+    final contentTypeOpts =
+        _contentTypeOptions[formState.contentType] ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
-        // ── Section Title ──────────────────────────────────────────────────
-        _sectionTitle('⚙️', 'Final Options', 'Almost ready — one last step'),
+        _sectionTitle(
+            '⚙️', 'Final Options', 'Almost ready — one last step'),
         const SizedBox(height: AppSpacing.md),
 
         // ── Voice-Over Card ────────────────────────────────────────────────
         _buildFeatureCard(
           icon: '🎙️',
           title: 'Generate Voice-Over Script',
-          subtitle: 'Timed narration with [MM:SS] markers ready for ElevenLabs or any TTS tool',
+          subtitle:
+              'Timed narration with [MM:SS] markers ready for ElevenLabs or any TTS tool',
           badge: 'OPTIONAL',
           badgeColor: AppColors.secondary,
           value: formState.generateVoiceOver,
-          onChanged: ref.read(generateFormProvider.notifier).setGenerateVoiceOver,
+          onChanged: ref
+              .read(generateFormProvider.notifier)
+              .setGenerateVoiceOver,
         ),
 
         const SizedBox(height: AppSpacing.lg),
@@ -747,43 +1156,50 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   formState.platform),
               _reviewRow(Icons.timer_outlined, 'Duration',
                   '${formState.durationMinutes} minutes'),
-              _reviewRow(Icons.movie_creation_outlined, 'Generator',
-                  formState.generator),
-              _reviewRow(Icons.slideshow_outlined,
-    'Total Scenes', '$totalScenes clips × ${clipDuration}s'),
+              _reviewRow(Icons.movie_creation_outlined,
+                  'Generator', formState.generator),
+              _reviewRow(
+                  Icons.slideshow_outlined,
+                  'Total Scenes',
+                  '$totalScenes clips × ${clipDuration}s'),
               _reviewRow(
                 Icons.record_voice_over_outlined,
                 'Voice-Over',
-                formState.generateVoiceOver ? '✅ Included' : '— Not included',
+                formState.generateVoiceOver
+                    ? '✅ Included'
+                    : '— Not included',
               ),
-
-              // Content type settings in summary
               if (contentTypeOpts.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Divider(
                     height: 20,
-                    color: _getContentTypeColor(formState.contentType)
+                    color: _getContentTypeColor(
+                            formState.contentType)
                         .withOpacity(0.3)),
                 Row(
                   children: [
-                    Text(_getContentTypeIcon(formState.contentType),
+                    Text(
+                        _getContentTypeIcon(
+                            formState.contentType),
                         style: const TextStyle(fontSize: 13)),
                     const SizedBox(width: 6),
                     Text(
                       '${formState.contentType} Settings',
                       style: AppTypography.labelMedium.copyWith(
-                        color: _getContentTypeColor(formState.contentType),
+                        color: _getContentTypeColor(
+                            formState.contentType),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 ...contentTypeOpts.map((opt) {
-                  final key       = opt['key'] as String;
-                  final label     = opt['label'] as String;
-                  final defaultVal= opt['default'] as String;
-                  final value     = selectedOptions[key] ?? defaultVal;
-                  return _reviewRow(Icons.tune_outlined, label, value);
+                  final key = opt['key'] as String;
+                  final label = opt['label'] as String;
+                  final defaultVal = opt['default'] as String;
+                  final value = selectedOptions[key] ?? defaultVal;
+                  return _reviewRow(
+                      Icons.tune_outlined, label, value);
                 }),
               ],
             ],
@@ -859,7 +1275,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon circle
           Container(
             width: 44,
             height: 44,
@@ -870,11 +1285,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Center(
-              child: Text(icon, style: const TextStyle(fontSize: 22)),
+              child:
+                  Text(icon, style: const TextStyle(fontSize: 22)),
             ),
           ),
           const SizedBox(width: 12),
-          // Text
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -891,8 +1306,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: badgeColor.withOpacity(0.15),
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.full),
+                        borderRadius: BorderRadius.circular(
+                            AppRadius.full),
                         border: Border.all(
                             color: badgeColor.withOpacity(0.3)),
                       ),
@@ -913,7 +1328,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Toggle
           Switch(
             value: value,
             onChanged: onChanged,
@@ -973,7 +1387,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Responsive wrap grid
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1018,8 +1431,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(iconData,
-              size: 14, color: AppColors.textMuted),
+          Icon(iconData, size: 14, color: AppColors.textMuted),
           const SizedBox(width: 8),
           SizedBox(
             width: 100,
@@ -1037,7 +1449,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     );
   }
 
-  Widget _sectionTitle(String emoji, String title, String subtitle) {
+  Widget _sectionTitle(
+      String emoji, String title, String subtitle) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1046,7 +1459,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             Text(emoji, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(title, style: AppTypography.headlineMedium),
+              child: Text(title,
+                  style: AppTypography.headlineMedium),
             ),
           ],
         ),
@@ -1062,15 +1476,16 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       decoration: BoxDecoration(
         color: AppColors.background.withOpacity(0.95),
-        border: const Border(top: BorderSide(color: AppColors.border)),
+        border:
+            const Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         top: false,
         child: _currentStep < _totalSteps - 1
             ? AppButton(
                 label: 'Continue →',
-                onPressed:
-                    formState.isValid || _currentStep > 0 ? _nextStep : null,
+                // ✅ Always enabled — validation happens inside _nextStep
+                onPressed: _nextStep,
                 fullWidth: true,
                 height: 52,
               )
@@ -1078,7 +1493,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 label: genState.isGenerating
                     ? 'Generating your plan...'
                     : '✦  Generate Video Plan',
-                onPressed: genState.isGenerating ? null : _generate,
+                onPressed:
+                    genState.isGenerating ? null : _generate,
                 fullWidth: true,
                 height: 52,
                 isLoading: genState.isGenerating,
@@ -1090,38 +1506,56 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   // ── Helpers ───────────────────────────────────────────────────────────────
   Color _getContentTypeColor(String ct) {
     const m = {
-      'Educational': Color(0xFF4FC3F7), 'Narration':    Color(0xFFCE93D8),
-      'Commentary':  Color(0xFFFFB74D), 'Documentary':  Color(0xFF80CBC4),
-      'Storytelling':Color(0xFFF48FB1), 'Comedy':       Color(0xFFFFF176),
-      'Horror':      Color(0xFFEF9A9A), 'Motivational': Color(0xFFFFCC02),
-      'News':        Color(0xFF90CAF9), 'Realistic':    Color(0xFFA5D6A7),
+      'Educational': Color(0xFF4FC3F7),
+      'Narration': Color(0xFFCE93D8),
+      'Commentary': Color(0xFFFFB74D),
+      'Documentary': Color(0xFF80CBC4),
+      'Storytelling': Color(0xFFF48FB1),
+      'Comedy': Color(0xFFFFF176),
+      'Horror': Color(0xFFEF9A9A),
+      'Motivational': Color(0xFFFFCC02),
+      'News': Color(0xFF90CAF9),
+      'Realistic': Color(0xFFA5D6A7),
     };
     return m[ct] ?? AppColors.primary;
   }
 
   String _getContentTypeIcon(String ct) {
     const m = {
-      'Educational': '🎓', 'Narration':    '📖',
-      'Commentary':  '💬', 'Documentary':  '🎬',
-      'Storytelling':'✨', 'Comedy':       '😂',
-      'Horror':      '👻', 'Motivational': '🔥',
-      'News':        '📰', 'Realistic':    '📽️',
+      'Educational': '🎓',
+      'Narration': '📖',
+      'Commentary': '💬',
+      'Documentary': '🎬',
+      'Storytelling': '✨',
+      'Comedy': '😂',
+      'Horror': '👻',
+      'Motivational': '🔥',
+      'News': '📰',
+      'Realistic': '📽️',
     };
     return m[ct] ?? '🎬';
   }
 
   String _getContentTypeSubtitle(String ct) {
     const m = {
-      'Educational':  'Customize how your lesson is taught and who it\'s for',
-      'Narration':    'Define narrator voice, accent and storytelling style',
-      'Commentary':   'Set your opinion strength and presenter personality',
-      'Documentary':  'Choose documentary style and evidence presentation',
-      'Storytelling': 'Set genre, character type and story arc',
-      'Comedy':       'Choose humor style, pacing and comedy format',
-      'Horror':       'Set scare type, subgenre and atmosphere',
-      'Motivational': 'Define energy level and target audience',
-      'News':         'Set reporting style, tone and presenter format',
-      'Realistic':    'Define character appearance, voice and setting',
+      'Educational':
+          'Customize how your lesson is taught and who it\'s for',
+      'Narration':
+          'Define narrator voice, accent and storytelling style',
+      'Commentary':
+          'Set your opinion strength and presenter personality',
+      'Documentary':
+          'Choose documentary style and evidence presentation',
+      'Storytelling':
+          'Set genre, character type and story arc',
+      'Comedy': 'Choose humor style, pacing and comedy format',
+      'Horror': 'Set scare type, subgenre and atmosphere',
+      'Motivational':
+          'Define energy level and target audience',
+      'News':
+          'Set reporting style, tone and presenter format',
+      'Realistic':
+          'Define character appearance, voice and setting',
     };
     return m[ct] ?? 'Customize your content type settings';
   }
@@ -1133,8 +1567,13 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   int _getClipDuration(String generator) {
     const m = {
-      'Runway': 5, 'Pika': 3, 'Kling': 10,
-      'Sora': 15, 'Luma': 5, 'Haiper': 4, 'Other': 5,
+      'Runway': 5,
+      'Pika': 3,
+      'Kling': 10,
+      'Sora': 15,
+      'Luma': 5,
+      'Haiper': 4,
+      'Other': 5,
     };
     return m[generator] ?? 5;
   }
