@@ -23,7 +23,7 @@ jobs:
       HAS_CERT: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' }}
       HAS_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -112,7 +112,7 @@ jobs:
     env:
       HAS_CERT: ${{ secrets.IOS_CERTIFICATE_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download IPA
         uses: actions/download-artifact@v4
